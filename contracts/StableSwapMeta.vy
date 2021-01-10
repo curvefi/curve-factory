@@ -120,7 +120,6 @@ balances: public(uint256[N_COINS])
 fee: public(uint256)  # fee * 1e10
 admin_fee: public(uint256)  # admin_fee * 1e10
 
-owner: public(address)
 token: public(CurveToken)
 
 # Token corresponding to the pool is always the last one
@@ -136,20 +135,9 @@ future_A: public(uint256)
 initial_A_time: public(uint256)
 future_A_time: public(uint256)
 
-admin_actions_deadline: public(uint256)
-transfer_ownership_deadline: public(uint256)
-future_fee: public(uint256)
-future_admin_fee: public(uint256)
-future_owner: public(address)
-
-is_killed: bool
-kill_deadline: uint256
-KILL_DEADLINE_DT: constant(uint256) = 2 * 30 * 86400
-
 
 @external
 def __init__(
-    _owner: address,
     _coins: address[N_COINS],
     _pool_token: address,
     _base_pool: address,
@@ -174,8 +162,6 @@ def __init__(
     self.future_A = _A * A_PRECISION
     self.fee = _fee
     self.admin_fee = _admin_fee
-    self.owner = _owner
-    self.kill_deadline = block.timestamp + KILL_DEADLINE_DT
     self.token = CurveToken(_pool_token)
 
     self.base_pool = _base_pool
@@ -367,7 +353,6 @@ def add_liquidity(amounts: uint256[N_COINS], min_mint_amount: uint256) -> uint25
     @param min_mint_amount Minimum amount of LP tokens to mint from the deposit
     @return Amount of LP tokens received by depositing
     """
-    assert not self.is_killed  # dev: is killed
 
     amp: uint256 = self._A()
     vp_rate: uint256 = self._vp_rate()
@@ -562,7 +547,6 @@ def exchange(i: int128, j: int128, dx: uint256, min_dy: uint256) -> uint256:
     @param min_dy Minimum amount of `j` to receive
     @return Actual amount of `j` received
     """
-    assert not self.is_killed  # dev: is killed
     rates: uint256[N_COINS] = RATES
     rates[MAX_COIN] = self._vp_rate()
 
@@ -607,7 +591,6 @@ def exchange_underlying(i: int128, j: int128, dx: uint256, min_dy: uint256) -> u
     @param min_dy Minimum amount of `j` to receive
     @return Actual amount of `j` received
     """
-    assert not self.is_killed  # dev: is killed
     rates: uint256[N_COINS] = RATES
     rates[MAX_COIN] = self._vp_rate()
     _base_pool: address = self.base_pool
@@ -768,7 +751,6 @@ def remove_liquidity_imbalance(amounts: uint256[N_COINS], max_burn_amount: uint2
     @param max_burn_amount Maximum amount of LP token to burn in the withdrawal
     @return Actual amount of the LP token burned in the withdrawal
     """
-    assert not self.is_killed  # dev: is killed
 
     amp: uint256 = self._A()
     vp_rate: uint256 = self._vp_rate()
@@ -918,7 +900,6 @@ def remove_liquidity_one_coin(_token_amount: uint256, i: int128, _min_amount: ui
     @param _min_amount Minimum amount of coin to receive
     @return Amount of coin received
     """
-    assert not self.is_killed  # dev: is killed
 
     vp_rate: uint256 = self._vp_rate()
     dy: uint256 = 0
@@ -936,113 +917,6 @@ def remove_liquidity_one_coin(_token_amount: uint256, i: int128, _min_amount: ui
     return dy
 
 
-### Admin functions ###
-@external
-def ramp_A(_future_A: uint256, _future_time: uint256):
-    assert msg.sender == self.owner  # dev: only owner
-    assert block.timestamp >= self.initial_A_time + MIN_RAMP_TIME
-    assert _future_time >= block.timestamp + MIN_RAMP_TIME  # dev: insufficient time
-
-    _initial_A: uint256 = self._A()
-    _future_A_p: uint256 = _future_A * A_PRECISION
-
-    assert _future_A > 0 and _future_A < MAX_A
-    if _future_A_p < _initial_A:
-        assert _future_A_p * MAX_A_CHANGE >= _initial_A
-    else:
-        assert _future_A_p <= _initial_A * MAX_A_CHANGE
-
-    self.initial_A = _initial_A
-    self.future_A = _future_A_p
-    self.initial_A_time = block.timestamp
-    self.future_A_time = _future_time
-
-    log RampA(_initial_A, _future_A_p, block.timestamp, _future_time)
-
-
-@external
-def stop_ramp_A():
-    assert msg.sender == self.owner  # dev: only owner
-
-    current_A: uint256 = self._A()
-    self.initial_A = current_A
-    self.future_A = current_A
-    self.initial_A_time = block.timestamp
-    self.future_A_time = block.timestamp
-    # now (block.timestamp < t1) is always False, so we return saved A
-
-    log StopRampA(current_A, block.timestamp)
-
-
-@external
-def commit_new_fee(new_fee: uint256, new_admin_fee: uint256):
-    assert msg.sender == self.owner  # dev: only owner
-    assert self.admin_actions_deadline == 0  # dev: active action
-    assert new_fee <= MAX_FEE  # dev: fee exceeds maximum
-    assert new_admin_fee <= MAX_ADMIN_FEE  # dev: admin fee exceeds maximum
-
-    _deadline: uint256 = block.timestamp + ADMIN_ACTIONS_DELAY
-    self.admin_actions_deadline = _deadline
-    self.future_fee = new_fee
-    self.future_admin_fee = new_admin_fee
-
-    log CommitNewFee(_deadline, new_fee, new_admin_fee)
-
-
-@external
-def apply_new_fee():
-    assert msg.sender == self.owner  # dev: only owner
-    assert block.timestamp >= self.admin_actions_deadline  # dev: insufficient time
-    assert self.admin_actions_deadline != 0  # dev: no active action
-
-    self.admin_actions_deadline = 0
-    _fee: uint256 = self.future_fee
-    _admin_fee: uint256 = self.future_admin_fee
-    self.fee = _fee
-    self.admin_fee = _admin_fee
-
-    log NewFee(_fee, _admin_fee)
-
-
-@external
-def revert_new_parameters():
-    assert msg.sender == self.owner  # dev: only owner
-
-    self.admin_actions_deadline = 0
-
-
-@external
-def commit_transfer_ownership(_owner: address):
-    assert msg.sender == self.owner  # dev: only owner
-    assert self.transfer_ownership_deadline == 0  # dev: active transfer
-
-    _deadline: uint256 = block.timestamp + ADMIN_ACTIONS_DELAY
-    self.transfer_ownership_deadline = _deadline
-    self.future_owner = _owner
-
-    log CommitNewAdmin(_deadline, _owner)
-
-
-@external
-def apply_transfer_ownership():
-    assert msg.sender == self.owner  # dev: only owner
-    assert block.timestamp >= self.transfer_ownership_deadline  # dev: insufficient time
-    assert self.transfer_ownership_deadline != 0  # dev: no active transfer
-
-    self.transfer_ownership_deadline = 0
-    _owner: address = self.future_owner
-    self.owner = _owner
-
-    log NewAdmin(_owner)
-
-
-@external
-def revert_transfer_ownership():
-    assert msg.sender == self.owner  # dev: only owner
-
-    self.transfer_ownership_deadline = 0
-
-
 @view
 @external
 def admin_balances(i: uint256) -> uint256:
@@ -1051,30 +925,8 @@ def admin_balances(i: uint256) -> uint256:
 
 @external
 def withdraw_admin_fees():
-    assert msg.sender == self.owner  # dev: only owner
-
     for i in range(N_COINS):
         c: address = self.coins[i]
         value: uint256 = ERC20(c).balanceOf(self) - self.balances[i]
         if value > 0:
             assert ERC20(c).transfer(msg.sender, value)
-
-
-@external
-def donate_admin_fees():
-    assert msg.sender == self.owner  # dev: only owner
-    for i in range(N_COINS):
-        self.balances[i] = ERC20(self.coins[i]).balanceOf(self)
-
-
-@external
-def kill_me():
-    assert msg.sender == self.owner  # dev: only owner
-    assert self.kill_deadline > block.timestamp  # dev: deadline has passed
-    self.is_killed = True
-
-
-@external
-def unkill_me():
-    assert msg.sender == self.owner  # dev: only owner
-    self.is_killed = False

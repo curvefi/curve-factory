@@ -487,21 +487,23 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
     xp: uint256[N_COINS] = self._xp(vp_rate)
     _base_pool: address = BASE_POOL
 
-    # Use base_i or base_j if they are >= 0
-    base_i: int128 = i - MAX_COIN
-    base_j: int128 = j - MAX_COIN
-    meta_i: int128 = MAX_COIN
-    meta_j: int128 = MAX_COIN
-    if base_i < 0:
-        meta_i = i
-    if base_j < 0:
-        meta_j = j
-
     x: uint256 = 0
-    if base_i < 0:
+    base_i: int128 = 0
+    base_j: int128 = 0
+    meta_i: int128 = 0
+    meta_j: int128 = 0
+
+    if i != 0:
+        base_i = i - MAX_COIN
+        meta_i = 1
+    if j != 0:
+        base_j = j - MAX_COIN
+        meta_j = 1
+
+    if i == 0:
         x = xp[i] + dx * self.rate * 10**18
     else:
-        if base_j < 0:
+        if j == 0:
             # i is from BasePool
             # At first, get the amount of pool tokens
             base_inputs: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
@@ -522,7 +524,7 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
     dy = (dy - self.fee * dy / FEE_DENOMINATOR)
 
     # If output is going via the metapool
-    if base_j < 0:
+    if j == 0:
         dy /= 10**18
     else:
         # j is from BasePool
@@ -590,27 +592,29 @@ def exchange_underlying(i: int128, j: int128, dx: uint256, min_dy: uint256) -> u
     rates: uint256[N_COINS] = [self.rate, self._vp_rate()]
     _base_pool: address = BASE_POOL
 
-    # Use base_i or base_j if they are >= 0
-    base_i: int128 = i - MAX_COIN
-    base_j: int128 = j - MAX_COIN
-    meta_i: int128 = MAX_COIN
-    meta_j: int128 = MAX_COIN
-    if base_i < 0:
-        meta_i = i
-    if base_j < 0:
-        meta_j = j
     dy: uint256 = 0
+    base_i: int128 = 0
+    base_j: int128 = 0
+    meta_i: int128 = 0
+    meta_j: int128 = 0
+
+    if i != 0:
+        base_i = i - MAX_COIN
+        meta_i = 1
+    if j != 0:
+        base_j = j - MAX_COIN
+        meta_j = 1
 
     # Addresses for input and output coins
     base_coins: address[3] = BASE_COINS
     input_coin: address = ZERO_ADDRESS
-    if base_i < 0:
-        input_coin = self.coins[i]
+    if i == 0:
+        input_coin = self.coins[0]
     else:
         input_coin = base_coins[base_i]
     output_coin: address = ZERO_ADDRESS
-    if base_j < 0:
-        output_coin = self.coins[j]
+    if j == 0:
+        output_coin = self.coins[0]
     else:
         output_coin = base_coins[base_j]
 
@@ -625,12 +629,12 @@ def exchange_underlying(i: int128, j: int128, dx: uint256, min_dy: uint256) -> u
     if j == 4:
         dx_w_fee = ERC20(input_coin).balanceOf(self) - dx_w_fee
 
-    if base_i < 0 or base_j < 0:
+    if i == 0 or j == 0:
         old_balances: uint256[N_COINS] = self.balances
         xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
         x: uint256 = 0
-        if base_i < 0:
+        if i == 0:
             x = xp[i] + dx_w_fee * rates[i] / PRECISION
         else:
             # i is from BasePool
@@ -667,7 +671,7 @@ def exchange_underlying(i: int128, j: int128, dx: uint256, min_dy: uint256) -> u
         self.balances[meta_j] = old_balances[meta_j] - dy - dy_admin_fee
 
         # Withdraw from the base pool if needed
-        if base_j >= 0:
+        if j > 0:
             out_amount: uint256 = ERC20(output_coin).balanceOf(self)
             Curve(_base_pool).remove_liquidity_one_coin(dy, base_j, 0)
             dy = ERC20(output_coin).balanceOf(self) - out_amount

@@ -139,7 +139,6 @@ owner: public(address)
 
 # Token corresponding to the pool is always the last one
 BASE_CACHE_EXPIRES: constant(int128) = 10 * 60  # 10 min
-base_pool: public(address)
 base_virtual_price: public(uint256)
 base_cache_updated: public(uint256)
 base_coins: public(address[BASE_N_COINS])
@@ -150,12 +149,10 @@ future_A: public(uint256)
 initial_A_time: public(uint256)
 future_A_time: public(uint256)
 
-precision_mul: uint256
 rate: uint256
 
 FEE_RECEIVER: constant(address) = 0xA464e6DCda8AC41e03616F95f4BC98a13b8922Dc
-
-
+BASE_POOL: constant(address) = 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7
 
 name: public(String[64])
 symbol: public(String[32])
@@ -166,38 +163,29 @@ totalSupply: public(uint256)
 
 
 @external
-def __init__(
-    _coins: address[N_COINS],
-    _pool_token: address,
-    _base_pool: address,
-    _A: uint256,
-    _fee: uint256,
-):
+def initialize(_coin: address, _A: uint256, _fee: uint256):
     """
     @notice Contract constructor
-    @param _coins Addresses of ERC20 conracts of coins
-    @param _pool_token Address of the token representing LP share
-    @param _base_pool Address of the base pool (which will have a virtual price)
+    @param _coin Addresses of ERC20 conracts of coins
     @param _A Amplification coefficient multiplied by n * (n - 1)
     @param _fee Fee to charge for exchanges
     """
     assert _fee >= 4000000
-    for i in range(N_COINS):
-        assert _coins[i] != ZERO_ADDRESS
-    self.coins = _coins
+    assert self.fee == 0
+
+    self.coins = [_coin, 0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490]
     self.initial_A = _A * A_PRECISION
     self.future_A = _A * A_PRECISION
     self.fee = _fee
 
-    decimals: uint256 = ERC20Extended(_coins[0]).decimals()
+    decimals: uint256 = ERC20Extended(_coin).decimals()
     self.rate = 10 ** (18-decimals)
-    self.precision_mul = 10 ** (36-decimals)
 
-    self.base_pool = _base_pool
-    self.base_virtual_price = Curve(_base_pool).get_virtual_price()
+    base_pool: address = BASE_POOL
+    self.base_virtual_price = Curve(base_pool).get_virtual_price()
     self.base_cache_updated = block.timestamp
     for i in range(BASE_N_COINS):
-        _base_coin: address = Curve(_base_pool).coins(convert(i, uint256))
+        _base_coin: address = Curve(base_pool).coins(i)
         self.base_coins[i] = _base_coin
 
         # approve underlying coins for infinite transfers
@@ -205,7 +193,7 @@ def __init__(
             _base_coin,
             concat(
                 method_id("approve(address,uint256)"),
-                convert(_base_pool, bytes32),
+                convert(base_pool, bytes32),
                 convert(MAX_UINT256, bytes32),
             ),
             max_outsize=32,
@@ -269,7 +257,7 @@ def _xp_mem(_rates: uint256[N_COINS], _balances: uint256[N_COINS]) -> uint256[N_
 @internal
 def _vp_rate() -> uint256:
     if block.timestamp > self.base_cache_updated + BASE_CACHE_EXPIRES:
-        vprice: uint256 = Curve(self.base_pool).get_virtual_price()
+        vprice: uint256 = Curve(BASE_POOL).get_virtual_price()
         self.base_virtual_price = vprice
         self.base_cache_updated = block.timestamp
         return vprice
@@ -281,7 +269,7 @@ def _vp_rate() -> uint256:
 @view
 def _vp_rate_ro() -> uint256:
     if block.timestamp > self.base_cache_updated + BASE_CACHE_EXPIRES:
-        return Curve(self.base_pool).get_virtual_price()
+        return Curve(BASE_POOL).get_virtual_price()
     else:
         return self.base_virtual_price
 
@@ -507,7 +495,7 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
     # dx and dy in underlying units
     vp_rate: uint256 = self._vp_rate_ro()
     xp: uint256[N_COINS] = self._xp(vp_rate)
-    _base_pool: address = self.base_pool
+    _base_pool: address = BASE_POOL
 
     # Use base_i or base_j if they are >= 0
     base_i: int128 = i - MAX_COIN
@@ -521,7 +509,7 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
 
     x: uint256 = 0
     if base_i < 0:
-        x = xp[i] + dx * self.precision_mul
+        x = xp[i] + dx * self.rate * 10**18
     else:
         if base_j < 0:
             # i is from BasePool
@@ -610,7 +598,7 @@ def exchange_underlying(i: int128, j: int128, dx: uint256, min_dy: uint256) -> u
     @return Actual amount of `j` received
     """
     rates: uint256[N_COINS] = [self.rate, self._vp_rate()]
-    _base_pool: address = self.base_pool
+    _base_pool: address = BASE_POOL
 
     # Use base_i or base_j if they are >= 0
     base_i: int128 = i - MAX_COIN

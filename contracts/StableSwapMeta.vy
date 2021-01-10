@@ -909,6 +909,43 @@ def remove_liquidity_one_coin(_token_amount: uint256, i: int128, _min_amount: ui
     return dy
 
 
+@external
+def ramp_A(_future_A: uint256, _future_time: uint256):
+    assert msg.sender == self.owner  # dev: only owner
+    assert block.timestamp >= self.initial_A_time + MIN_RAMP_TIME
+    assert _future_time >= block.timestamp + MIN_RAMP_TIME  # dev: insufficient time
+
+    _initial_A: uint256 = self._A()
+    _future_A_p: uint256 = _future_A * A_PRECISION
+
+    assert _future_A > 0 and _future_A < MAX_A
+    if _future_A_p < _initial_A:
+        assert _future_A_p * MAX_A_CHANGE >= _initial_A
+    else:
+        assert _future_A_p <= _initial_A * MAX_A_CHANGE
+
+    self.initial_A = _initial_A
+    self.future_A = _future_A_p
+    self.initial_A_time = block.timestamp
+    self.future_A_time = _future_time
+
+    log RampA(_initial_A, _future_A_p, block.timestamp, _future_time)
+
+
+@external
+def stop_ramp_A():
+    assert msg.sender == self.owner  # dev: only owner
+
+    current_A: uint256 = self._A()
+    self.initial_A = current_A
+    self.future_A = current_A
+    self.initial_A_time = block.timestamp
+    self.future_A_time = block.timestamp
+    # now (block.timestamp < t1) is always False, so we return saved A
+
+    log StopRampA(current_A, block.timestamp)
+
+
 @view
 @external
 def admin_balances(i: uint256) -> uint256:

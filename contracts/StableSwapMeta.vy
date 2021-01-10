@@ -122,6 +122,7 @@ fee: public(uint256)  # fee * 1e10
 ADMIN_FEE: constant(uint256) = 5000000000
 
 token: public(CurveToken)
+owner: public(address)
 
 # Token corresponding to the pool is always the last one
 BASE_CACHE_EXPIRES: constant(int128) = 10 * 60  # 10 min
@@ -389,16 +390,16 @@ def add_liquidity(amounts: uint256[N_COINS], min_mint_amount: uint256) -> uint25
         for i in range(N_COINS):
             ideal_balance: uint256 = D1 * old_balances[i] / D0
             difference: uint256 = 0
-            if ideal_balance > new_balances[i]:
-                difference = ideal_balance - new_balances[i]
+            new_balance: uint256 = new_balances[i]
+            if ideal_balance > new_balance:
+                difference = ideal_balance - new_balance
             else:
-                difference = new_balances[i] - ideal_balance
+                difference = new_balance - ideal_balance
             fees[i] = base_fee * difference / FEE_DENOMINATOR
-            self.balances[i] = new_balances[i] - (fees[i] * ADMIN_FEE / FEE_DENOMINATOR)
+            self.balances[i] = new_balance - (fees[i] * ADMIN_FEE / FEE_DENOMINATOR)
             new_balances[i] -= fees[i]
         D2: uint256 = self.get_D_mem(rates, new_balances, amp)
         mint_amount = token_supply * (D2 - D0) / D0
-
     else:
         self.balances = new_balances
         mint_amount = D1  # Take the dust if there was any
@@ -721,7 +722,6 @@ def remove_liquidity(_amount: uint256, min_amounts: uint256[N_COINS]) -> uint256
     """
     total_supply: uint256 = self.token.totalSupply()
     amounts: uint256[N_COINS] = empty(uint256[N_COINS])
-    fees: uint256[N_COINS] = empty(uint256[N_COINS])  # Fees are unused but we've got them historically in event
 
     for i in range(N_COINS):
         value: uint256 = self.balances[i] * _amount / total_supply
@@ -732,7 +732,7 @@ def remove_liquidity(_amount: uint256, min_amounts: uint256[N_COINS]) -> uint256
 
     self.token.burnFrom(msg.sender, _amount)  # dev: insufficient funds
 
-    log RemoveLiquidity(msg.sender, amounts, fees, total_supply - _amount)
+    log RemoveLiquidity(msg.sender, amounts, empty(uint256[N_COINS]), total_supply - _amount)
 
     return amounts
 
@@ -749,13 +749,10 @@ def remove_liquidity_imbalance(amounts: uint256[N_COINS], max_burn_amount: uint2
 
     amp: uint256 = self._A()
     rates: uint256[N_COINS] = [self.rate, self._vp_rate()]
-
-    token_supply: uint256 = self.token.totalSupply()
-    assert token_supply != 0  # dev: zero total supply
-
     old_balances: uint256[N_COINS] = self.balances
-    new_balances: uint256[N_COINS] = old_balances
     D0: uint256 = self.get_D_mem(rates, old_balances, amp)
+
+    new_balances: uint256[N_COINS] = old_balances
     for i in range(N_COINS):
         new_balances[i] -= amounts[i]
     D1: uint256 = self.get_D_mem(rates, new_balances, amp)
@@ -765,15 +762,17 @@ def remove_liquidity_imbalance(amounts: uint256[N_COINS], max_burn_amount: uint2
     for i in range(N_COINS):
         ideal_balance: uint256 = D1 * old_balances[i] / D0
         difference: uint256 = 0
-        if ideal_balance > new_balances[i]:
-            difference = ideal_balance - new_balances[i]
+        new_balance: uint256 = new_balances[i]
+        if ideal_balance > new_balance:
+            difference = ideal_balance - new_balance
         else:
-            difference = new_balances[i] - ideal_balance
+            difference = new_balance - ideal_balance
         fees[i] = base_fee * difference / FEE_DENOMINATOR
-        self.balances[i] = new_balances[i] - (fees[i] * ADMIN_FEE / FEE_DENOMINATOR)
+        self.balances[i] = new_balance - (fees[i] * ADMIN_FEE / FEE_DENOMINATOR)
         new_balances[i] -= fees[i]
     D2: uint256 = self.get_D_mem(rates, new_balances, amp)
 
+    token_supply: uint256 = self.token.totalSupply()
     token_amount: uint256 = (D0 - D2) * token_supply / D0
     assert token_amount != 0  # dev: zero tokens burned
     token_amount += 1  # In case of rounding errors - make it unfavorable for the "attacker"
@@ -851,7 +850,7 @@ def _calc_withdraw_one_coin(_token_amount: uint256, i: int128, vp_rate: uint256)
     new_y: uint256 = self.get_y_D(amp, i, xp, D1)
 
     _fee: uint256 = self.fee * N_COINS / (4 * (N_COINS - 1))
-    rates: uint256[N_COINS] = [self.rate, self._vp_rate_ro()]
+    rates: uint256[N_COINS] = [self.rate, vp_rate]
 
     xp_reduced: uint256[N_COINS] = xp
     dy_0: uint256 = (xp[i] - new_y) * PRECISION / rates[i]  # w/o fees

@@ -139,6 +139,7 @@ future_A_time: public(uint256)
 precision_mul: uint256
 rate: uint256
 
+FEE_RECEIVER: constant(address) = 0xA464e6DCda8AC41e03616F95f4BC98a13b8922Dc
 
 @external
 def __init__(
@@ -917,8 +918,30 @@ def admin_balances(i: uint256) -> uint256:
 
 @external
 def withdraw_admin_fees():
-    for i in range(N_COINS):
-        c: address = self.coins[i]
-        value: uint256 = ERC20(c).balanceOf(self) - self.balances[i]
-        if value > 0:
-            assert ERC20(c).transfer(msg.sender, value)
+    rates: uint256[N_COINS] = [self.rate, self._vp_rate()]
+
+    old_balances: uint256[N_COINS] = self.balances
+    xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
+
+    dx: uint256 = ERC20(self.coins[0]).balanceOf(self) - old_balances[0]
+    x: uint256 = xp[0] + dx * rates[0] / PRECISION
+    y: uint256 = self.get_y(0, 1, x, xp)
+
+    dy: uint256 = xp[1] - y - 1  # -1 just in case there were some rounding errors
+    dy_fee: uint256 = dy * self.fee / FEE_DENOMINATOR
+
+    # Convert all to real units
+    dy = (dy - dy_fee) * PRECISION / rates[1]
+    dy_admin_fee: uint256 = dy_fee * ADMIN_FEE / FEE_DENOMINATOR
+    dy_admin_fee = dy_admin_fee * PRECISION / rates[1]
+
+    # Change balances exactly in same way as we change actual ERC20 coin amounts
+    self.balances = [old_balances[0] + dx, old_balances[1] - dy - dy_admin_fee]
+    # When rounding errors happen, we undercharge admin fee in favor of LP
+
+    new_balance: uint256 = old_balances[1] - dy - dy_admin_fee
+    self.balances = [old_balances[0] + dx, new_balance]
+    coin: address = self.coins[1]
+
+    claimable_fee: uint256 = ERC20(coin).balanceOf(self) - new_balance
+    ERC20(coin).transfer(FEE_RECEIVER, claimable_fee)

@@ -302,33 +302,31 @@ def A_precise() -> uint256:
     return self._A()
 
 
-@view
-@internal
-def _xp(_rates: uint256[N_COINS]) -> uint256[N_COINS]:
-    result: uint256[N_COINS] = _rates
-    for i in range(N_COINS):
-        result[i] = result[i] * self.balances[i] / PRECISION
-    return result
-
-
 @pure
 @internal
 def _xp_mem(_rates: uint256[N_COINS], _balances: uint256[N_COINS]) -> uint256[N_COINS]:
-    result: uint256[N_COINS] = _rates
+    result: uint256[N_COINS] = empty(uint256[N_COINS])
     for i in range(N_COINS):
-        result[i] = result[i] * _balances[i] / PRECISION
+        result[i] = _rates[i] * _balances[i] / PRECISION
     return result
+
+
+@view
+@internal
+def _xp(_rates: uint256[N_COINS]) -> uint256[N_COINS]:
+    return self._xp_mem(_rates, self.balances)
 
 
 @internal
 def _vp_rate() -> uint256:
+    vprice: uint256 = 0
     if block.timestamp > self.base_cache_updated + BASE_CACHE_EXPIRES:
-        vprice: uint256 = Curve(BASE_POOL).get_virtual_price()
+        vprice = Curve(BASE_POOL).get_virtual_price()
         self.base_virtual_price = vprice
         self.base_cache_updated = block.timestamp
-        return vprice
     else:
-        return self.base_virtual_price
+        vprice = self.base_virtual_price
+    return vprice
 
 
 @internal
@@ -445,10 +443,10 @@ def add_liquidity(_amounts: uint256[N_COINS], _min_mint_amount: uint256) -> uint
     new_balances: uint256[N_COINS] = old_balances
 
     for i in range(N_COINS):
+        amount: uint256 = _amounts[i]
         if total_supply == 0:
-            assert _amounts[i] > 0  # dev: initial deposit requires all coins
-        # balances store amounts of c-tokens
-        new_balances[i] = old_balances[i] + _amounts[i]
+            assert amount > 0  # dev: initial deposit requires all coins
+        new_balances[i] += amount
 
     # Invariant after change
     D1: uint256 = self.get_D_mem(rates, new_balances, amp)
@@ -834,9 +832,8 @@ def remove_liquidity_imbalance(_amounts: uint256[N_COINS], _max_burn_amount: uin
     D2: uint256 = self.get_D_mem(rates, new_balances, amp)
 
     total_supply: uint256 = self.totalSupply
-    burn_amount: uint256 = (D0 - D2) * total_supply / D0
-    assert burn_amount != 0  # dev: zero tokens burned
-    burn_amount += 1  # In case of rounding errors - make it unfavorable for the "attacker"
+    burn_amount: uint256 = ((D0 - D2) * total_supply / D0) + 1
+    assert burn_amount > 1  # dev: zero tokens burned
     assert burn_amount <= _max_burn_amount, "Slippage screwed you"
 
     total_supply -= burn_amount
@@ -916,18 +913,19 @@ def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _rates: uint256[N_
     D1: uint256 = D0 - _burn_amount * D0 / total_supply
     new_y: uint256 = self.get_y_D(amp, i, xp, D1)
 
-    _fee: uint256 = self.fee * N_COINS / (4 * (N_COINS - 1))
+    base_fee: uint256 = self.fee * N_COINS / (4 * (N_COINS - 1))
 
     xp_reduced: uint256[N_COINS] = xp
     dy_0: uint256 = (xp[i] - new_y) * PRECISION / _rates[i]  # w/o fees
 
     for j in range(N_COINS):
         dx_expected: uint256 = 0
+        xp_j: uint256 = xp[j]
         if j == i:
-            dx_expected = xp[j] * D1 / D0 - new_y
+            dx_expected = xp_j * D1 / D0 - new_y
         else:
-            dx_expected = xp[j] - xp[j] * D1 / D0
-        xp_reduced[j] -= _fee * dx_expected / FEE_DENOMINATOR
+            dx_expected = xp_j - xp_j * D1 / D0
+        xp_reduced[j] -= base_fee * dx_expected / FEE_DENOMINATOR
 
     dy: uint256 = xp_reduced[i] - self.get_y_D(amp, i, xp_reduced, D1)
     dy = (dy - 1) * PRECISION / _rates[i]  # Withdraw less to account for rounding errors

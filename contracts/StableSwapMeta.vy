@@ -182,9 +182,10 @@ def initialize(
     assert _fee >= 4000000
     assert _fee <= 100000000
 
+    A: uint256 = _A * A_PRECISION
     self.coins = [_coin, 0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490]
-    self.initial_A = _A * A_PRECISION
-    self.future_A = _A * A_PRECISION
+    self.initial_A = A
+    self.future_A = A
     self.fee = _fee
     self.owner = _owner
 
@@ -195,9 +196,8 @@ def initialize(
     self.base_virtual_price = Curve(base_pool).get_virtual_price()
     self.base_cache_updated = block.timestamp
 
-    base_coins: address[3] = BASE_COINS
-    for i in range(BASE_N_COINS):
-        ERC20(base_coins[i]).approve(base_pool, MAX_UINT256)
+    for coin in BASE_COINS:
+        ERC20(coin).approve(base_pool, MAX_UINT256)
 
 
 ### ERC20 Functionality ###
@@ -686,6 +686,9 @@ def exchange_underlying(
     @return Actual amount of `j` received
     """
     rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate()]
+    old_balances: uint256[N_COINS] = self.balances
+    xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
+
     base_pool: address = BASE_POOL
     base_coins: address[3] = BASE_COINS
 
@@ -694,6 +697,7 @@ def exchange_underlying(
     base_j: int128 = 0
     meta_i: int128 = 0
     meta_j: int128 = 0
+    x: uint256 = 0
     input_coin: address = ZERO_ADDRESS
     output_coin: address = ZERO_ADDRESS
 
@@ -722,10 +726,6 @@ def exchange_underlying(
         dx_w_fee = ERC20(input_coin).balanceOf(self) - dx_w_fee
 
     if i == 0 or j == 0:
-        old_balances: uint256[N_COINS] = self.balances
-        xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
-
-        x: uint256 = 0
         if i == 0:
             x = xp[i] + dx_w_fee * rates[i] / PRECISION
         else:

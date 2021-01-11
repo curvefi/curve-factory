@@ -423,14 +423,18 @@ def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
 
 @external
 @nonreentrant('lock')
-def add_liquidity(_amounts: uint256[N_COINS], _min_mint_amount: uint256) -> uint256:
+def add_liquidity(
+    _amounts: uint256[N_COINS],
+    _min_mint_amount: uint256,
+    _receiver: address = msg.sender
+) -> uint256:
     """
     @notice Deposit coins into the pool
     @param _amounts List of amounts of coins to deposit
     @param _min_mint_amount Minimum amount of LP tokens to mint from the deposit
+    @param _receiver Address that owns the minted LP tokens
     @return Amount of LP tokens received by depositing
     """
-
     amp: uint256 = self._A()
     rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate()]
     total_supply: uint256 = self.totalSupply
@@ -486,9 +490,9 @@ def add_liquidity(_amounts: uint256[N_COINS], _min_mint_amount: uint256) -> uint
 
     # Mint pool tokens
     total_supply += mint_amount
-    self.balanceOf[msg.sender] += mint_amount
+    self.balanceOf[_receiver] += mint_amount
     self.totalSupply = total_supply
-    log Transfer(ZERO_ADDRESS, msg.sender, mint_amount)
+    log Transfer(ZERO_ADDRESS, _receiver, mint_amount)
 
     log AddLiquidity(msg.sender, _amounts, fees, D1, total_supply)
 
@@ -614,7 +618,13 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
 
 @external
 @nonreentrant('lock')
-def exchange(i: int128, j: int128, dx: uint256, min_dy: uint256) -> uint256:
+def exchange(
+    i: int128,
+    j: int128,
+    dx: uint256,
+    min_dy: uint256,
+    _receiver: address = msg.sender,
+) -> uint256:
     """
     @notice Perform an exchange between two coins
     @dev Index values can be found via the `coins` public getter method
@@ -622,6 +632,7 @@ def exchange(i: int128, j: int128, dx: uint256, min_dy: uint256) -> uint256:
     @param j Index valie of the coin to recieve
     @param dx Amount of `i` being exchanged
     @param min_dy Minimum amount of `j` to receive
+    @param _receiver Address that receives `j`
     @return Actual amount of `j` received
     """
     rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate()]
@@ -648,7 +659,7 @@ def exchange(i: int128, j: int128, dx: uint256, min_dy: uint256) -> uint256:
     self.balances[j] = old_balances[j] - dy - dy_admin_fee
 
     ERC20(self.coins[i]).transferFrom(msg.sender, self, dx)
-    ERC20(self.coins[j]).transfer(msg.sender, dy)
+    ERC20(self.coins[j]).transfer(_receiver, dy)
 
     log TokenExchange(msg.sender, i, dx, j, dy)
 
@@ -657,7 +668,13 @@ def exchange(i: int128, j: int128, dx: uint256, min_dy: uint256) -> uint256:
 
 @external
 @nonreentrant('lock')
-def exchange_underlying(i: int128, j: int128, dx: uint256, min_dy: uint256) -> uint256:
+def exchange_underlying(
+    i: int128,
+    j: int128,
+    dx: uint256,
+    min_dy: uint256,
+    _receiver: address = msg.sender,
+) -> uint256:
     """
     @notice Perform an exchange between two underlying coins
     @dev Index values can be found via the `underlying_coins` public getter method
@@ -665,6 +682,7 @@ def exchange_underlying(i: int128, j: int128, dx: uint256, min_dy: uint256) -> u
     @param j Index valie of the underlying coin to recieve
     @param dx Amount of `i` being exchanged
     @param min_dy Minimum amount of `j` to receive
+    @param _receiver Address that receives `j`
     @return Actual amount of `j` received
     """
     rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate()]
@@ -758,7 +776,7 @@ def exchange_underlying(i: int128, j: int128, dx: uint256, min_dy: uint256) -> u
         Curve(base_pool).exchange(base_i, base_j, dx_w_fee, min_dy)
         dy = ERC20(output_coin).balanceOf(self) - dy
 
-    ERC20(output_coin).transfer(msg.sender, dy)
+    ERC20(output_coin).transfer(_receiver, dy)
 
     log TokenExchangeUnderlying(msg.sender, i, dx, j, dy)
 
@@ -767,12 +785,17 @@ def exchange_underlying(i: int128, j: int128, dx: uint256, min_dy: uint256) -> u
 
 @external
 @nonreentrant('lock')
-def remove_liquidity(_burn_amount: uint256, _min_amounts: uint256[N_COINS]) -> uint256[N_COINS]:
+def remove_liquidity(
+    _burn_amount: uint256,
+    _min_amounts: uint256[N_COINS],
+    _receiver: address = msg.sender
+) -> uint256[N_COINS]:
     """
     @notice Withdraw coins from the pool
     @dev Withdrawal amounts are based on current deposit ratios
     @param _burn_amount Quantity of LP tokens to burn in the withdrawal
     @param _min_amounts Minimum amounts of underlying coins to receive
+    @param _receiver Address that receives the withdrawn coins
     @return List of amounts of coins that were withdrawn
     """
     total_supply: uint256 = self.totalSupply
@@ -784,7 +807,7 @@ def remove_liquidity(_burn_amount: uint256, _min_amounts: uint256[N_COINS]) -> u
         assert value >= _min_amounts[i], "Too few coins in result"
         self.balances[i] = old_balance - value
         amounts[i] = value
-        ERC20(self.coins[i]).transfer(msg.sender, value)
+        ERC20(self.coins[i]).transfer(_receiver, value)
 
     total_supply -= _burn_amount
     self.balanceOf[msg.sender] -= _burn_amount
@@ -798,11 +821,16 @@ def remove_liquidity(_burn_amount: uint256, _min_amounts: uint256[N_COINS]) -> u
 
 @external
 @nonreentrant('lock')
-def remove_liquidity_imbalance(_amounts: uint256[N_COINS], _max_burn_amount: uint256) -> uint256:
+def remove_liquidity_imbalance(
+    _amounts: uint256[N_COINS],
+    _max_burn_amount: uint256,
+    _receiver: address = msg.sender
+) -> uint256:
     """
     @notice Withdraw coins from the pool in an imbalanced amount
     @param _amounts List of amounts of underlying coins to withdraw
     @param _max_burn_amount Maximum amount of LP token to burn in the withdrawal
+    @param _receiver Address that receives the withdrawn coins
     @return Actual amount of the LP token burned in the withdrawal
     """
 
@@ -844,7 +872,7 @@ def remove_liquidity_imbalance(_amounts: uint256[N_COINS], _max_burn_amount: uin
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
         if amount != 0:
-            ERC20(self.coins[i]).transfer(msg.sender, amount)
+            ERC20(self.coins[i]).transfer(_receiver, amount)
 
     log RemoveLiquidityImbalance(msg.sender, _amounts, fees, D1, total_supply)
 
@@ -948,12 +976,18 @@ def calc_withdraw_one_coin(_burn_amount: uint256, i: int128) -> uint256:
 
 @external
 @nonreentrant('lock')
-def remove_liquidity_one_coin(_burn_amount: uint256, i: int128, _min_received: uint256) -> uint256:
+def remove_liquidity_one_coin(
+    _burn_amount: uint256,
+    i: int128,
+    _min_received: uint256,
+    _receiver: address = msg.sender,
+) -> uint256:
     """
     @notice Withdraw a single coin from the pool
     @param _burn_amount Amount of LP tokens to burn in the withdrawal
     @param i Index value of the coin to withdraw
     @param _min_received Minimum amount of coin to receive
+    @param _receiver Address that receives the withdrawn coins
     @return Amount of coin received
     """
 
@@ -970,7 +1004,7 @@ def remove_liquidity_one_coin(_burn_amount: uint256, i: int128, _min_received: u
     self.balanceOf[msg.sender] -= _burn_amount
     log Transfer(msg.sender, ZERO_ADDRESS, _burn_amount)
 
-    ERC20(self.coins[i]).transfer(msg.sender, dy)
+    ERC20(self.coins[i]).transfer(_receiver, dy)
 
     log RemoveLiquidityOne(msg.sender, _burn_amount, dy, total_supply)
 

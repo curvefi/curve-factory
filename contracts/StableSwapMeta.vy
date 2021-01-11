@@ -190,7 +190,7 @@ def initialize(
     self.owner = _owner
 
     decimals: uint256 = ERC20(_coin).decimals()
-    self.rate_multiplier = 10 ** (18-decimals)
+    self.rate_multiplier = 10 ** (36-decimals)
 
     base_pool: address = BASE_POOL
     self.base_virtual_price = Curve(base_pool).get_virtual_price()
@@ -583,7 +583,7 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
         meta_j = 1
 
     if i == 0:
-        x = xp[i] + dx * self.rate_multiplier * 10**18
+        x = xp[i] + dx * (self.rate_multiplier / 10**18)
     else:
         if j == 0:
             # i is from BasePool

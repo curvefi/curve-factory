@@ -63,11 +63,9 @@ is_approved: HashMap[address, HashMap[address, bool]]
 
 
 @external
-def __init__(_pool: address, _token: address):
+def __init__():
     """
     @notice Contract constructor
-    @param _pool Metapool address
-    @param _token Pool LP token address
     """
     base_coins: address[3] = BASE_COINS
     for coin in base_coins:
@@ -118,8 +116,12 @@ def add_liquidity(
 
     # Deposit to the base pool
     if deposit_base:
+        coin: address = BASE_LP_TOKEN
         CurveBase(BASE_POOL).add_liquidity(base_amounts, 0)
-        meta_amounts[MAX_COIN] = ERC20(BASE_LP_TOKEN).balanceOf(self)
+        meta_amounts[MAX_COIN] = ERC20(coin).balanceOf(self)
+        if not self.is_approved[coin][_pool]:
+            ERC20(coin).approve(_pool, MAX_UINT256)
+            self.is_approved[coin][_pool] = True
 
     # Deposit to the meta pool
     return CurveMeta(_pool).add_liquidity(meta_amounts, _min_mint_amount, _receiver)
@@ -162,7 +164,7 @@ def remove_liquidity(_pool: address, _burn_amount: uint256, _min_amounts: uint25
 
 
 @external
-def remove_liquidity_one_coin(_pool: address, _burn_amount: uint256, i: int128, _min_amount: uint256, _receiver: address) -> uint256:
+def remove_liquidity_one_coin(_pool: address, _burn_amount: uint256, i: int128, _min_amount: uint256, _receiver: address=msg.sender) -> uint256:
     """
     @notice Withdraw and unwrap a single coin from the pool
     @param _burn_amount Amount of LP tokens to burn in the withdrawal
@@ -188,7 +190,7 @@ def remove_liquidity_one_coin(_pool: address, _burn_amount: uint256, i: int128, 
 
 
 @external
-def remove_liquidity_imbalance(_pool: address, _amounts: uint256[N_ALL_COINS], _max_burn_amount: uint256, _receiver: address) -> uint256:
+def remove_liquidity_imbalance(_pool: address, _amounts: uint256[N_ALL_COINS], _max_burn_amount: uint256, _receiver: address=msg.sender) -> uint256:
     """
     @notice Withdraw coins from the pool in an imbalanced amount
     @param _amounts List of amounts of underlying coins to withdraw
@@ -208,10 +210,6 @@ def remove_liquidity_imbalance(_pool: address, _amounts: uint256[N_ALL_COINS], _
     amounts_base: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
     amounts_meta: uint256[N_COINS] = empty(uint256[N_COINS])
 
-    # Prepare quantities
-    for i in range(MAX_COIN):
-        amounts_meta[i] = _amounts[i]
-
     for i in range(BASE_N_COINS):
         amount: uint256 = _amounts[MAX_COIN + i]
         if amount != 0:
@@ -224,22 +222,23 @@ def remove_liquidity_imbalance(_pool: address, _amounts: uint256[N_ALL_COINS], _
         amounts_meta[MAX_COIN] += amounts_meta[MAX_COIN] * fee / FEE_DENOMINATOR + 1
 
     # Remove liquidity and deposit leftovers back
-    CurveMeta(_pool).remove_liquidity_imbalance(amounts_meta, _max_burn_amount)
+    burn_amount: uint256 = CurveMeta(_pool).remove_liquidity_imbalance(amounts_meta, _max_burn_amount)
+    ERC20(_pool).transfer(msg.sender, _max_burn_amount - burn_amount)
+
     if _amounts[0] > 0:
         coin: address = CurveMeta(_pool).coins(0)
         ERC20(coin).transfer(_receiver, _amounts[0])
 
-    leftover: uint256 = 0
     if withdraw_base:
         CurveBase(BASE_POOL).remove_liquidity_imbalance(amounts_base, amounts_meta[MAX_COIN])
-        leftover = ERC20(BASE_LP_TOKEN).balanceOf(self)
+        leftover: uint256 = ERC20(BASE_LP_TOKEN).balanceOf(self)
         if leftover > 0:
-            CurveMeta(_pool).add_liquidity([convert(0, uint256), leftover], 0, msg.sender)
+            burn_amount -= CurveMeta(_pool).add_liquidity([convert(0, uint256), leftover], 0, msg.sender)
         base_coins: address[BASE_N_COINS] = BASE_COINS
         for i in range(BASE_N_COINS):
             ERC20(base_coins[i]).transfer(_receiver, amounts_base[i])
 
-    return _max_burn_amount - leftover
+    return burn_amount
 
 
 @view

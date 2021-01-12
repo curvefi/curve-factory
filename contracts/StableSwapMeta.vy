@@ -1056,29 +1056,35 @@ def admin_balances(i: uint256) -> uint256:
 
 @external
 def withdraw_admin_fees():
+    """
+    @notice Withdraw admin fees to the fee distributor
+    @dev Non-3CRV admin fees are swapped prior to withdrawal
+    """
     rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate()]
 
     old_balances: uint256[N_COINS] = self.balances
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
+    new_balance: uint256 = old_balances[1]
     dx: uint256 = ERC20(self.coins[0]).balanceOf(self) - old_balances[0]
-    x: uint256 = xp[0] + dx * rates[0] / PRECISION
-    y: uint256 = self.get_y(0, 1, x, xp)
+    if dx > 0:
+        x: uint256 = xp[0] + dx * rates[0] / PRECISION
+        y: uint256 = self.get_y(0, 1, x, xp)
 
-    dy: uint256 = xp[1] - y - 1  # -1 just in case there were some rounding errors
-    dy_fee: uint256 = dy * self.fee / FEE_DENOMINATOR
+        dy: uint256 = xp[1] - y - 1  # -1 just in case there were some rounding errors
+        dy_fee: uint256 = dy * self.fee / FEE_DENOMINATOR
 
-    # Convert all to real units
-    dy = (dy - dy_fee) * PRECISION / rates[1]
-    dy_admin_fee: uint256 = dy_fee * ADMIN_FEE / FEE_DENOMINATOR
-    dy_admin_fee = dy_admin_fee * PRECISION / rates[1]
+        # Convert all to real units
+        dy = (dy - dy_fee) * PRECISION / rates[1]
+        dy_admin_fee: uint256 = dy_fee * ADMIN_FEE / FEE_DENOMINATOR
+        dy_admin_fee = dy_admin_fee * PRECISION / rates[1]
 
-    # Change balances exactly in same way as we change actual ERC20 coin amounts
-    self.balances = [old_balances[0] + dx, old_balances[1] - dy - dy_admin_fee]
-    # When rounding errors happen, we undercharge admin fee in favor of LP
+        # Change balances exactly in same way as we change actual ERC20 coin amounts
+        self.balances = [old_balances[0] + dx, old_balances[1] - dy - dy_admin_fee]
+        # When rounding errors happen, we undercharge admin fee in favor of LP
 
-    new_balance: uint256 = old_balances[1] - dy - dy_admin_fee
-    self.balances = [old_balances[0] + dx, new_balance]
+        new_balance -= dy + dy_admin_fee
+        self.balances = [old_balances[0] + dx, new_balance]
     coin: address = self.coins[1]
 
     claimable_fee: uint256 = ERC20(coin).balanceOf(self) - new_balance

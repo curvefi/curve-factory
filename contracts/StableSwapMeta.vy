@@ -565,8 +565,8 @@ def get_dy(i: int128, j: int128, dx: uint256) -> uint256:
 @external
 def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
     # dx and dy in underlying units
-    vp_rate: uint256 = self._vp_rate_ro()
-    xp: uint256[N_COINS] = self._xp([self.rate_multiplier, vp_rate])
+    rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate_ro()]
+    xp: uint256[N_COINS] = self._xp(rates)
     base_pool: address = BASE_POOL
 
     x: uint256 = 0
@@ -583,7 +583,7 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
         meta_j = 1
 
     if i == 0:
-        x = xp[i] + dx * (self.rate_multiplier / 10**18)
+        x = xp[i] + dx * (rates[0] / 10**18)
     else:
         if j == 0:
             # i is from BasePool
@@ -591,7 +591,7 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
             base_inputs: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
             base_inputs[base_i] = dx
             # Token amount transformed to underlying "dollars"
-            x = Curve(base_pool).calc_token_amount(base_inputs, True) * vp_rate / PRECISION
+            x = Curve(base_pool).calc_token_amount(base_inputs, True) * rates[1] / PRECISION
             # Accounting for deposit/withdraw fees approximately
             x -= x * Curve(base_pool).fee() / (2 * FEE_DENOMINATOR)
             # Adding number of pool tokens
@@ -607,11 +607,11 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
 
     # If output is going via the metapool
     if j == 0:
-        dy /= 10**18
+        dy /= (rates[0] / 10**18)
     else:
         # j is from BasePool
         # The fee is already accounted for
-        dy = Curve(base_pool).calc_withdraw_one_coin(dy * PRECISION / vp_rate, base_j)
+        dy = Curve(base_pool).calc_withdraw_one_coin(dy * PRECISION / rates[1], base_j)
 
     return dy
 

@@ -190,16 +190,18 @@ def remove_liquidity_one_coin(_pool: address, _burn_amount: uint256, i: int128, 
 
 
 @external
-def remove_liquidity_imbalance(_pool: address, _amounts: uint256[N_ALL_COINS], _max_burn_amount: uint256, _receiver: address=msg.sender) -> uint256:
+def remove_liquidity_imbalance(
+    _pool: address,
+    _amounts: uint256[N_ALL_COINS],
+    _max_burn_amount: uint256,
+    _receiver: address=msg.sender
+) -> uint256:
     """
     @notice Withdraw coins from the pool in an imbalanced amount
     @param _amounts List of amounts of underlying coins to withdraw
     @param _max_burn_amount Maximum amount of LP token to burn in the withdrawal
     @return Actual amount of the LP token burned in the withdrawal
     """
-    # _base_coins: address[BASE_N_COINS] = self.base_coins
-    # _meta_coins: address[N_COINS] = self.coins
-
     fee: uint256 = CurveBase(BASE_POOL).fee() * BASE_N_COINS / (4 * (BASE_N_COINS - 1))
     fee += fee * FEE_IMPRECISION / FEE_DENOMINATOR  # Overcharge to account for imprecision
 
@@ -210,33 +212,45 @@ def remove_liquidity_imbalance(_pool: address, _amounts: uint256[N_ALL_COINS], _
     amounts_base: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
     amounts_meta: uint256[N_COINS] = empty(uint256[N_COINS])
 
+    # determine amounts to withdraw from base pool
     for i in range(BASE_N_COINS):
         amount: uint256 = _amounts[MAX_COIN + i]
         if amount != 0:
             amounts_base[i] = amount
             withdraw_base = True
 
+    # determine amounts to withdraw from metapool
     amounts_meta[0] = _amounts[0]
     if withdraw_base:
         amounts_meta[MAX_COIN] = CurveBase(BASE_POOL).calc_token_amount(amounts_base, False)
         amounts_meta[MAX_COIN] += amounts_meta[MAX_COIN] * fee / FEE_DENOMINATOR + 1
 
-    # Remove liquidity and deposit leftovers back
+    # withdraw from metapool and return the remaining LP tokens
     burn_amount: uint256 = CurveMeta(_pool).remove_liquidity_imbalance(amounts_meta, _max_burn_amount)
     ERC20(_pool).transfer(msg.sender, _max_burn_amount - burn_amount)
 
-    if _amounts[0] > 0:
-        coin: address = CurveMeta(_pool).coins(0)
-        ERC20(coin).transfer(_receiver, _amounts[0])
-
+    # withdraw from base pool
     if withdraw_base:
         CurveBase(BASE_POOL).remove_liquidity_imbalance(amounts_base, amounts_meta[MAX_COIN])
-        leftover: uint256 = ERC20(BASE_LP_TOKEN).balanceOf(self)
+        coin: address = BASE_LP_TOKEN
+        leftover: uint256 = ERC20(coin).balanceOf(self)
+
         if leftover > 0:
+            # if some base pool LP tokens remain, re-deposit them for the caller
+            if not self.is_approved[coin][_pool]:
+                ERC20(coin).approve(_pool, MAX_UINT256)
+                self.is_approved[coin][_pool] = True
             burn_amount -= CurveMeta(_pool).add_liquidity([convert(0, uint256), leftover], 0, msg.sender)
+
+        # transfer withdrawn base pool tokens to caller
         base_coins: address[BASE_N_COINS] = BASE_COINS
         for i in range(BASE_N_COINS):
             ERC20(base_coins[i]).transfer(_receiver, amounts_base[i])
+
+    # transfer withdrawn metapool tokens to caller
+    if _amounts[0] > 0:
+        coin: address = CurveMeta(_pool).coins(0)
+        ERC20(coin).transfer(_receiver, _amounts[0])
 
     return burn_amount
 

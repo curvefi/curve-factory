@@ -13,7 +13,7 @@ def test_add_liquidity(bob, swap, wrapped_coins, initial_amounts, base_pool):
 
     ideal = 2000000 * 10**18
     assert abs(swap.balanceOf(bob) - ideal) <= 1
-    assert abs(swap.totalSupply() - ideal * 2) <= 1
+    assert abs(swap.totalSupply() - ideal * 2) <= 2
 
 
 @pytest.mark.parametrize("idx", range(2))

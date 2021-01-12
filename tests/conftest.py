@@ -1,6 +1,22 @@
 import pytest
 from brownie import Contract
-from brownie_tokens import MintableForkToken
+from brownie_tokens import ERC20, MintableForkToken
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--decimals",
+        action="store",
+        default=18,
+        type=int,
+        help="Number of decimal places for test token",
+    )
+    parser.addoption(
+        "--return_value",
+        action="store",
+        default="True",
+        help="Return value for test token",
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -66,8 +82,11 @@ def base_lp_token():
 
 
 @pytest.fixture(scope="module")
-def coin():
-    yield MintableForkToken("0x36f3fd68e7325a35eb768f1aedaae9ea0689d723")
+def coin(pytestconfig):
+    yield ERC20(
+        decimals=pytestconfig.getoption('decimals'),
+        success=eval(pytestconfig.getoption('return_value')),
+    )
 
 
 @pytest.fixture(scope="module")

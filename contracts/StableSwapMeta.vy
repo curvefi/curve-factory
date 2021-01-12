@@ -190,6 +190,7 @@ def initialize(
     self.owner = _owner
 
     decimals: uint256 = ERC20(_coin).decimals()
+    assert decimals < 19
     self.rate_multiplier = 10 ** (36-decimals)
 
     base_pool: address = BASE_POOL
@@ -1071,7 +1072,7 @@ def withdraw_admin_fees():
         x: uint256 = xp[0] + dx * rates[0] / PRECISION
         y: uint256 = self.get_y(0, 1, x, xp)
 
-        dy: uint256 = xp[1] - y - 1  # -1 just in case there were some rounding errors
+        dy: uint256 = xp[1] - y - 1
         dy_fee: uint256 = dy * self.fee / FEE_DENOMINATOR
 
         # Convert all to real units
@@ -1079,13 +1080,9 @@ def withdraw_admin_fees():
         dy_admin_fee: uint256 = dy_fee * ADMIN_FEE / FEE_DENOMINATOR
         dy_admin_fee = dy_admin_fee * PRECISION / rates[1]
 
-        # Change balances exactly in same way as we change actual ERC20 coin amounts
-        self.balances = [old_balances[0] + dx, old_balances[1] - dy - dy_admin_fee]
-        # When rounding errors happen, we undercharge admin fee in favor of LP
-
         new_balance -= dy + dy_admin_fee
         self.balances = [old_balances[0] + dx, new_balance]
-    coin: address = self.coins[1]
 
+    coin: address = self.coins[1]
     claimable_fee: uint256 = ERC20(coin).balanceOf(self) - new_balance
     ERC20(coin).transfer(FEE_RECEIVER, claimable_fee)

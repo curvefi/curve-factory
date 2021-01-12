@@ -81,9 +81,11 @@ def underlying_decimals(underlying_coins):
 
 
 @pytest.fixture(scope="module")
-def initial_amounts(wrapped_decimals):
+def initial_amounts(wrapped_decimals, base_pool):
     # 1e6 of each coin - used to make an even initial deposit in many test setups
-    yield [10**i * 1000000 for i in wrapped_decimals]
+    amounts = [10**i * 1000000 for i in wrapped_decimals]
+    amounts[1] = amounts[1] * 10**18 // base_pool.get_virtual_price()
+    yield amounts
 
 
 @pytest.fixture(scope="module")

@@ -1,0 +1,154 @@
+import pytest
+from brownie import Contract
+from brownie_tokens import MintableForkToken
+
+
+@pytest.fixture(autouse=True)
+def isolation_setup(fn_isolation):
+    pass
+
+
+@pytest.fixture(scope="session")
+def alice(accounts):
+    yield accounts[0]
+
+
+@pytest.fixture(scope="session")
+def bob(accounts):
+    yield accounts[1]
+
+
+@pytest.fixture(scope="session")
+def charlie(accounts):
+    yield accounts[2]
+
+
+@pytest.fixture(scope="module")
+def factory(StableSwapMeta, Factory, alice):
+    implementation = StableSwapMeta.deploy({'from': alice})
+    yield Factory.deploy(implementation, alice, {'from': alice})
+
+
+@pytest.fixture(scope="module")
+def swap(StableSwapMeta, alice, factory, coin):
+    tx = factory.deploy_pool("Test Swap", "TST", coin, 200, 4000000, {'from': alice})
+    yield StableSwapMeta.at(tx.return_value)
+
+
+@pytest.fixture(scope="module")
+def zap(DepositZap, alice):
+    yield DepositZap.deploy({'from': alice})
+
+
+@pytest.fixture(scope="module")
+def base_pool():
+    yield Contract("0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7")
+
+
+@pytest.fixture(scope="module")
+def wrapped_coins(coin, base_lp_token):
+    yield [coin, base_lp_token]
+
+
+@pytest.fixture(scope="module")
+def underlying_coins(coin):
+    BASE_COINS = [
+        "0x6B175474E89094C44Da98b954EedeAC495271d0F",  # DAI
+        "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC
+        "0xdAC17F958D2ee523a2206206994597C13D831ec7",  # USDT
+    ]
+    yield [coin] + [MintableForkToken(i) for i in BASE_COINS]
+
+
+@pytest.fixture(scope="module")
+def base_lp_token():
+    yield MintableForkToken("0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490")
+
+
+@pytest.fixture(scope="module")
+def coin():
+    yield MintableForkToken("0x36f3fd68e7325a35eb768f1aedaae9ea0689d723")
+
+
+@pytest.fixture(scope="module")
+def wrapped_decimals(wrapped_coins):
+    yield [i.decimals() for i in wrapped_coins]
+
+
+@pytest.fixture(scope="module")
+def underlying_decimals(underlying_coins):
+    yield [i.decimals() for i in underlying_coins]
+
+
+@pytest.fixture(scope="module")
+def initial_amounts(wrapped_decimals):
+    # 1e6 of each coin - used to make an even initial deposit in many test setups
+    yield [10**i * 1000000 for i in wrapped_decimals]
+
+
+@pytest.fixture(scope="module")
+def initial_amounts_underlying(underlying_decimals):
+    # 1e6 of each coin - used to make an even initial deposit in many test setups
+    amounts = [10**i * 1000000 for i in underlying_decimals]
+    amounts[1:] = [i//3 for i in amounts[1:]]
+    yield amounts
+
+
+# shared logic for pool and base_pool setup fixtures
+
+
+def _add_liquidity(acct, swap, coins, amounts):
+    swap.add_liquidity(amounts, 0, {'from': acct})
+
+
+def _mint(acct, wrapped_coins, wrapped_amounts, underlying_coins, underlying_amounts):
+    for coin, amount in zip(wrapped_coins, wrapped_amounts):
+        coin._mint_for_testing(acct, amount, {'from': acct})
+
+    for coin, amount in zip(underlying_coins[1:], underlying_amounts[1:]):
+        coin._mint_for_testing(acct, amount, {'from': acct})
+
+
+def _approve(owner, spender, *coins):
+    for coin in set(x for i in coins for x in i):
+        coin.approve(spender, 2**256-1, {'from': owner})
+
+
+# pool setup fixtures
+
+@pytest.fixture(scope="module")
+def add_initial_liquidity(alice, mint_alice, approve_alice, underlying_coins, swap, initial_amounts):
+    # mint (10**7 * precision) of each coin in the pool
+    _add_liquidity(alice, swap, underlying_coins, initial_amounts)
+
+
+@pytest.fixture(scope="module")
+def mint_bob(bob, underlying_coins, wrapped_coins, initial_amounts, initial_amounts_underlying):
+    _mint(bob, wrapped_coins, initial_amounts, underlying_coins, initial_amounts_underlying)
+
+
+@pytest.fixture(scope="module")
+def approve_bob(bob, swap, underlying_coins, wrapped_coins):
+    _approve(bob, swap, underlying_coins, wrapped_coins)
+
+
+@pytest.fixture(scope="module")
+def mint_alice(alice, underlying_coins, wrapped_coins, initial_amounts, initial_amounts_underlying):
+    _mint(alice, wrapped_coins, initial_amounts, underlying_coins, initial_amounts_underlying)
+
+
+@pytest.fixture(scope="module")
+def approve_alice(alice, swap, underlying_coins, wrapped_coins):
+    _approve(alice, swap, underlying_coins, wrapped_coins)
+
+
+@pytest.fixture(scope="module")
+def approve_zap(alice, bob, zap, swap, underlying_coins, initial_amounts_underlying):
+    for underlying, amount in zip(underlying_coins, initial_amounts_underlying):
+        if underlying == "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE":
+            continue
+        underlying.approve(zap, 2**256-1, {'from': alice})
+        underlying.approve(zap, 2**256-1, {'from': bob})
+
+    swap.approve(zap, 2**256-1, {'from': alice})
+    swap.approve(zap, 2**256-1, {'from': bob})

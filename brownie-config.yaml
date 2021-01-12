@@ -1,1 +1,4 @@
 autofetch_sources: true
+
+networks:
+  default: mainnet-fork

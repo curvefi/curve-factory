@@ -39,6 +39,11 @@ def charlie(accounts):
     yield accounts[2]
 
 
+@pytest.fixture(scope="session")
+def dave(accounts):
+    yield accounts[3]
+
+
 @pytest.fixture(scope="module")
 def factory(StableSwapMeta, Factory, alice):
     implementation = StableSwapMeta.deploy({'from': alice})

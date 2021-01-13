@@ -8,7 +8,6 @@ pytestmark = pytest.mark.usefixtures("add_initial_liquidity")
 def test_remove_balanced(alice, swap, wrapped_coins, divisor, initial_amounts):
     initial_balance = swap.balanceOf(alice)
     amounts = [i // divisor for i in initial_amounts]
-    # max_burn = initial_balance // divisor
     swap.remove_liquidity_imbalance(amounts, initial_balance, {'from': alice})
 
     for i, coin in enumerate(wrapped_coins):
@@ -16,7 +15,6 @@ def test_remove_balanced(alice, swap, wrapped_coins, divisor, initial_amounts):
         assert coin.balanceOf(swap) == initial_amounts[i] - amounts[i]
 
     assert swap.balanceOf(alice) / initial_balance == 1 - 1 / divisor
-    # assert abs(swap.totalSupply() - (2000000 * 10**18 - max_burn)) <= 1
 
 
 @pytest.mark.parametrize("idx", range(2))

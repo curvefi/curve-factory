@@ -10,7 +10,6 @@ interface ERC20:
     def transfer(_receiver: address, _amount: uint256): nonpayable
     def transferFrom(_sender: address, _receiver: address, _amount: uint256): nonpayable
     def approve(_spender: address, _amount: uint256): nonpayable
-    def decimals() -> uint256: view
     def balanceOf(_owner: address) -> uint256: view
 
 interface Curve:
@@ -161,6 +160,7 @@ def initialize(
     _name: String[32],
     _symbol: String[10],
     _coin: address,
+    _decimals: uint256,
     _A: uint256,
     _fee: uint256,
     _owner: address
@@ -189,9 +189,8 @@ def initialize(
     self.fee = _fee
     self.owner = _owner
 
-    decimals: uint256 = ERC20(_coin).decimals()
-    assert decimals < 19
-    self.rate_multiplier = 10 ** (36-decimals)
+    assert _decimals < 19
+    self.rate_multiplier = 10 ** (36 - _decimals)
 
     base_pool: address = BASE_POOL
     self.base_virtual_price = Curve(base_pool).get_virtual_price()

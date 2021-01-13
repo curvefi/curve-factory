@@ -6,10 +6,9 @@ pytestmark = pytest.mark.usefixtures("add_initial_liquidity")
 
 
 def test_virtual_price(chain, bob, swap, initial_amounts):
+    chain.mine(timedelta=86400)
     virtual_price = swap.get_virtual_price()
-
-    chain.sleep(86400)
-    chain.mine()
+    chain.mine(timedelta=60)
 
     assert virtual_price == swap.get_virtual_price()
 

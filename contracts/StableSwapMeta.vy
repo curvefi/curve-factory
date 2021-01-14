@@ -124,7 +124,7 @@ MAX_A_CHANGE: constant(uint256) = 10
 MIN_RAMP_TIME: constant(uint256) = 86400
 
 
-owner: public(address)
+admin: public(address)
 
 coins: public(address[N_COINS])
 balances: public(uint256[N_COINS])
@@ -163,7 +163,7 @@ def initialize(
     _decimals: uint256,
     _A: uint256,
     _fee: uint256,
-    _owner: address
+    _admin: address,
 ):
     """
     @notice Contract initializer
@@ -171,33 +171,30 @@ def initialize(
     @param _A Amplification coefficient multiplied by n * (n - 1)
     @param _fee Fee to charge for exchanges
     """
-    log Transfer(ZERO_ADDRESS, self, 0)
-    self.name = concat("Curve.fi Factory Metapool: ", _name)
-    self.symbol = concat(_symbol, "3CRV-f")
-
-    # check if fee was already set to prevent initializing contract twice
-    assert self.fee == 0
-
+     # things break if a token has >18 decimals
+    assert _decimals < 19
     # fee must be between 0.04% and 1%
     assert _fee >= 4000000
     assert _fee <= 100000000
+    # check if fee was already set to prevent initializing contract twice
+    assert self.fee == 0
 
     A: uint256 = _A * A_PRECISION
     self.coins = [_coin, 0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490]
+    self.rate_multiplier = 10 ** (36 - _decimals)
     self.initial_A = A
     self.future_A = A
     self.fee = _fee
-    self.owner = _owner
+    self.admin = _admin
 
-    assert _decimals < 19
-    self.rate_multiplier = 10 ** (36 - _decimals)
-
-    base_pool: address = BASE_POOL
-    self.base_virtual_price = Curve(base_pool).get_virtual_price()
-    self.base_cache_updated = block.timestamp
+    self.name = concat("Curve.fi Factory Metapool: ", _name)
+    self.symbol = concat(_symbol, "3CRV-f")
 
     for coin in BASE_COINS:
-        ERC20(coin).approve(base_pool, MAX_UINT256)
+        ERC20(coin).approve(BASE_POOL, MAX_UINT256)
+
+    # fire a transfer event so block explorers identify the contract as an ERC20
+    log Transfer(ZERO_ADDRESS, self, 0)
 
 
 ### ERC20 Functionality ###
@@ -288,6 +285,12 @@ def _A() -> uint256:
 
     else:  # when t1 == 0 or block.timestamp >= t1
         return A1
+
+
+@view
+@external
+def admin_fee() -> uint256:
+    return ADMIN_FEE
 
 
 @view
@@ -1013,7 +1016,7 @@ def remove_liquidity_one_coin(
 
 @external
 def ramp_A(_future_A: uint256, _future_time: uint256):
-    assert msg.sender == self.owner  # dev: only owner
+    assert msg.sender == self.admin  # dev: only owner
     assert block.timestamp >= self.initial_A_time + MIN_RAMP_TIME
     assert _future_time >= block.timestamp + MIN_RAMP_TIME  # dev: insufficient time
 
@@ -1036,7 +1039,7 @@ def ramp_A(_future_A: uint256, _future_time: uint256):
 
 @external
 def stop_ramp_A():
-    assert msg.sender == self.owner  # dev: only owner
+    assert msg.sender == self.admin  # dev: only owner
 
     current_A: uint256 = self._A()
     self.initial_A = current_A

@@ -61,7 +61,10 @@ interface CurvePool:
     ): nonpayable
 
 
-owner: public(address)
+ADDRESS_PROVIDER: constant(address) = 0x0000000022D53366457F9d5E68Ec105046FC4383
+
+admin: public(address)
+future_admin: public(address)
 
 pool_list: public(address[4294967296])   # master list of pools
 pool_count: public(uint256)              # actual length of pool_list
@@ -77,6 +80,10 @@ base_pool_data: HashMap[address, BasePoolArray]
 markets: HashMap[uint256, address[4294967296]]
 market_counts: HashMap[uint256, uint256]
 
+
+@external
+def __init__():
+    self.admin = msg.sender
 
 
 @view
@@ -99,8 +106,6 @@ def find_pool_for_coins(_from: address, _to: address, i: uint256 = 0) -> address
 def get_n_coins(_pool: address) -> (uint256, uint256):
     """
     @notice Get the number of coins in a pool
-    @dev For non-metapools, both returned values are identical
-         even when the pool does not use wrapping/lending
     @param _pool Pool address
     @return Number of wrapped coins, number of underlying coins
     """
@@ -142,14 +147,16 @@ def get_underlying_coins(_pool: address) -> address[MAX_COINS]:
 
 @view
 @external
-def get_decimals(_pool: address) -> (uint256, uint256):
+def get_decimals(_pool: address) -> uint256[2]:
     """
     @notice Get decimal places for each coin within a pool
     @dev For pools using lending, these are the wrapped coin decimal places
     @param _pool Pool address
     @return uint256 list of decimals
     """
-    return self.pool_data[_pool].decimals, 18
+    decimals: uint256[2] = [0, 18]
+    decimals[0] = self.pool_data[_pool].decimals
+    return decimals
 
 
 @view
@@ -178,7 +185,7 @@ def get_underlying_decimals(_pool: address) -> uint256[MAX_COINS]:
 
 @view
 @external
-def get_rates(_pool: address) -> (uint256, uint256):
+def get_rates(_pool: address) -> uint256[2]:
     """
     @notice Get rates between coins and underlying coins
     @dev For coins where there is no underlying coin, or where
@@ -187,7 +194,9 @@ def get_rates(_pool: address) -> (uint256, uint256):
     @param _pool Pool address
     @return Rates between coins and underlying coins
     """
-    return 10**18, CurvePool(self.pool_data[_pool].base_pool).get_virtual_price()
+    rates: uint256[2] = [10**18, 0]
+    rates[1] = CurvePool(self.pool_data[_pool].base_pool).get_virtual_price()
+    return rates
 
 
 @view
@@ -236,13 +245,13 @@ def get_A(_pool: address) -> uint256:
 
 @view
 @external
-def get_fee(_pool: address) -> uint256:
+def get_fees(_pool: address) -> (uint256, uint256):
     """
     @notice Get the fees for a pool
     @dev Fees are expressed as integers
     @return Pool fee as uint256 with 1e10 precision
     """
-    return CurvePool(_pool).fee()
+    return CurvePool(_pool).fee(), CurvePool(_pool).admin_fee()
 
 
 @view
@@ -273,6 +282,8 @@ def get_coin_indices(
     if coin in [_from, _to]:
         base_lp_token: address = self.pool_data[_pool].coins[1]
         if base_lp_token in [_from, _to]:
+            # True and False convert to 1 and 0 - a bit of voodoo that
+            # works because we only ever have 2 non-underlying coins
             return convert(_to == coin, int128), convert(_from == coin, int128), False
 
     base_pool: address = self.pool_data[_pool].base_pool
@@ -309,12 +320,10 @@ def add_base_pool(
     @dev Only callable by admin
     @param _base_pool Pool address to add
     """
-
-    address_provider: address = 0x0000000022D53366457F9d5E68Ec105046FC4383
-    assert msg.sender == AddressProvider(address_provider).admin()  # dev: admin-only function
+    assert msg.sender == self.admin  # dev: admin-only function
     assert self.base_pool_data[_base_pool].coins[0] == ZERO_ADDRESS  # dev: pool exists
 
-    registry: address = AddressProvider(address_provider).get_registry()
+    registry: address = AddressProvider(ADDRESS_PROVIDER).get_registry()
     n_coins: uint256 = Registry(registry).get_n_coins(_base_pool)
 
     # add pool to pool_list
@@ -355,7 +364,7 @@ def deploy_metapool(
 
     decimals: uint256 = ERC20(_coin).decimals()
     pool: address = create_forwarder_to(implementation)
-    CurvePool(pool).initialize(_name, _symbol, _coin, decimals, _A, _fee, self.owner)
+    CurvePool(pool).initialize(_name, _symbol, _coin, decimals, _A, _fee, self.admin)
 
     # add pool to pool_list
     length: uint256 = self.pool_count
@@ -383,3 +392,26 @@ def deploy_metapool(
             break
 
     return pool
+
+
+@external
+def commit_transfer_ownership(addr: address):
+    """
+    @notice Transfer ownership of GaugeController to `addr`
+    @param addr Address to have ownership transferred to
+    """
+    assert msg.sender == self.admin  # dev: admin only
+
+    self.future_admin = addr
+
+
+@external
+def accept_transfer_ownership():
+    """
+    @notice Accept a pending ownership transfer
+    """
+    _admin: address = self.future_admin
+    assert msg.sender == _admin  # dev: future admin only
+
+    self.admin = _admin
+    self.future_admin = ZERO_ADDRESS

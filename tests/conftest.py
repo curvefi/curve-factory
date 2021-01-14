@@ -65,7 +65,18 @@ def zap(DepositZap, alice):
 
 @pytest.fixture(scope="module")
 def base_pool():
-    yield Contract("0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7")
+    pool = Contract("0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7")
+
+    # ensure the base pool is balanced so our tests are deterministic
+    max_balance = max([pool.balances(0), pool.balances(1) * 10**12, pool.balances(2) * 10**12])
+    ideal_balances = [max_balance, max_balance // 10**12, max_balance // 10**12]
+    for i, amount in enumerate(ideal_balances):
+        balance = pool.balances(i)
+        if balance < amount:
+            MintableForkToken(pool.coins(i))._mint_for_testing(pool, amount - balance)
+    pool.donate_admin_fees({'from': pool.owner()})
+
+    yield pool
 
 
 @pytest.fixture(scope="module")

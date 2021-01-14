@@ -1,12 +1,10 @@
 # @version 0.2.8
 """
-@title Curve Registry
+@title Curve Factory
 @license MIT
 @author Curve.Fi
+@notice Permissionless pool deployer and registry
 """
-
-MAX_COINS: constant(int128) = 8
-
 
 struct PoolArray:
     base_pool: address
@@ -37,17 +35,8 @@ interface ERC20:
 
 interface CurvePool:
     def A() -> uint256: view
-    def future_A() -> uint256: view
     def fee() -> uint256: view
     def admin_fee() -> uint256: view
-    def future_fee() -> uint256: view
-    def future_admin_fee() -> uint256: view
-    def future_owner() -> address: view
-    def initial_A() -> uint256: view
-    def initial_A_time() -> uint256: view
-    def future_A_time() -> uint256: view
-    def coins(i: uint256) -> address: view
-    def underlying_coins(i: uint256) -> address: view
     def balances(i: uint256) -> uint256: view
     def admin_balances(i: uint256) -> uint256: view
     def get_virtual_price() -> uint256: view
@@ -62,6 +51,7 @@ interface CurvePool:
     ): nonpayable
 
 
+MAX_COINS: constant(int128) = 8
 ADDRESS_PROVIDER: constant(address) = 0x0000000022D53366457F9d5E68Ec105046FC4383
 
 admin: public(address)
@@ -119,7 +109,6 @@ def get_n_coins(_pool: address) -> (uint256, uint256):
 def get_coins(_pool: address) -> address[2]:
     """
     @notice Get the coins within a pool
-    @dev For pools using lending, these are the wrapped coin addresses
     @param _pool Pool address
     @return List of coin addresses
     """
@@ -131,7 +120,6 @@ def get_coins(_pool: address) -> address[2]:
 def get_underlying_coins(_pool: address) -> address[MAX_COINS]:
     """
     @notice Get the underlying coins within a pool
-    @dev For pools that do not lend, returns the same value as `get_coins`
     @param _pool Pool address
     @return List of coin addresses
     """
@@ -151,7 +139,6 @@ def get_underlying_coins(_pool: address) -> address[MAX_COINS]:
 def get_decimals(_pool: address) -> uint256[2]:
     """
     @notice Get decimal places for each coin within a pool
-    @dev For pools using lending, these are the wrapped coin decimal places
     @param _pool Pool address
     @return uint256 list of decimals
     """
@@ -165,7 +152,6 @@ def get_decimals(_pool: address) -> uint256[2]:
 def get_underlying_decimals(_pool: address) -> uint256[MAX_COINS]:
     """
     @notice Get decimal places for each underlying coin within a pool
-    @dev For pools that do not lend, returns the same value as `get_decimals`
     @param _pool Pool address
     @return uint256 list of decimals
     """
@@ -188,12 +174,9 @@ def get_underlying_decimals(_pool: address) -> uint256[MAX_COINS]:
 @external
 def get_rates(_pool: address) -> uint256[2]:
     """
-    @notice Get rates between coins and underlying coins
-    @dev For coins where there is no underlying coin, or where
-         the underlying coin cannot be swapped, the rate is
-         given as 1e18
+    @notice Get rates for coins within a pool
     @param _pool Pool address
-    @return Rates between coins and underlying coins
+    @return Rates for each coin, precision normalized to 10**18
     """
     rates: uint256[2] = [10**18, 0]
     rates[1] = CurvePool(self.pool_data[_pool].base_pool).get_virtual_price()
@@ -217,9 +200,8 @@ def get_balances(_pool: address) -> uint256[2]:
 def get_underlying_balances(_pool: address) -> uint256[MAX_COINS]:
     """
     @notice Get balances for each underlying coin within a pool
-    @dev  For pools that do not lend, returns the same value as `get_balances`
     @param _pool Pool address
-    @return uint256 list of underlyingbalances
+    @return uint256 list of underlying balances
     """
 
     underlying_balances: uint256[MAX_COINS] = empty(uint256[MAX_COINS])
@@ -241,6 +223,11 @@ def get_underlying_balances(_pool: address) -> uint256[MAX_COINS]:
 @view
 @external
 def get_A(_pool: address) -> uint256:
+    """
+    @notice Get the amplfication co-efficient for a pool
+    @param _pool Pool address
+    @return uint256 A
+    """
     return CurvePool(_pool).A()
 
 
@@ -320,6 +307,7 @@ def add_base_pool(
     @notice Add a pool to the registry
     @dev Only callable by admin
     @param _base_pool Pool address to add
+    @param _metapool_implementation Implementation address to use when deploying metapools
     """
     assert msg.sender == self.admin  # dev: admin-only function
     assert self.base_pool_data[_base_pool].coins[0] == ZERO_ADDRESS  # dev: pool exists
@@ -357,9 +345,23 @@ def deploy_metapool(
     _fee: uint256,
 ) -> address:
     """
-    @notice Add a pool to the registry
-    @dev Only callable by admin
-    @param _base_pool Pool address to add
+    @notice Deploy a new metapool
+    @param _base_pool Address of the base pool to use
+                      within the metapool
+    @param _name Name of the new metapool
+    @param _symbol Symbol for the new metapool - will be
+                   concatenated with the base pool symbol
+    @param _coin Address of the coin being used in the metapool
+    @param _A Amplification co-efficient - a higher value here means
+              less tolerance for imbalance within the pool's assets.
+              Suggested values include:
+               * Uncollateralized algorithmic stablecoins: 5-10
+               * Non-redeemable, collateralized assets: 100
+               * Redeemable assets: 200-400
+    @param _fee Trade fee, given as an integer with 1e10 precision. The
+                minimum fee is 0.04% (4000000), the maximum is 1% (100000000).
+                50% of the fee is distributed to veCRV holders.
+    @return Address of the deployed pool
     """
     implementation: address = self.base_pool_data[_base_pool].implementation
     assert implementation != ZERO_ADDRESS
@@ -399,8 +401,8 @@ def deploy_metapool(
 @external
 def commit_transfer_ownership(addr: address):
     """
-    @notice Transfer ownership of GaugeController to `addr`
-    @param addr Address to have ownership transferred to
+    @notice Transfer ownership of this contract to `addr`
+    @param addr Address of the new owner
     """
     assert msg.sender == self.admin  # dev: admin only
 
@@ -411,6 +413,7 @@ def commit_transfer_ownership(addr: address):
 def accept_transfer_ownership():
     """
     @notice Accept a pending ownership transfer
+    @dev Only callable by the new owner
     """
     _admin: address = self.future_admin
     assert msg.sender == _admin  # dev: future admin only

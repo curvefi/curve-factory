@@ -3,6 +3,7 @@
 @title Curve StableSwap Owner Proxy
 @author Curve Finance
 @license MIT
+@notice Allows DAO ownership of `Factory` and it's deployed pools
 """
 
 interface Curve:
@@ -105,6 +106,7 @@ def stop_ramp_A(_pool: address):
 
 @external
 def add_base_pool(_target: address, _base_pool: address, _metapool_implementation: address):
+
     assert msg.sender == self.parameter_admin
 
     Factory(_target).add_base_pool(_base_pool, _metapool_implementation)
@@ -114,6 +116,8 @@ def add_base_pool(_target: address, _base_pool: address, _metapool_implementatio
 def commit_transfer_ownership(_target: address, _new_admin: address):
     """
     @notice Transfer ownership of `_target` to `_new_admin`
+    @param _target `Factory` deployment address
+    @param _new_admin New admin address
     """
     assert msg.sender == self.parameter_admin  # dev: admin only
 
@@ -124,5 +128,6 @@ def commit_transfer_ownership(_target: address, _new_admin: address):
 def accept_transfer_ownership(_target: address):
     """
     @notice Accept a pending ownership transfer
+    @param _target `Factory` deployment address
     """
     Factory(_target).accept_transfer_ownership()

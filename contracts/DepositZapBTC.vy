@@ -1,11 +1,8 @@
 # @version 0.2.8
 """
-@title "Zap" Depositer for metapool
+@title "Zap" Depositer for permissionless BTC metapools
 @author Curve.Fi
-@license Copyright (c) Curve.Fi, 2020 - all rights reserved
-@notice deposit/withdraw to Curve pool without too many transactions
-@dev This contract is only a template, pool-specific constants
-     must be set prior to compiling
+@license Copyright (c) Curve.Fi, 2021 - all rights reserved
 """
 
 interface ERC20:
@@ -15,8 +12,6 @@ interface ERC20:
     def decimals() -> uint256: view
     def balanceOf(_owner: address) -> uint256: view
 
-
-
 interface CurveMeta:
     def add_liquidity(amounts: uint256[N_COINS], min_mint_amount: uint256, _receiver: address) -> uint256: nonpayable
     def remove_liquidity(_amount: uint256, min_amounts: uint256[N_COINS]) -> uint256[N_COINS]: nonpayable
@@ -24,7 +19,6 @@ interface CurveMeta:
     def remove_liquidity_imbalance(amounts: uint256[N_COINS], max_burn_amount: uint256) -> uint256: nonpayable
     def calc_withdraw_one_coin(_token_amount: uint256, i: int128) -> uint256: view
     def calc_token_amount(amounts: uint256[N_COINS], deposit: bool) -> uint256: view
-    def base_pool() -> address: view
     def coins(i: uint256) -> address: view
 
 interface CurveBase:
@@ -68,7 +62,6 @@ def __init__():
         ERC20(coin).approve(BASE_POOL, MAX_UINT256)
 
 
-
 @external
 def add_liquidity(
     _pool: address,
@@ -77,9 +70,11 @@ def add_liquidity(
     _receiver: address = msg.sender,
 ) -> uint256:
     """
-    @notice Wrap underlying coins and deposit them in the pool
+    @notice Wrap underlying coins and deposit them into `_pool`
+    @param _pool Address of the pool to deposit into
     @param _deposit_amounts List of amounts of underlying coins to deposit
     @param _min_mint_amount Minimum amount of LP tokens to mint from the deposit
+    @param _receiver Address that receives the LP tokens
     @return Amount of LP tokens received by depositing
     """
     meta_amounts: uint256[N_COINS] = empty(uint256[N_COINS])
@@ -124,12 +119,19 @@ def add_liquidity(
 
 
 @external
-def remove_liquidity(_pool: address, _burn_amount: uint256, _min_amounts: uint256[N_ALL_COINS], _receiver: address = msg.sender) -> uint256[N_ALL_COINS]:
+def remove_liquidity(
+    _pool: address,
+    _burn_amount: uint256,
+    _min_amounts: uint256[N_ALL_COINS],
+    _receiver: address = msg.sender
+) -> uint256[N_ALL_COINS]:
     """
     @notice Withdraw and unwrap coins from the pool
     @dev Withdrawal amounts are based on current deposit ratios
+    @param _pool Address of the pool to deposit into
     @param _burn_amount Quantity of LP tokens to burn in the withdrawal
     @param _min_amounts Minimum amounts of underlying coins to receive
+    @param _receiver Address that receives the LP tokens
     @return List of amounts of underlying coins that were withdrawn
     """
     ERC20(_pool).transferFrom(msg.sender, self, _burn_amount)
@@ -138,7 +140,10 @@ def remove_liquidity(_pool: address, _burn_amount: uint256, _min_amounts: uint25
     amounts: uint256[N_ALL_COINS] = empty(uint256[N_ALL_COINS])
 
     # Withdraw from meta
-    meta_received: uint256[N_COINS] = CurveMeta(_pool).remove_liquidity(_burn_amount, [_min_amounts[0], convert(0, uint256)])
+    meta_received: uint256[N_COINS] = CurveMeta(_pool).remove_liquidity(
+        _burn_amount,
+        [_min_amounts[0], convert(0, uint256)]
+    )
 
     # Withdraw from base
     for i in range(BASE_N_COINS):
@@ -160,12 +165,20 @@ def remove_liquidity(_pool: address, _burn_amount: uint256, _min_amounts: uint25
 
 
 @external
-def remove_liquidity_one_coin(_pool: address, _burn_amount: uint256, i: int128, _min_amount: uint256, _receiver: address=msg.sender) -> uint256:
+def remove_liquidity_one_coin(
+    _pool: address,
+    _burn_amount: uint256,
+    i: int128,
+    _min_amount: uint256,
+    _receiver: address=msg.sender
+) -> uint256:
     """
     @notice Withdraw and unwrap a single coin from the pool
+    @param _pool Address of the pool to deposit into
     @param _burn_amount Amount of LP tokens to burn in the withdrawal
     @param i Index value of the coin to withdraw
     @param _min_amount Minimum amount of underlying coin to receive
+    @param _receiver Address that receives the LP tokens
     @return Amount of underlying coin received
     """
     ERC20(_pool).transferFrom(msg.sender, self, _burn_amount)
@@ -194,8 +207,10 @@ def remove_liquidity_imbalance(
 ) -> uint256:
     """
     @notice Withdraw coins from the pool in an imbalanced amount
+    @param _pool Address of the pool to deposit into
     @param _amounts List of amounts of underlying coins to withdraw
     @param _max_burn_amount Maximum amount of LP token to burn in the withdrawal
+    @param _receiver Address that receives the LP tokens
     @return Actual amount of the LP token burned in the withdrawal
     """
     fee: uint256 = CurveBase(BASE_POOL).fee() * BASE_N_COINS / (4 * (BASE_N_COINS - 1))
@@ -256,6 +271,7 @@ def remove_liquidity_imbalance(
 def calc_withdraw_one_coin(_pool: address, _token_amount: uint256, i: int128) -> uint256:
     """
     @notice Calculate the amount received when withdrawing and unwrapping a single coin
+    @param _pool Address of the pool to deposit into
     @param _token_amount Amount of LP tokens to burn in the withdrawal
     @param i Index value of the underlying coin to withdraw
     @return Amount of coin received
@@ -274,6 +290,7 @@ def calc_token_amount(_pool: address, _amounts: uint256[N_ALL_COINS], _is_deposi
     @notice Calculate addition or reduction in token supply from a deposit or withdrawal
     @dev This calculation accounts for slippage, but not fees.
          Needed to prevent front-running, not for precise calculations!
+    @param _pool Address of the pool to deposit into
     @param _amounts Amount of each underlying coin being deposited
     @param _is_deposit set True for deposits, False for withdrawals
     @return Expected amount of LP tokens received

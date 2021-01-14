@@ -1,9 +1,9 @@
-# @version ^0.2.8
+# @version 0.2.8
 """
 @title StableSwap
 @author Curve.Fi
-@license Copyright (c) Curve.Fi, 2020 - all rights reserved
-@notice Metapool factory implementation contract
+@license Copyright (c) Curve.Fi, 2021 - all rights reserved
+@notice 3pool metapool implementation contract
 """
 
 interface ERC20:
@@ -19,7 +19,6 @@ interface Curve:
     def calc_withdraw_one_coin(_token_amount: uint256, i: int128) -> uint256: view
     def fee() -> uint256: view
     def get_dy(i: int128, j: int128, dx: uint256) -> uint256: view
-    def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256: view
     def exchange(i: int128, j: int128, dx: uint256, min_dy: uint256): nonpayable
     def add_liquidity(amounts: uint256[BASE_N_COINS], min_mint_amount: uint256): nonpayable
     def remove_liquidity_one_coin(_token_amount: uint256, i: int128, min_amount: uint256): nonpayable
@@ -167,9 +166,13 @@ def initialize(
 ):
     """
     @notice Contract initializer
+    @param _name Name of the new pool
+    @param _symbol Token symbol
     @param _coin Addresses of ERC20 conracts of coins
+    @param _decimals Number of decimals in `_coin`
     @param _A Amplification coefficient multiplied by n * (n - 1)
     @param _fee Fee to charge for exchanges
+    @param _admin Admin address
     """
      # things break if a token has >18 decimals
     assert _decimals < 19
@@ -187,7 +190,7 @@ def initialize(
     self.fee = _fee
     self.admin = _admin
 
-    self.name = concat("Curve.fi Factory Metapool: ", _name)
+    self.name = concat("Curve.fi Factory USD Metapool: ", _name)
     self.symbol = concat(_symbol, "3CRV-f")
 
     for coin in BASE_COINS:
@@ -553,7 +556,6 @@ def get_y(i: int128, j: int128, x: uint256, xp: uint256[N_COINS]) -> uint256:
 @view
 @external
 def get_dy(i: int128, j: int128, dx: uint256) -> uint256:
-    # dx and dy in c-units
     rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate_ro()]
     xp: uint256[N_COINS] = self._xp(rates)
 
@@ -567,7 +569,6 @@ def get_dy(i: int128, j: int128, dx: uint256) -> uint256:
 @view
 @external
 def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
-    # dx and dy in underlying units
     rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate_ro()]
     xp: uint256[N_COINS] = self._xp(rates)
     base_pool: address = BASE_POOL

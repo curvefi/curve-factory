@@ -28,6 +28,7 @@ interface AddressProvider:
 interface Registry:
     def get_lp_token(pool: address) -> address: view
     def get_n_coins(pool: address) -> uint256: view
+    def get_coins(pool: address) -> address[MAX_COINS]: view
 
 interface ERC20:
     def balanceOf(_addr: address) -> uint256: view
@@ -335,10 +336,11 @@ def add_base_pool(
     self.base_pool_data[_base_pool].n_coins = n_coins
 
     decimals: uint256 = 0
+    coins: address[MAX_COINS] = Registry(registry).get_coins(_base_pool)
     for i in range(MAX_COINS):
         if i == n_coins:
             break
-        coin: address = CurvePool(_base_pool).coins(i)
+        coin: address = coins[i]
         self.base_pool_data[_base_pool].coins[i] = coin
         decimals += shift(ERC20(coin).decimals(), convert(i*8, int128))
 
@@ -373,7 +375,7 @@ def deploy_metapool(
 
     base_lp_token: address = self.base_pool_data[_base_pool].lp_token
 
-    self.pool_data[pool].decimals = decimals + 4608
+    self.pool_data[pool].decimals = decimals
     self.pool_data[pool].base_pool = _base_pool
     self.pool_data[pool].coins = [_coin, self.base_pool_data[_base_pool].lp_token]
 

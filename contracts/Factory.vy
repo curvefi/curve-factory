@@ -51,6 +51,18 @@ interface CurvePool:
     ): nonpayable
 
 
+event BasePoolAdded:
+    base_pool: address
+    implementat: address
+
+event MetaPoolDeployed:
+    coin: address
+    base_pool: address
+    A: uint256
+    fee: uint256
+    deployer: address
+
+
 MAX_COINS: constant(int128) = 8
 ADDRESS_PROVIDER: constant(address) = 0x0000000022D53366457F9d5E68Ec105046FC4383
 
@@ -334,6 +346,8 @@ def add_base_pool(
 
     self.base_pool_data[_base_pool].decimals = decimals
 
+    log BasePoolAdded(_base_pool, _metapool_implementation)
+
 
 @external
 def deploy_metapool(
@@ -395,6 +409,7 @@ def deploy_metapool(
         if is_finished:
             break
 
+    log MetaPoolDeployed(_coin, _base_pool, _A, _fee, msg.sender)
     return pool
 
 

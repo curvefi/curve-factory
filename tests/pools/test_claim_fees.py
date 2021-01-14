@@ -1,4 +1,5 @@
 import pytest
+from brownie_tokens import MintableForkToken
 
 
 @pytest.fixture(scope="module", autouse=True)

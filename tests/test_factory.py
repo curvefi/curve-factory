@@ -7,7 +7,7 @@ from brownie_tokens import ERC20
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(swap, bob, add_initial_liquidity, mint_bob, approve_bob, coin):
+def setup(swap, bob, add_initial_liquidity, mint_bob, approve_bob, coin, swap_btc):
     amount = 10**coin.decimals()
     swap.exchange(0, 1, amount, 0, {'from': bob})
     swap.exchange(1, 0, 10**18, 0, {'from': bob})
@@ -96,9 +96,10 @@ def test_get_coin_indices_reverts(factory, swap, base_lp_token, underlying_coins
 
 
 def test_add_base_pool(factory, alice, bob):
-    factory.add_base_pool("0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714", bob, {'from': alice})
-    assert factory.base_pool_count() == 2
-    assert factory.base_pool_list(1) == "0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714"
+    susd_pool = "0xA5407eAE9Ba41422680e2e00537571bcC53efBfD"
+    factory.add_base_pool(susd_pool, bob, {'from': alice})
+    assert factory.base_pool_count() == 3
+    assert factory.base_pool_list(2) == susd_pool
 
 
 def test_add_base_pool_already_exists(factory, base_pool, alice, bob):
@@ -108,21 +109,21 @@ def test_add_base_pool_already_exists(factory, base_pool, alice, bob):
 
 def test_add_base_pool_only_admin(factory, base_pool, bob):
     with brownie.reverts("dev: admin-only function"):
-        factory.add_base_pool("0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714", bob, {'from': bob})
+        factory.add_base_pool("0xA5407eAE9Ba41422680e2e00537571bcC53efBfD", bob, {'from': bob})
 
 
-def test_deploy_metapool(StableSwapMeta, factory, base_pool, alice, bob):
+def test_deploy_metapool(MetaImplementationUSD, factory, base_pool, alice, bob):
     coin = ERC20(decimals=7)
 
     tx = factory.deploy_metapool(base_pool, "Name", "SYM", coin, 12345, 50000000, {'from': bob})
     assert tx.return_value == tx.new_contracts[0]
-    swap = StableSwapMeta.at(tx.return_value)
+    swap = MetaImplementationUSD.at(tx.return_value)
 
     assert swap.coins(0) == coin
     assert swap.A() == 12345
     assert swap.fee() == 50000000
     assert swap.admin() == alice
 
-    assert factory.pool_count() == 2
-    assert factory.pool_list(1) == swap
+    assert factory.pool_count() == 3
+    assert factory.pool_list(2) == swap
     assert factory.get_decimals(swap) == [7, 18]

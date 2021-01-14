@@ -45,22 +45,37 @@ def dave(accounts):
 
 
 @pytest.fixture(scope="module")
-def factory(StableSwapMeta, Factory, alice, base_pool):
-    implementation = StableSwapMeta.deploy({'from': alice})
+def implementation_usd(MetaImplementationUSD, alice):
+    yield MetaImplementationUSD.deploy({'from': alice})
+
+
+@pytest.fixture(scope="module")
+def implementation_btc(MetaImplementationBTC, alice):
+    yield MetaImplementationBTC.deploy({'from': alice})
+
+
+@pytest.fixture(scope="module")
+def factory(Factory, alice, base_pool, implementation_usd):
     contract = Factory.deploy({'from': alice})
-    contract.add_base_pool(base_pool, implementation, {'from': alice})
+    contract.add_base_pool(base_pool, implementation_usd, {'from': alice})
     yield contract
 
 
 @pytest.fixture(scope="module")
-def swap(StableSwapMeta, alice, base_pool, factory, coin):
+def swap(MetaImplementationUSD, alice, base_pool, factory, coin):
     tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", coin, 200, 4000000, {'from': alice})
-    yield StableSwapMeta.at(tx.return_value)
+    yield MetaImplementationUSD.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")
-def zap(DepositZap, alice):
-    yield DepositZap.deploy({'from': alice})
+def swap_btc(MetaImplementationBTC, alice, base_pool_btc, factory, coin):
+    tx = factory.deploy_metapool(base_pool_btc, "Test Swap BTC", "TSTB", coin, 200, 4000000, {'from': alice})
+    yield MetaImplementationBTC.at(tx.return_value)
+
+
+@pytest.fixture(scope="module")
+def zap(DepositZapUSD, alice):
+    yield DepositZapUSD.deploy({'from': alice})
 
 
 @pytest.fixture(scope="module")
@@ -75,6 +90,14 @@ def base_pool():
         if balance < amount:
             MintableForkToken(pool.coins(i))._mint_for_testing(pool, amount - balance)
     pool.donate_admin_fees({'from': pool.owner()})
+
+    yield pool
+
+
+@pytest.fixture(scope="module")
+def base_pool_btc(alice, implementation_btc, factory):
+    pool = Contract("0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714")
+    factory.add_base_pool(pool, implementation_btc, {'from': alice})
 
     yield pool
 

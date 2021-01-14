@@ -1,6 +1,6 @@
 # @version 0.2.8
 """
-@title Curve StableSwap Proxy
+@title Curve StableSwap Owner Proxy
 @author Curve Finance
 @license MIT
 """
@@ -8,6 +8,11 @@
 interface Curve:
     def ramp_A(_future_A: uint256, _future_time: uint256): nonpayable
     def stop_ramp_A(): nonpayable
+
+interface Factory:
+    def add_base_pool(_base_pool: address, _metapool_implementation: address): nonpayable
+    def commit_transfer_ownership(addr: address): nonpayable
+    def accept_transfer_ownership(): nonpayable
 
 
 event CommitAdmins:
@@ -96,3 +101,28 @@ def stop_ramp_A(_pool: address):
     """
     assert msg.sender in [self.parameter_admin, self.emergency_admin], "Access denied"
     Curve(_pool).stop_ramp_A()
+
+
+@external
+def add_base_pool(_target: address, _base_pool: address, _metapool_implementation: address):
+    assert msg.sender == self.parameter_admin
+
+    Factory(_target).add_base_pool(_base_pool, _metapool_implementation)
+
+
+@external
+def commit_transfer_ownership(_target: address, _new_admin: address):
+    """
+    @notice Transfer ownership of `_target` to `_new_admin`
+    """
+    assert msg.sender == self.parameter_admin  # dev: admin only
+
+    Factory(_target).commit_transfer_ownership(_new_admin)
+
+
+@external
+def accept_transfer_ownership(_target: address):
+    """
+    @notice Accept a pending ownership transfer
+    """
+    Factory(_target).accept_transfer_ownership()

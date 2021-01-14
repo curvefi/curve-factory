@@ -45,14 +45,16 @@ def dave(accounts):
 
 
 @pytest.fixture(scope="module")
-def factory(StableSwapMeta, Factory, alice):
+def factory(StableSwapMeta, Factory, alice, base_pool):
     implementation = StableSwapMeta.deploy({'from': alice})
-    yield Factory.deploy(implementation, alice, {'from': alice})
+    contract = Factory.deploy({'from': alice})
+    contract.add_base_pool(base_pool, implementation, {'from': alice})
+    yield contract
 
 
 @pytest.fixture(scope="module")
-def swap(StableSwapMeta, alice, factory, coin):
-    tx = factory.deploy_pool("Test Swap", "TST", coin, 200, 4000000, {'from': alice})
+def swap(StableSwapMeta, alice, base_pool, factory, coin):
+    tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", coin, 200, 4000000, {'from': alice})
     yield StableSwapMeta.at(tx.return_value)
 
 

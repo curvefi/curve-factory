@@ -17,7 +17,7 @@ def test_initial(
         assert coin.balanceOf(swap) == amount
 
     ideal = 10**18 + base_pool.get_virtual_price()
-    assert 0.999999 < swap.balanceOf(alice) / ideal < 1
+    assert 0.9999 < swap.balanceOf(alice) / ideal < 1
     assert swap.balanceOf(alice) == swap.totalSupply()
 
 

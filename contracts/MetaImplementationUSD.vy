@@ -275,10 +275,10 @@ def get_previous_balances() -> uint256[N_COINS]:
 @view
 @external
 def get_twap_balances(_first_balances: uint256[N_COINS], _last_balances: uint256[N_COINS], _time_elapsed: uint256) -> uint256[N_COINS]:
-  balances: uint256[N_COINS] = _last_balances
-  for x in range(N_COINS):
-      balances[x] = (balances[x] - _first_balances[x]) / _time_elapsed
-  return balances
+    balances: uint256[N_COINS] = _last_balances
+    for x in range(N_COINS):
+        balances[x] = (balances[x] - _first_balances[x]) / _time_elapsed
+    return balances
 
 @view
 @external
@@ -589,7 +589,7 @@ def get_dy(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS] = [0,0
     @return Amount of `j` predicted
     """
     balances: uint256[N_COINS] = _balances
-    if balances[0] == 0:
+    if balances[j] == 0:
         balances = self.balances
     return self._get_dy(i, j, dx, balances)
 
@@ -661,7 +661,7 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_CO
     @return Amount of `j` predicted
     """
     balances: uint256[N_COINS] = _balances
-    if balances[0] == 0:
+    if balances[j] == 0:
         balances = self.balances
     return self._get_dy_underlying(i, j, dx, balances)
 

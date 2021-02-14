@@ -122,7 +122,6 @@ MAX_A: constant(uint256) = 10 ** 6
 MAX_A_CHANGE: constant(uint256) = 10
 MIN_RAMP_TIME: constant(uint256) = 86400
 
-
 admin: public(address)
 
 coins: public(address[N_COINS])
@@ -132,10 +131,6 @@ fee: public(uint256)  # fee * 1e10
 previous_balances: uint256[N_COINS]
 price_cumulative_last: uint256[N_COINS]
 block_timestamp_last: public(uint256)
-
-BASE_CACHE_EXPIRES: constant(int128) = 10 * 60  # 10 min
-base_virtual_price: public(uint256)
-base_cache_updated: public(uint256)
 
 initial_A: public(uint256)
 future_A: public(uint256)
@@ -348,27 +343,6 @@ def _xp_mem(_rates: uint256[N_COINS], _balances: uint256[N_COINS]) -> uint256[N_
     return result
 
 
-@internal
-def _vp_rate() -> uint256:
-    vprice: uint256 = 0
-    if block.timestamp > self.base_cache_updated + BASE_CACHE_EXPIRES:
-        vprice = Curve(BASE_POOL).get_virtual_price()
-        self.base_virtual_price = vprice
-        self.base_cache_updated = block.timestamp
-    else:
-        vprice = self.base_virtual_price
-    return vprice
-
-
-@internal
-@view
-def _vp_rate_ro() -> uint256:
-    if block.timestamp > self.base_cache_updated + BASE_CACHE_EXPIRES:
-        return Curve(BASE_POOL).get_virtual_price()
-    else:
-        return self.base_virtual_price
-
-
 @pure
 @internal
 def get_D(_xp: uint256[N_COINS], _amp: uint256) -> uint256:
@@ -415,7 +389,7 @@ def get_virtual_price() -> uint256:
     @return LP token virtual price normalized to 1e18
     """
     amp: uint256 = self._A()
-    xp: uint256[N_COINS] = self._xp_mem([self.rate_multiplier, self._vp_rate_ro()], self.balances)
+    xp: uint256[N_COINS] = self._xp_mem([self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()], self.balances)
     D: uint256 = self.get_D(xp, amp)
     # D is in the units similar to DAI (e.g. converted to precision 1e18)
     # When balanced, D = n * x_u - total virtual value of the portfolio
@@ -439,7 +413,7 @@ def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool, _previous: 
       balances = self.previous_balances
 
     amp: uint256 = self._A()
-    rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate_ro()]
+    rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
     D0: uint256 = self.get_D_mem(rates, balances, amp)
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
@@ -472,7 +446,7 @@ def add_liquidity(
     """
     self._update()
     amp: uint256 = self._A()
-    rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate()]
+    rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
     total_supply: uint256 = self.totalSupply
 
     # Initial invariant
@@ -586,7 +560,7 @@ def get_y(i: int128, j: int128, x: uint256, xp: uint256[N_COINS]) -> uint256:
 @view
 @internal
 def _get_dy(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS]) -> uint256:
-    rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate_ro()]
+    rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
     xp: uint256[N_COINS] = self._xp_mem(rates, _balances)
 
     x: uint256 = xp[i] + (dx * rates[i] / PRECISION)
@@ -637,7 +611,7 @@ def get_dy(i: int128, j: int128, dx: uint256, _previous: bool = False) -> uint25
 @view
 @internal
 def _get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS]) -> uint256:
-    rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate_ro()]
+    rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
     xp: uint256[N_COINS] = self._xp_mem(rates, _balances)
     base_pool: address = BASE_POOL
 
@@ -746,7 +720,7 @@ def exchange(
     @return Actual amount of `j` received
     """
     self._update()
-    rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate()]
+    rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
 
     old_balances: uint256[N_COINS] = self.balances
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
@@ -797,7 +771,7 @@ def exchange_underlying(
     @return Actual amount of `j` received
     """
     self._update()
-    rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate()]
+    rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
     old_balances: uint256[N_COINS] = self.balances
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
@@ -949,7 +923,7 @@ def remove_liquidity_imbalance(
     self._update()
 
     amp: uint256 = self._A()
-    rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate()]
+    rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
     old_balances: uint256[N_COINS] = self.balances
     D0: uint256 = self.get_D_mem(rates, old_balances, amp)
 
@@ -1087,7 +1061,7 @@ def calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _previous: bool = F
     balances: uint256[N_COINS] = self.balances
     if _previous:
         balances = self.previous_balances
-    return self._calc_withdraw_one_coin(_burn_amount, i, [self.rate_multiplier, self._vp_rate_ro()], balances)[0]
+    return self._calc_withdraw_one_coin(_burn_amount, i, [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()], balances)[0]
 
 
 @external
@@ -1111,7 +1085,7 @@ def remove_liquidity_one_coin(
     dy: uint256 = 0
     dy_fee: uint256 = 0
     total_supply: uint256 = 0
-    dy, dy_fee, total_supply = self._calc_withdraw_one_coin(_burn_amount, i, [self.rate_multiplier, self._vp_rate()], self.balances)
+    dy, dy_fee, total_supply = self._calc_withdraw_one_coin(_burn_amount, i, [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()], self.balances)
     assert dy >= _min_received
 
     self.balances[i] -= (dy + dy_fee * ADMIN_FEE / FEE_DENOMINATOR)

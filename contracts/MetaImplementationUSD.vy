@@ -151,15 +151,6 @@ balanceOf: public(HashMap[address, uint256])
 allowance: public(HashMap[address, HashMap[address, uint256]])
 totalSupply: public(uint256)
 
-@view
-@external
-def get_balances() -> uint256[N_COINS]:
-    return self.previous_balances
-
-@view
-@external
-def get_price_cumulative_last() -> uint256[N_COINS]:
-    return self.price_cumulative_last
 
 @external
 def __init__():
@@ -280,6 +271,19 @@ def approve(_spender : address, _value : uint256) -> bool:
 
 
 ### StableSwap Functionality ###
+
+
+@view
+@external
+def get_balances() -> uint256[N_COINS]:
+    return self.previous_balances
+
+
+@view
+@external
+def get_price_cumulative_last() -> uint256[N_COINS]:
+    return self.price_cumulative_last
+
 
 @view
 @internal

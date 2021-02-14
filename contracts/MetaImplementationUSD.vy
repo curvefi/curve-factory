@@ -128,6 +128,7 @@ coins: public(address[N_COINS])
 balances: public(uint256[N_COINS])
 fee: public(uint256)  # fee * 1e10
 
+previous_balances: uint256[N_COINS]
 price_cumulative_last: uint256[N_COINS]
 block_timestamp_last: public(uint256)
 
@@ -268,15 +269,6 @@ def approve(_spender : address, _value : uint256) -> bool:
 
 
 @view
-@internal
-def _previous_balances() -> uint256[N_COINS]:
-  previous_balances: uint256[N_COINS] = self.balances
-  for i in range(N_COINS):
-      previous_balances[i] = self.price_cumulative_last[i] / self.block_timestamp_last
-  return previous_balances
-
-
-@view
 @external
 def get_price_cumulative_last() -> uint256[N_COINS]:
     return self.price_cumulative_last
@@ -314,6 +306,7 @@ def _update():
     if block.timestamp > self.block_timestamp_last:
         for i in range(N_COINS):
             self.price_cumulative_last[i] += self.balances[i] * (block.timestamp - self.block_timestamp_last)
+        self.previous_balances = self.balances
         self.block_timestamp_last = block.timestamp
 
 
@@ -411,7 +404,7 @@ def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool, _previous: 
     """
     balances: uint256[N_COINS] = self.balances
     if _previous:
-      balances = self._previous_balances()
+      balances = self.previous_balances
 
     amp: uint256 = self._A()
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
@@ -605,7 +598,7 @@ def get_dy(i: int128, j: int128, dx: uint256, _previous: bool = False) -> uint25
     """
     balances: uint256[N_COINS] = self.balances
     if _previous:
-        balances = self._previous_balances()
+        balances = self.previous_balances
     return self._get_dy(i, j, dx, balances)
 
 
@@ -677,7 +670,7 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256, _previous: bool = False
     """
     balances: uint256[N_COINS] = self.balances
     if _previous:
-        balances = self._previous_balances()
+        balances = self.previous_balances
     return self._get_dy_underlying(i, j, dx, balances)
 
 
@@ -1061,7 +1054,7 @@ def calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _previous: bool = F
     """
     balances: uint256[N_COINS] = self.balances
     if _previous:
-        balances = self._previous_balances()
+        balances = self.previous_balances
     return self._calc_withdraw_one_coin(_burn_amount, i, [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()], balances)[0]
 
 

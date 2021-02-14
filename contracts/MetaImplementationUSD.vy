@@ -267,6 +267,18 @@ def approve(_spender : address, _value : uint256) -> bool:
 
 ### StableSwap Functionality ###
 
+@view
+@external
+def get_previous_balances() -> uint256[N_COINS]:
+    return self.previous_balances
+
+@view
+@external
+def get_twap_balances(_first_balances: uint256[N_COINS], _last_balances: uint256[N_COINS], _time_elapsed: uint256) -> uint256[N_COINS]:
+  balances: uint256[N_COINS] = _last_balances
+  for x in range(N_COINS):
+      balances[x] = (balances[x] - _first_balances[x]) / _time_elapsed
+  return balances
 
 @view
 @external
@@ -566,39 +578,19 @@ def _get_dy(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS]) -> u
 
 @view
 @external
-def get_twap_dy(i: int128, j: int128, dx: uint256, _first_balances: uint256[N_COINS], _last_balances: uint256[N_COINS], _time_elapsed: uint256) -> uint256:
-    """
-    @notice Calculate the TWAP output dy given input dx based on two readings _first_balances & _last_balances between _time_elapsed
-    @dev Index values can be found via the `coins` public getter method
-    @param i Index value for the coin to send
-    @param j Index valie of the coin to recieve
-    @param dx Amount of `i` being exchanged
-    @param _first_balances First price_cumulative_last reading at t=0
-    @param _last_balances Second price_cumulative_last reading at t=1
-    @param _time_elapsed The diff between block_timestamp_last at second reading - first reading
-    @return Amount of `j` predicted
-    """
-    balances: uint256[N_COINS] = _last_balances
-    for x in range(N_COINS):
-        balances[x] = (balances[x] - _first_balances[x]) / _time_elapsed
-    return self._get_dy(i, j, dx, balances)
-
-
-@view
-@external
-def get_dy(i: int128, j: int128, dx: uint256, _previous: bool = False) -> uint256:
+def get_dy(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS] = [0,0]) -> uint256:
     """
     @notice Calculate the current output dy given input dx
     @dev Index values can be found via the `coins` public getter method
     @param i Index value for the coin to send
     @param j Index valie of the coin to recieve
     @param dx Amount of `i` being exchanged
-    @param _previous use previous balances or current balances
+    @param _balances which balance to use, current, previous, or twap
     @return Amount of `j` predicted
     """
-    balances: uint256[N_COINS] = self.balances
-    if _previous:
-        balances = self.previous_balances
+    balances: uint256[N_COINS] = _balances
+    if balances[0] == 0:
+        balances = self.balances
     return self._get_dy(i, j, dx, balances)
 
 
@@ -658,39 +650,19 @@ def _get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_C
 
 @view
 @external
-def get_dy_underlying(i: int128, j: int128, dx: uint256, _previous: bool = False) -> uint256:
+def get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS] = [0,0]) -> uint256:
     """
     @notice Calculate the current output dy given input dx on underlying
     @dev Index values can be found via the `coins` public getter method
     @param i Index value for the coin to send
     @param j Index valie of the coin to recieve
     @param dx Amount of `i` being exchanged
-    @param _previous use previous balances or current balances
+    @param _balances which balance to use, current, previous, or twap
     @return Amount of `j` predicted
     """
-    balances: uint256[N_COINS] = self.balances
-    if _previous:
-        balances = self.previous_balances
-    return self._get_dy_underlying(i, j, dx, balances)
-
-
-@view
-@external
-def get_twap_dy_underlying(i: int128, j: int128, dx: uint256, _first_balances: uint256[N_COINS], _last_balances: uint256[N_COINS], _time_elapsed: uint256) -> uint256:
-    """
-    @notice Calculate the TWAP output dy given input dx based on two readings _first_balances & _last_balances between _time_elapsed of underlying
-    @dev Index values can be found via the `coins` public getter method
-    @param i Index value for the coin to send
-    @param j Index valie of the coin to recieve
-    @param dx Amount of `i` being exchanged
-    @param _first_balances First price_cumulative_last reading at t=0
-    @param _last_balances Second price_cumulative_last reading at t=1
-    @param _time_elapsed The diff between block_timestamp_last at second reading - first reading
-    @return Amount of `j` predicted
-    """
-    balances: uint256[N_COINS] = _last_balances
-    for x in range(N_COINS):
-        balances[x] = (balances[x] - _first_balances[x]) / _time_elapsed
+    balances: uint256[N_COINS] = _balances
+    if balances[0] == 0:
+        balances = self.balances
     return self._get_dy_underlying(i, j, dx, balances)
 
 

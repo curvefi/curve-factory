@@ -308,7 +308,6 @@ def _update():
         self.block_timestamp_last = block.timestamp
 
 
-
 @view
 @external
 def admin_fee() -> uint256:
@@ -334,12 +333,6 @@ def _xp_mem(_rates: uint256[N_COINS], _balances: uint256[N_COINS]) -> uint256[N_
     for i in range(N_COINS):
         result[i] = _rates[i] * _balances[i] / PRECISION
     return result
-
-
-@view
-@internal
-def _xp(_rates: uint256[N_COINS]) -> uint256[N_COINS]:
-    return self._xp_mem(_rates, self.balances)
 
 
 @internal
@@ -409,7 +402,7 @@ def get_virtual_price() -> uint256:
     @return LP token virtual price normalized to 1e18
     """
     amp: uint256 = self._A()
-    xp: uint256[N_COINS] = self._xp([self.rate_multiplier, self._vp_rate_ro()])
+    xp: uint256[N_COINS] = self._xp_mem([self.rate_multiplier, self._vp_rate_ro()], self.balances)
     D: uint256 = self.get_D(xp, amp)
     # D is in the units similar to DAI (e.g. converted to precision 1e18)
     # When balanced, D = n * x_u - total virtual value of the portfolio
@@ -417,21 +410,24 @@ def get_virtual_price() -> uint256:
 
 
 @view
-@internal
-def _calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool, _balances: uint256[N_COINS]) -> uint256:
+@external
+def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool, _previous: bool) -> uint256:
     """
     @notice Calculate addition or reduction in token supply from a deposit or withdrawal
     @dev This calculation accounts for slippage, but not fees.
          Needed to prevent front-running, not for precise calculations!
     @param _amounts Amount of each coin being deposited
     @param _is_deposit set True for deposits, False for withdrawals
-    @param _balances balances to be used for calculating the token amount
+    @param _previous use previous_balances or self.balances
     @return Expected amount of LP tokens received
     """
+    balances: uint256[N_COINS] = self.balances
+    if _previous:
+      balances = self.previous_balances
+
     amp: uint256 = self._A()
-    balances: uint256[N_COINS] = _balances
     rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate_ro()]
-    D0: uint256 = self.get_D_mem(rates, _balances, amp)
+    D0: uint256 = self.get_D_mem(rates, balances, amp)
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
         if _is_deposit:
@@ -445,18 +441,6 @@ def _calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool, _balances:
     else:
         diff = D0 - D1
     return diff * self.totalSupply / D0
-
-
-@view
-@external
-def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
-    return self._calc_token_amount(_amounts, _is_deposit, self.balances)
-
-
-@view
-@external
-def calc_previous_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
-    return self._calc_token_amount(_amounts, _is_deposit, self.previous_balances)
 
 
 @external
@@ -621,30 +605,20 @@ def get_twap_dy(i: int128, j: int128, dx: uint256, _first_balances: uint256[N_CO
 
 @view
 @external
-def get_previous_dy(i: int128, j: int128, dx: uint256) -> uint256:
-    """
-    @notice Calculate the previous blocks output dy given input dx
-    @dev Index values can be found via the `coins` public getter method
-    @param i Index value for the coin to send
-    @param j Index valie of the coin to recieve
-    @param dx Amount of `i` being exchanged
-    @return Amount of `j` predicted
-    """
-    return self._get_dy(i, j, dx, self.previous_balances)
-
-
-@view
-@external
-def get_dy(i: int128, j: int128, dx: uint256) -> uint256:
+def get_dy(i: int128, j: int128, dx: uint256, _previous: bool) -> uint256:
     """
     @notice Calculate the current output dy given input dx
     @dev Index values can be found via the `coins` public getter method
     @param i Index value for the coin to send
     @param j Index valie of the coin to recieve
     @param dx Amount of `i` being exchanged
+    @param _previous use previous balances or current balances
     @return Amount of `j` predicted
     """
-    return self._get_dy(i, j, dx, self.balances)
+    balances: uint256[N_COINS] = self.balances
+    if _previous:
+        balances = self.previous_balances
+    return self._get_dy(i, j, dx, balances)
 
 
 @view
@@ -703,30 +677,20 @@ def _get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_C
 
 @view
 @external
-def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
+def get_dy_underlying(i: int128, j: int128, dx: uint256, _previous: bool) -> uint256:
     """
     @notice Calculate the current output dy given input dx on underlying
     @dev Index values can be found via the `coins` public getter method
     @param i Index value for the coin to send
     @param j Index valie of the coin to recieve
     @param dx Amount of `i` being exchanged
+    @param _previous use previous balances or current balances
     @return Amount of `j` predicted
     """
-    return self._get_dy_underlying(i, j, dx, self.balances)
-
-
-@view
-@external
-def get_previous_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
-    """
-    @notice Calculate the previous blocks output dy given input dx of underlying
-    @dev Index values can be found via the `coins` public getter method
-    @param i Index value for the coin to send
-    @param j Index valie of the coin to recieve
-    @param dx Amount of `i` being exchanged
-    @return Amount of `j` predicted
-    """
-    return self._get_dy_underlying(i, j, dx, self.previous_balances)
+    balances: uint256[N_COINS] = self.balances
+    if _previous:
+        balances = self.previous_balances
+    return self._get_dy_underlying(i, j, dx, balances)
 
 
 @view
@@ -1097,31 +1061,20 @@ def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _rates: uint256[N_
 
     return dy, dy_0 - dy, total_supply
 
-
 @view
 @external
-def calc_previous_withdraw_one_coin(_burn_amount: uint256, i: int128) -> uint256:
-    """
-    @notice Calculate the amount received when withdrawing a single coin based on previous blocks balances
-    @param _burn_amount Amount of LP tokens to burn in the withdrawal
-    @param i Index value of the coin to withdraw
-    @return Amount of coin received
-    """
-    vp_rate: uint256 = self._vp_rate_ro()
-    return self._calc_withdraw_one_coin(_burn_amount, i, [self.rate_multiplier, vp_rate], self.previous_balances)[0]
-
-
-@view
-@external
-def calc_withdraw_one_coin(_burn_amount: uint256, i: int128) -> uint256:
+def calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _previous: bool) -> uint256:
     """
     @notice Calculate the amount received when withdrawing a single coin
     @param _burn_amount Amount of LP tokens to burn in the withdrawal
     @param i Index value of the coin to withdraw
+    @param _previous indicate to use previous_balances or current balances
     @return Amount of coin received
     """
-    vp_rate: uint256 = self._vp_rate_ro()
-    return self._calc_withdraw_one_coin(_burn_amount, i, [self.rate_multiplier, vp_rate], self.balances)[0]
+    balances: uint256[N_COINS] = self.balances
+    if _previous:
+        balances = self.previous_balances
+    return self._calc_withdraw_one_coin(_burn_amount, i, [self.rate_multiplier, self._vp_rate_ro()], balances)[0]
 
 
 @external

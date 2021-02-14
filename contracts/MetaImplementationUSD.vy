@@ -303,7 +303,7 @@ def _update():
 
     if block.timestamp > self.block_timestamp_last:
         for i in range(N_COINS):
-            price_cumulative_last[i] += self.balances[i] * (block.timestamp - self.block_timestamp_last)
+            self.price_cumulative_last[i] += self.balances[i] * (block.timestamp - self.block_timestamp_last)
         self.previous_balances = self.balances
         self.block_timestamp_last = block.timestamp
 
@@ -415,15 +415,6 @@ def get_virtual_price() -> uint256:
     # When balanced, D = n * x_u - total virtual value of the portfolio
     return D * PRECISION / self.totalSupply
 
-@view
-@external
-def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
-    return self._calc_token_amount(_amounts, _is_deposit, self.balances)
-
-@view
-@external
-def calc_previous_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
-    return self._calc_token_amount(_amounts, _is_deposit, self.previous_balances)
 
 @view
 @internal
@@ -438,21 +429,34 @@ def _calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool, _balances:
     @return Expected amount of LP tokens received
     """
     amp: uint256 = self._A()
+    balances: uint256[N_COINS] = _balances
     rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate_ro()]
     D0: uint256 = self.get_D_mem(rates, _balances, amp)
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
         if _is_deposit:
-            _balances[i] += amount
+            balances[i] += amount
         else:
-            _balances[i] -= amount
-    D1: uint256 = self.get_D_mem(rates, _balances, amp)
+            balances[i] -= amount
+    D1: uint256 = self.get_D_mem(rates, balances, amp)
     diff: uint256 = 0
     if _is_deposit:
         diff = D1 - D0
     else:
         diff = D0 - D1
     return diff * self.totalSupply / D0
+
+
+@view
+@external
+def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
+    return self._calc_token_amount(_amounts, _is_deposit, self.balances)
+
+
+@view
+@external
+def calc_previous_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
+    return self._calc_token_amount(_amounts, _is_deposit, self.previous_balances)
 
 
 @external
@@ -583,6 +587,19 @@ def get_y(i: int128, j: int128, x: uint256, xp: uint256[N_COINS]) -> uint256:
 
 
 @view
+@internal
+def _get_dy(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS]) -> uint256:
+    rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate_ro()]
+    xp: uint256[N_COINS] = self._xp_mem(rates, _balances)
+
+    x: uint256 = xp[i] + (dx * rates[i] / PRECISION)
+    y: uint256 = self.get_y(i, j, x, xp)
+    dy: uint256 = xp[j] - y - 1
+    fee: uint256 = self.fee * dy / FEE_DENOMINATOR
+    return (dy - fee) * PRECISION / rates[j]
+
+
+@view
 @external
 def get_twap_dy(i: int128, j: int128, dx: uint256, _first_balances: uint256[N_COINS], _last_balances: uint256[N_COINS], _time_elapsed: uint256) -> uint256:
     """
@@ -592,13 +609,13 @@ def get_twap_dy(i: int128, j: int128, dx: uint256, _first_balances: uint256[N_CO
     @param j Index valie of the coin to recieve
     @param dx Amount of `i` being exchanged
     @param _first_balances First price_cumulative_last reading at t=0
-    @param _lst_balances Second price_cumulative_last reading at t=1
+    @param _last_balances Second price_cumulative_last reading at t=1
     @param _time_elapsed The diff between block_timestamp_last at second reading - first reading
     @return Amount of `j` predicted
     """
     balances: uint256[N_COINS] = _last_balances
-    for i in range(N_COINS):
-        balances[i] = (balances[i] - _first_balances[i]) / _time_elapsed
+    for x in range(N_COINS):
+        balances[x] = (balances[x] - _first_balances[x]) / _time_elapsed
     return self._get_dy(i, j, dx, balances)
 
 
@@ -628,67 +645,6 @@ def get_dy(i: int128, j: int128, dx: uint256) -> uint256:
     @return Amount of `j` predicted
     """
     return self._get_dy(i, j, dx, self.balances)
-
-
-@view
-@internal
-def _get_dy(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS]) -> uint256:
-    rates: uint256[N_COINS] = [self.rate_multiplier, self._vp_rate_ro()]
-    xp: uint256[N_COINS] = self._xp_mem(rates, _balances)
-
-    x: uint256 = xp[i] + (dx * rates[i] / PRECISION)
-    y: uint256 = self.get_y(i, j, x, xp)
-    dy: uint256 = xp[j] - y - 1
-    fee: uint256 = self.fee * dy / FEE_DENOMINATOR
-    return (dy - fee) * PRECISION / rates[j]
-
-
-@view
-@external
-def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
-    """
-    @notice Calculate the current output dy given input dx on underlying
-    @dev Index values can be found via the `coins` public getter method
-    @param i Index value for the coin to send
-    @param j Index valie of the coin to recieve
-    @param dx Amount of `i` being exchanged
-    @return Amount of `j` predicted
-    """
-    return self._get_dy_underlying(i, j, dx, self.balances)
-
-
-@view
-@external
-def get_previous_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
-    """
-    @notice Calculate the previous blocks output dy given input dx of underlying
-    @dev Index values can be found via the `coins` public getter method
-    @param i Index value for the coin to send
-    @param j Index valie of the coin to recieve
-    @param dx Amount of `i` being exchanged
-    @return Amount of `j` predicted
-    """
-    return self._get_dy_underlying(i, j, dx, self.previous_balances)
-
-
-@view
-@external
-def get_twap_dy_underlying(i: int128, j: int128, dx: uint256, _first_balances: uint256[N_COINS], _last_balances: uint256[N_COINS], _time_elapsed: uint256) -> uint256:
-    """
-    @notice Calculate the TWAP output dy given input dx based on two readings _first_balances & _last_balances between _time_elapsed of underlying
-    @dev Index values can be found via the `coins` public getter method
-    @param i Index value for the coin to send
-    @param j Index valie of the coin to recieve
-    @param dx Amount of `i` being exchanged
-    @param _first_balances First price_cumulative_last reading at t=0
-    @param _lst_balances Second price_cumulative_last reading at t=1
-    @param _time_elapsed The diff between block_timestamp_last at second reading - first reading
-    @return Amount of `j` predicted
-    """
-    balances: uint256[N_COINS] = _last_balances
-    for i in range(N_COINS):
-        balances[i] = (balances[i] - _first_balances[i]) / _time_elapsed
-    return self._get_dy_underlying(i, j, dx, balances)
 
 
 @view
@@ -743,6 +699,55 @@ def _get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_C
         dy = Curve(base_pool).calc_withdraw_one_coin(dy * PRECISION / rates[1], base_j)
 
     return dy
+
+
+@view
+@external
+def get_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
+    """
+    @notice Calculate the current output dy given input dx on underlying
+    @dev Index values can be found via the `coins` public getter method
+    @param i Index value for the coin to send
+    @param j Index valie of the coin to recieve
+    @param dx Amount of `i` being exchanged
+    @return Amount of `j` predicted
+    """
+    return self._get_dy_underlying(i, j, dx, self.balances)
+
+
+@view
+@external
+def get_previous_dy_underlying(i: int128, j: int128, dx: uint256) -> uint256:
+    """
+    @notice Calculate the previous blocks output dy given input dx of underlying
+    @dev Index values can be found via the `coins` public getter method
+    @param i Index value for the coin to send
+    @param j Index valie of the coin to recieve
+    @param dx Amount of `i` being exchanged
+    @return Amount of `j` predicted
+    """
+    return self._get_dy_underlying(i, j, dx, self.previous_balances)
+
+
+@view
+@external
+def get_twap_dy_underlying(i: int128, j: int128, dx: uint256, _first_balances: uint256[N_COINS], _last_balances: uint256[N_COINS], _time_elapsed: uint256) -> uint256:
+    """
+    @notice Calculate the TWAP output dy given input dx based on two readings _first_balances & _last_balances between _time_elapsed of underlying
+    @dev Index values can be found via the `coins` public getter method
+    @param i Index value for the coin to send
+    @param j Index valie of the coin to recieve
+    @param dx Amount of `i` being exchanged
+    @param _first_balances First price_cumulative_last reading at t=0
+    @param _last_balances Second price_cumulative_last reading at t=1
+    @param _time_elapsed The diff between block_timestamp_last at second reading - first reading
+    @return Amount of `j` predicted
+    """
+    balances: uint256[N_COINS] = _last_balances
+    for x in range(N_COINS):
+        balances[x] = (balances[x] - _first_balances[x]) / _time_elapsed
+    return self._get_dy_underlying(i, j, dx, balances)
+
 
 @external
 @nonreentrant('lock')
@@ -1140,7 +1145,7 @@ def remove_liquidity_one_coin(
     dy: uint256 = 0
     dy_fee: uint256 = 0
     total_supply: uint256 = 0
-    dy, dy_fee, total_supply = self._calc_withdraw_one_coin(_burn_amount, i, [self.rate_multiplier, self._vp_rate()])
+    dy, dy_fee, total_supply = self._calc_withdraw_one_coin(_burn_amount, i, [self.rate_multiplier, self._vp_rate()], self.balances)
     assert dy >= _min_received, "Not enough coins removed"
 
     self.balances[i] -= (dy + dy_fee * ADMIN_FEE / FEE_DENOMINATOR)

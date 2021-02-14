@@ -516,7 +516,7 @@ def add_liquidity(
         self.balances = new_balances
         mint_amount = D1  # Take the dust if there was any
 
-    assert mint_amount >= _min_mint_amount, "Slippage screwed you"
+    assert mint_amount >= _min_mint_amount
 
     # Take coins from the sender
     for i in range(N_COINS):
@@ -759,7 +759,7 @@ def exchange(
 
     # Convert all to real units
     dy = (dy - dy_fee) * PRECISION / rates[j]
-    assert dy >= min_dy, "Too few coins in result"
+    assert dy >= min_dy
 
     dy_admin_fee: uint256 = dy_fee * ADMIN_FEE / FEE_DENOMINATOR
     dy_admin_fee = dy_admin_fee * PRECISION / rates[j]
@@ -880,7 +880,7 @@ def exchange_underlying(
             Curve(base_pool).remove_liquidity_one_coin(dy, base_j, 0)
             dy = ERC20(output_coin).balanceOf(self) - out_amount
 
-        assert dy >= min_dy, "Too few coins in result"
+        assert dy >= min_dy
 
     else:
         # If both are from the base pool
@@ -917,7 +917,7 @@ def remove_liquidity(
     for i in range(N_COINS):
         old_balance: uint256 = self.balances[i]
         value: uint256 = old_balance * _burn_amount / total_supply
-        assert value >= _min_amounts[i], "Too few coins in result"
+        assert value >= _min_amounts[i]
         self.balances[i] = old_balance - value
         amounts[i] = value
         ERC20(self.coins[i]).transfer(_receiver, value)
@@ -976,7 +976,7 @@ def remove_liquidity_imbalance(
     total_supply: uint256 = self.totalSupply
     burn_amount: uint256 = ((D0 - D2) * total_supply / D0) + 1
     assert burn_amount > 1  # dev: zero tokens burned
-    assert burn_amount <= _max_burn_amount, "Slippage screwed you"
+    assert burn_amount <= _max_burn_amount
 
     total_supply -= burn_amount
     self.totalSupply = total_supply
@@ -1112,7 +1112,7 @@ def remove_liquidity_one_coin(
     dy_fee: uint256 = 0
     total_supply: uint256 = 0
     dy, dy_fee, total_supply = self._calc_withdraw_one_coin(_burn_amount, i, [self.rate_multiplier, self._vp_rate()], self.balances)
-    assert dy >= _min_received, "Not enough coins removed"
+    assert dy >= _min_received
 
     self.balances[i] -= (dy + dy_fee * ADMIN_FEE / FEE_DENOMINATOR)
 

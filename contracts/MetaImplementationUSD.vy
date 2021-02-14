@@ -129,8 +129,8 @@ coins: public(address[N_COINS])
 balances: public(uint256[N_COINS])
 fee: public(uint256)  # fee * 1e10
 
-previous_balances: public(uint256[N_COINS])
-price_cumulative_last: public(uint256[N_COINS])
+previous_balances: uint256[N_COINS]
+price_cumulative_last: uint256[N_COINS]
 block_timestamp_last: public(uint256)
 
 BASE_CACHE_EXPIRES: constant(int128) = 10 * 60  # 10 min
@@ -151,6 +151,15 @@ balanceOf: public(HashMap[address, uint256])
 allowance: public(HashMap[address, HashMap[address, uint256]])
 totalSupply: public(uint256)
 
+@view
+@external
+def get_balances() -> uint256[N_COINS]:
+    return self.previous_balances
+
+@view
+@external
+def get_price_cumulative_last() -> uint256[N_COINS]:
+    return self.price_cumulative_last
 
 @external
 def __init__():
@@ -411,7 +420,7 @@ def get_virtual_price() -> uint256:
 
 @view
 @external
-def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool, _previous: bool) -> uint256:
+def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool, _previous: bool = False) -> uint256:
     """
     @notice Calculate addition or reduction in token supply from a deposit or withdrawal
     @dev This calculation accounts for slippage, but not fees.
@@ -605,7 +614,7 @@ def get_twap_dy(i: int128, j: int128, dx: uint256, _first_balances: uint256[N_CO
 
 @view
 @external
-def get_dy(i: int128, j: int128, dx: uint256, _previous: bool) -> uint256:
+def get_dy(i: int128, j: int128, dx: uint256, _previous: bool = False) -> uint256:
     """
     @notice Calculate the current output dy given input dx
     @dev Index values can be found via the `coins` public getter method
@@ -677,7 +686,7 @@ def _get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_C
 
 @view
 @external
-def get_dy_underlying(i: int128, j: int128, dx: uint256, _previous: bool) -> uint256:
+def get_dy_underlying(i: int128, j: int128, dx: uint256, _previous: bool = False) -> uint256:
     """
     @notice Calculate the current output dy given input dx on underlying
     @dev Index values can be found via the `coins` public getter method
@@ -1063,7 +1072,7 @@ def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _rates: uint256[N_
 
 @view
 @external
-def calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _previous: bool) -> uint256:
+def calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _previous: bool = False) -> uint256:
     """
     @notice Calculate the amount received when withdrawing a single coin
     @param _burn_amount Amount of LP tokens to burn in the withdrawal

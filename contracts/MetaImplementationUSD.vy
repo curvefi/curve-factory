@@ -272,6 +272,7 @@ def approve(_spender : address, _value : uint256) -> bool:
 def get_previous_balances() -> uint256[N_COINS]:
     return self.previous_balances
 
+
 @view
 @external
 def get_twap_balances(_first_balances: uint256[N_COINS], _last_balances: uint256[N_COINS], _time_elapsed: uint256) -> uint256[N_COINS]:
@@ -279,6 +280,7 @@ def get_twap_balances(_first_balances: uint256[N_COINS], _last_balances: uint256
     for x in range(N_COINS):
         balances[x] = (balances[x] - _first_balances[x]) / _time_elapsed
     return balances
+
 
 @view
 @external

@@ -1,4 +1,4 @@
-# @version 0.2.8
+# @version 0.2.10
 """
 @title StableSwap
 @author Curve.Fi
@@ -212,6 +212,16 @@ def decimals() -> uint256:
     return 18
 
 
+@internal
+def _transfer(_from: address, _to: address, _value: uint256):
+    # # NOTE: vyper does not allow underflows
+    # #       so the following subtraction would revert on insufficient balance
+    self.balanceOf[_from] -= _value
+    self.balanceOf[_to] += _value
+
+    log Transfer(_from, _to, _value)
+
+
 @external
 def transfer(_to : address, _value : uint256) -> bool:
     """
@@ -219,12 +229,7 @@ def transfer(_to : address, _value : uint256) -> bool:
     @param _to The address to transfer to.
     @param _value The amount to be transferred.
     """
-    # NOTE: vyper does not allow underflows
-    #       so the following subtraction would revert on insufficient balance
-    self.balanceOf[msg.sender] -= _value
-    self.balanceOf[_to] += _value
-
-    log Transfer(msg.sender, _to, _value)
+    self._transfer(msg.sender, _to, _value)
     return True
 
 
@@ -236,14 +241,12 @@ def transferFrom(_from : address, _to : address, _value : uint256) -> bool:
      @param _to address The address which you want to transfer to
      @param _value uint256 the amount of tokens to be transferred
     """
-    self.balanceOf[_from] -= _value
-    self.balanceOf[_to] += _value
+    self._transfer(_from, _to, _value)
 
     _allowance: uint256 = self.allowance[_from][msg.sender]
     if _allowance != MAX_UINT256:
         self.allowance[_from][msg.sender] = _allowance - _value
 
-    log Transfer(_from, _to, _value)
     return True
 
 
@@ -276,9 +279,9 @@ def get_previous_balances() -> uint256[N_COINS]:
 @view
 @external
 def get_twap_balances(_first_balances: uint256[N_COINS], _last_balances: uint256[N_COINS], _time_elapsed: uint256) -> uint256[N_COINS]:
-    balances: uint256[N_COINS] = _last_balances
+    balances: uint256[N_COINS] = empty(uint256[N_COINS])
     for x in range(N_COINS):
-        balances[x] = (balances[x] - _first_balances[x]) / _time_elapsed
+        balances[x] = (_last_balances[x] - _first_balances[x]) / _time_elapsed
     return balances
 
 
@@ -316,11 +319,12 @@ def _update():
     Commits pre-change balances for the previous block
     Can be used to compare against current values for flash loan checks
     """
-
-    if block.timestamp > self.block_timestamp_last:
+    elapsed_time: uint256 = block.timestamp - self.block_timestamp_last
+    if elapsed_time > 0:
         for i in range(N_COINS):
-            self.price_cumulative_last[i] += self.balances[i] * (block.timestamp - self.block_timestamp_last)
-        self.previous_balances = self.balances
+            _balance: uint256 = self.balances[i]
+            self.price_cumulative_last[i] += _balance * elapsed_time
+            self.previous_balances[i] = _balance
         self.block_timestamp_last = block.timestamp
 
 
@@ -416,12 +420,13 @@ def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool, _previous: 
     @param _previous use previous_balances or self.balances
     @return Expected amount of LP tokens received
     """
-    balances: uint256[N_COINS] = self.balances
-    if _previous:
-      balances = self.previous_balances
-
     amp: uint256 = self._A()
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
+
+    balances: uint256[N_COINS] = self.balances
+    if _previous:
+        balances = self.previous_balances
+
     D0: uint256 = self.get_D_mem(rates, balances, amp)
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
@@ -455,15 +460,13 @@ def add_liquidity(
     self._update()
     amp: uint256 = self._A()
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
-    total_supply: uint256 = self.totalSupply
 
     # Initial invariant
-    D0: uint256 = 0
     old_balances: uint256[N_COINS] = self.balances
-    if total_supply > 0:
-        D0 = self.get_D_mem(rates, old_balances, amp)
+    D0: uint256 = self.get_D_mem(rates, old_balances, amp)
     new_balances: uint256[N_COINS] = old_balances
 
+    total_supply: uint256 = self.totalSupply
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
         if total_supply == 0:
@@ -566,19 +569,6 @@ def get_y(i: int128, j: int128, x: uint256, xp: uint256[N_COINS]) -> uint256:
 
 
 @view
-@internal
-def _get_dy(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS]) -> uint256:
-    rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
-    xp: uint256[N_COINS] = self._xp_mem(rates, _balances)
-
-    x: uint256 = xp[i] + (dx * rates[i] / PRECISION)
-    y: uint256 = self.get_y(i, j, x, xp)
-    dy: uint256 = xp[j] - y - 1
-    fee: uint256 = self.fee * dy / FEE_DENOMINATOR
-    return (dy - fee) * PRECISION / rates[j]
-
-
-@view
 @external
 def get_dy(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS] = [0,0]) -> uint256:
     """
@@ -590,17 +580,36 @@ def get_dy(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS] = [0,0
     @param _balances which balance to use, current, previous, or twap
     @return Amount of `j` predicted
     """
-    balances: uint256[N_COINS] = _balances
-    if balances[j] == 0:
-        balances = self.balances
-    return self._get_dy(i, j, dx, balances)
+    rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
+    xp: uint256[N_COINS] = _balances
+    if _balances[0] == 0:
+        xp = self.balances
+    xp = self._xp_mem(rates, xp)
+
+    x: uint256 = xp[i] + (dx * rates[i] / PRECISION)
+    y: uint256 = self.get_y(i, j, x, xp)
+    dy: uint256 = xp[j] - y - 1
+    fee: uint256 = self.fee * dy / FEE_DENOMINATOR
+    return (dy - fee) * PRECISION / rates[j]
 
 
 @view
-@internal
-def _get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS]) -> uint256:
+@external
+def get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS] = [0,0]) -> uint256:
+    """
+    @notice Calculate the current output dy given input dx on underlying
+    @dev Index values can be found via the `coins` public getter method
+    @param i Index value for the coin to send
+    @param j Index valie of the coin to recieve
+    @param dx Amount of `i` being exchanged
+    @param _balances which balance to use, current, previous, or twap
+    @return Amount of `j` predicted
+    """
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
-    xp: uint256[N_COINS] = self._xp_mem(rates, _balances)
+    xp: uint256[N_COINS] = _balances
+    if _balances[0] == 0:
+        xp = self.balances
+    xp = self._xp_mem(rates, xp)
     base_pool: address = BASE_POOL
 
     x: uint256 = 0
@@ -648,24 +657,6 @@ def _get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_C
         dy = Curve(base_pool).calc_withdraw_one_coin(dy * PRECISION / rates[1], base_j)
 
     return dy
-
-
-@view
-@external
-def get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS] = [0,0]) -> uint256:
-    """
-    @notice Calculate the current output dy given input dx on underlying
-    @dev Index values can be found via the `coins` public getter method
-    @param i Index value for the coin to send
-    @param j Index valie of the coin to recieve
-    @param dx Amount of `i` being exchanged
-    @param _balances which balance to use, current, previous, or twap
-    @return Amount of `j` predicted
-    """
-    balances: uint256[N_COINS] = _balances
-    if balances[j] == 0:
-        balances = self.balances
-    return self._get_dy_underlying(i, j, dx, balances)
 
 
 @external
@@ -985,12 +976,13 @@ def get_y_D(A: uint256, i: int128, xp: uint256[N_COINS], D: uint256) -> uint256:
 
 @view
 @internal
-def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _rates: uint256[N_COINS], _balances: uint256[N_COINS]) -> (uint256, uint256, uint256):
+def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _balances: uint256[N_COINS]) -> (uint256, uint256):
     # First, need to calculate
     # * Get current D
     # * Solve Eqn against y_i for D - _token_amount
     amp: uint256 = self._A()
-    xp: uint256[N_COINS] = self._xp_mem(_rates, _balances)
+    rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
+    xp: uint256[N_COINS] = self._xp_mem(rates, _balances)
     D0: uint256 = self.get_D(xp, amp)
 
     total_supply: uint256 = self.totalSupply
@@ -998,9 +990,7 @@ def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _rates: uint256[N_
     new_y: uint256 = self.get_y_D(amp, i, xp, D1)
 
     base_fee: uint256 = self.fee * N_COINS / (4 * (N_COINS - 1))
-
-    xp_reduced: uint256[N_COINS] = xp
-    dy_0: uint256 = (xp[i] - new_y) * PRECISION / _rates[i]  # w/o fees
+    xp_reduced: uint256[N_COINS] = empty(uint256[N_COINS])
 
     for j in range(N_COINS):
         dx_expected: uint256 = 0
@@ -1009,12 +999,13 @@ def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _rates: uint256[N_
             dx_expected = xp_j * D1 / D0 - new_y
         else:
             dx_expected = xp_j - xp_j * D1 / D0
-        xp_reduced[j] -= base_fee * dx_expected / FEE_DENOMINATOR
+        xp_reduced[j] = xp_j - base_fee * dx_expected / FEE_DENOMINATOR
 
     dy: uint256 = xp_reduced[i] - self.get_y_D(amp, i, xp_reduced, D1)
-    dy = (dy - 1) * PRECISION / _rates[i]  # Withdraw less to account for rounding errors
+    dy_0: uint256 = (xp[i] - new_y) * PRECISION / rates[i]  # w/o fees
+    dy = (dy - 1) * PRECISION / rates[i]  # Withdraw less to account for rounding errors
 
-    return dy, dy_0 - dy, total_supply
+    return dy, dy_0 - dy
 
 @view
 @external
@@ -1029,7 +1020,7 @@ def calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _previous: bool = F
     balances: uint256[N_COINS] = self.balances
     if _previous:
         balances = self.previous_balances
-    return self._calc_withdraw_one_coin(_burn_amount, i, [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()], balances)[0]
+    return self._calc_withdraw_one_coin(_burn_amount, i, balances)[0]
 
 
 @external
@@ -1052,13 +1043,11 @@ def remove_liquidity_one_coin(
 
     dy: uint256 = 0
     dy_fee: uint256 = 0
-    total_supply: uint256 = 0
-    dy, dy_fee, total_supply = self._calc_withdraw_one_coin(_burn_amount, i, [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()], self.balances)
+    dy, dy_fee = self._calc_withdraw_one_coin(_burn_amount, i, self.balances)
     assert dy >= _min_received
 
     self.balances[i] -= (dy + dy_fee * ADMIN_FEE / FEE_DENOMINATOR)
-
-    total_supply -= _burn_amount
+    total_supply: uint256 = self.totalSupply - _burn_amount
     self.totalSupply = total_supply
     self.balanceOf[msg.sender] -= _burn_amount
     log Transfer(msg.sender, ZERO_ADDRESS, _burn_amount)
@@ -1119,14 +1108,4 @@ def withdraw_admin_fees():
         coin: address = self.coins[i]
         value: uint256 = ERC20(coin).balanceOf(self) - self.balances[i]
         if value > 0:
-            _response: Bytes[32] = raw_call(
-                coin,
-                concat(
-                    method_id("transfer(address,uint256)"),
-                    convert(FEE_RECEIVER, bytes32),
-                    convert(value, bytes32),
-                ),
-                max_outsize=32,
-            )  # dev: failed transfer
-            if len(_response) > 0:
-                assert convert(_response, bool)
+            ERC20(coin).transfer(FEE_RECEIVER, value)

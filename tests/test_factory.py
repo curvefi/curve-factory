@@ -95,21 +95,22 @@ def test_get_coin_indices_reverts(factory, swap, base_lp_token, underlying_coins
         factory.get_coin_indices(swap, base_lp_token, underlying_coins[idx])
 
 
-def test_add_base_pool(factory, alice, bob):
+def test_add_base_pool(factory, alice, bob, fee_receiver):
     susd_pool = "0xA5407eAE9Ba41422680e2e00537571bcC53efBfD"
-    factory.add_base_pool(susd_pool, bob, {'from': alice})
+    factory.add_base_pool(susd_pool, bob, fee_receiver, {'from': alice})
     assert factory.base_pool_count() == 3
     assert factory.base_pool_list(2) == susd_pool
+    assert factory.fee_receiver(susd_pool) == fee_receiver
 
 
-def test_add_base_pool_already_exists(factory, base_pool, alice, bob):
+def test_add_base_pool_already_exists(factory, base_pool, alice, bob, fee_receiver):
     with brownie.reverts("dev: pool exists"):
-        factory.add_base_pool(base_pool, bob, {'from': alice})
+        factory.add_base_pool(base_pool, bob, fee_receiver, {'from': alice})
 
 
-def test_add_base_pool_only_admin(factory, base_pool, bob):
+def test_add_base_pool_only_admin(factory, base_pool, bob, fee_receiver):
     with brownie.reverts("dev: admin-only function"):
-        factory.add_base_pool("0xA5407eAE9Ba41422680e2e00537571bcC53efBfD", bob, {'from': bob})
+        factory.add_base_pool("0xA5407eAE9Ba41422680e2e00537571bcC53efBfD", bob, fee_receiver, {'from': bob})
 
 
 def test_deploy_metapool(MetaImplementationUSD, factory, base_pool, alice, bob):

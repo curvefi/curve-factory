@@ -8,7 +8,7 @@ from brownie_tokens import MintableForkToken
 # so we do not run the entire test suite against them
 
 
-def test_btc_swaps(alice, bob, swap_btc, factory, coin):
+def test_btc_swaps(alice, bob, fee_receiver, swap_btc, factory, coin):
     # add liquidity
     wrapped_coins = [coin, MintableForkToken(swap_btc.coins(1))]
     underlying_coins = [coin] + [MintableForkToken(i) for i in factory.get_underlying_coins(swap_btc)[1:4]]
@@ -57,9 +57,13 @@ def test_btc_swaps(alice, bob, swap_btc, factory, coin):
         swap_btc.remove_liquidity_one_coin(10**wrapped_coins[idx].decimals(), idx, 0, {'from': alice})
         chain.sleep(3600)
 
-    before_withdraw = wrapped_coins[1].balanceOf("0xaa42C0CD9645A58dfeB699cCAeFBD30f19B1ff81")
+    admin_fee = swap_btc.admin_balances(1)
     swap_btc.withdraw_admin_fees({'from': alice})
-    assert wrapped_coins[1].balanceOf("0xaa42C0CD9645A58dfeB699cCAeFBD30f19B1ff81") > before_withdraw
+
+    for idx in range(2):
+        assert swap_btc.admin_balances(idx) == 0
+
+    assert wrapped_coins[1].balanceOf(fee_receiver) > admin_fee > 0
 
 
 def test_zap_gas(DepositZapBTC, alice, bob, swap_btc, factory, coin):

@@ -1,4 +1,4 @@
-# @version 0.2.10
+# @version 0.2.8
 """
 @title StableSwap
 @author Curve.Fi
@@ -105,7 +105,6 @@ event StopRampA:
     t: uint256
 
 
-FEE_RECEIVER: constant(address) = 0xA464e6DCda8AC41e03616F95f4BC98a13b8922Dc
 BASE_POOL: constant(address) = 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7
 BASE_COINS: constant(address[3]) = [
     0x6B175474E89094C44Da98b954EedeAC495271d0F,  # DAI
@@ -407,7 +406,8 @@ def get_virtual_price() -> uint256:
     @return LP token virtual price normalized to 1e18
     """
     amp: uint256 = self._A()
-    xp: uint256[N_COINS] = self._xp_mem([self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()], self.balances)
+    rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
+    xp: uint256[N_COINS] = self._xp_mem(rates, self.balances)
     D: uint256 = self.get_D(xp, amp)
     # D is in the units similar to DAI (e.g. converted to precision 1e18)
     # When balanced, D = n * x_u - total virtual value of the portfolio
@@ -1115,11 +1115,13 @@ def withdraw_admin_fees():
     # transfer coin 0 to Factory and call `convert_fees` to swap it for coin 1
     coin: address = self.coins[0]
     amount: uint256 = ERC20(coin).balanceOf(self) - self.balances[0]
-    ERC20(coin).transfer(factory, amount)
-    Factory(factory).convert_fees()
+    if amount > 0:
+        ERC20(coin).transfer(factory, amount)
+        Factory(factory).convert_fees()
 
     # transfer coin 1 to the receiver
     coin = self.coins[1]
     amount = ERC20(coin).balanceOf(self) - self.balances[1]
-    receiver: address = Factory(factory).fee_receiver(BASE_POOL)
-    ERC20(coin).transfer(receiver, amount)
+    if amount > 0:
+        receiver: address = Factory(factory).fee_receiver(BASE_POOL)
+        ERC20(coin).transfer(receiver, amount)

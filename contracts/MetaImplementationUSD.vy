@@ -177,7 +177,7 @@ def initialize(
     @param _fee Fee to charge for exchanges
     @param _admin Admin address
     """
-     # things break if a token has >18 decimals
+    #  # things break if a token has >18 decimals
     assert _decimals < 19
     # fee must be between 0.04% and 1%
     assert _fee >= 4000000
@@ -428,7 +428,6 @@ def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool, _previous: 
     """
     amp: uint256 = self._A()
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
-
     balances: uint256[N_COINS] = self.balances
     if _previous:
         balances = self.previous_balances
@@ -1012,6 +1011,7 @@ def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _balances: uint256
     dy = (dy - 1) * PRECISION / rates[i]  # Withdraw less to account for rounding errors
 
     return dy, dy_0 - dy
+
 
 @view
 @external

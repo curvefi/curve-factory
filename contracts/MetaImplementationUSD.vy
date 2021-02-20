@@ -23,6 +23,10 @@ interface Curve:
     def add_liquidity(amounts: uint256[BASE_N_COINS], min_mint_amount: uint256): nonpayable
     def remove_liquidity_one_coin(_token_amount: uint256, i: int128, min_amount: uint256): nonpayable
 
+interface Factory:
+    def convert_fees() -> bool: nonpayable
+    def fee_receiver(_base_pool: address) -> address: view
+
 
 event Transfer:
     sender: indexed(address)
@@ -123,6 +127,7 @@ MAX_A_CHANGE: constant(uint256) = 10
 MIN_RAMP_TIME: constant(uint256) = 86400
 
 admin: public(address)
+factory: address
 
 coins: public(address[N_COINS])
 balances: public(uint256[N_COINS])
@@ -188,6 +193,7 @@ def initialize(
     self.future_A = A
     self.fee = _fee
     self.admin = _admin
+    self.factory = msg.sender
 
     self.name = concat("Curve.fi Factory USD Metapool: ", _name)
     self.symbol = concat(_symbol, "3CRV-f")
@@ -1104,8 +1110,16 @@ def admin_balances(i: uint256) -> uint256:
 
 @external
 def withdraw_admin_fees():
-    for i in range(N_COINS):
-        coin: address = self.coins[i]
-        value: uint256 = ERC20(coin).balanceOf(self) - self.balances[i]
-        if value > 0:
-            ERC20(coin).transfer(FEE_RECEIVER, value)
+    factory: address = self.factory
+
+    # transfer coin 0 to Factory and call `convert_fees` to swap it for coin 1
+    coin: address = self.coins[0]
+    amount: uint256 = ERC20(coin).balanceOf(self) - self.balances[0]
+    ERC20(coin).transfer(factory, amount)
+    Factory(factory).convert_fees()
+
+    # transfer coin 1 to the receiver
+    coin = self.coins[1]
+    amount = ERC20(coin).balanceOf(self) - self.balances[1]
+    receiver: address = Factory(factory).fee_receiver(BASE_POOL)
+    ERC20(coin).transfer(receiver, amount)

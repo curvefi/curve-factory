@@ -1,4 +1,4 @@
-# @version 0.2.8
+# @version 0.2.10
 """
 @title Curve Factory
 @license MIT
@@ -32,6 +32,7 @@ interface ERC20:
     def balanceOf(_addr: address) -> uint256: view
     def decimals() -> uint256: view
     def totalSupply() -> uint256: view
+    def approve(_spender: address, _amount: uint256): nonpayable
 
 interface CurvePool:
     def A() -> uint256: view
@@ -49,6 +50,13 @@ interface CurvePool:
         _fee: uint256,
         _owner: address,
     ): nonpayable
+    def exchange(
+        i: int128,
+        j: int128,
+        dx: uint256,
+        min_dy: uint256,
+        _receiver: address,
+    ) -> uint256: nonpayable
 
 
 event BasePoolAdded:
@@ -83,6 +91,8 @@ base_pool_data: HashMap[address, BasePoolArray]
 markets: HashMap[uint256, address[4294967296]]
 market_counts: HashMap[uint256, uint256]
 
+# base pool -> address to transfer admin fees to
+fee_receiver: public(HashMap[address, address])
 
 @external
 def __init__():
@@ -314,12 +324,14 @@ def get_coin_indices(
 def add_base_pool(
     _base_pool: address,
     _metapool_implementation: address,
+    _fee_receiver: address,
 ):
     """
     @notice Add a pool to the registry
     @dev Only callable by admin
     @param _base_pool Pool address to add
     @param _metapool_implementation Implementation address to use when deploying metapools
+    @param _fee_receiver Admin fee receiver address for metapools using this base pool
     """
     assert msg.sender == self.admin  # dev: admin-only function
     assert self.base_pool_data[_base_pool].coins[0] == ZERO_ADDRESS  # dev: pool exists
@@ -345,6 +357,7 @@ def add_base_pool(
         decimals += shift(ERC20(coin).decimals(), convert(i*8, int128))
 
     self.base_pool_data[_base_pool].decimals = decimals
+    self.fee_receiver[_base_pool] = _fee_receiver
 
     log BasePoolAdded(_base_pool, _metapool_implementation)
 
@@ -383,6 +396,7 @@ def deploy_metapool(
     decimals: uint256 = ERC20(_coin).decimals()
     pool: address = create_forwarder_to(implementation)
     CurvePool(pool).initialize(_name, _symbol, _coin, decimals, _A, _fee, self.admin)
+    ERC20(_coin).approve(pool, MAX_UINT256)
 
     # add pool to pool_list
     length: uint256 = self.pool_count
@@ -435,3 +449,21 @@ def accept_transfer_ownership():
 
     self.admin = _admin
     self.future_admin = ZERO_ADDRESS
+
+
+@external
+def set_fee_receiver(_base_pool: address, _fee_receiver: address):
+    assert msg.sender == self.admin  # dev: admin only
+    self.fee_receiver[_base_pool] = _fee_receiver
+
+
+@external
+def convert_fees() -> bool:
+    coin: address = self.pool_data[msg.sender].coins[0]
+    assert coin != ZERO_ADDRESS  # dev: unknown pool
+
+    amount: uint256 = ERC20(coin).balanceOf(self)
+    receiver: address = self.fee_receiver[self.pool_data[msg.sender].base_pool]
+
+    CurvePool(msg.sender).exchange(0, 1, amount, 0, receiver)
+    return True

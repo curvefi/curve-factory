@@ -22,15 +22,28 @@ EMERGENCY_ADMIN = "0x00669DF67E4827FCc0E48A1838a8d5AB79281909"
 BASE_3POOL = "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7"
 BASE_SBTC = "0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714"
 
+FEE_RECEIVER_USD = "0xa464e6dcda8ac41e03616f95f4bc98a13b8922dc"
+FEE_RECEIVER_BTC = "0xf9fc73496484290142ee856639f69e04465985cd"
+
 
 def main(deployer=DEPLOYER):
     factory = Factory.deploy({'from': deployer})
 
     implementation_usd = MetaImplementationUSD.deploy({'from': deployer, 'gas_price': gas_price})
-    factory.add_base_pool(BASE_3POOL, implementation_usd, {'from': deployer, 'gas_price': gas_price})
+    factory.add_base_pool(
+        BASE_3POOL,
+        implementation_usd,
+        FEE_RECEIVER_USD,
+        {'from': deployer, 'gas_price': gas_price}
+    )
 
     implementation_btc = MetaImplementationBTC.deploy({'from': deployer, 'gas_price': gas_price})
-    factory.add_base_pool(BASE_SBTC, implementation_btc, {'from': deployer, 'gas_price': gas_price})
+    factory.add_base_pool(
+        BASE_SBTC,
+        implementation_btc,
+        FEE_RECEIVER_BTC,
+        {'from': deployer, 'gas_price': gas_price}
+    )
 
     proxy = OwnerProxy.deploy(
         OWNER_ADMIN,

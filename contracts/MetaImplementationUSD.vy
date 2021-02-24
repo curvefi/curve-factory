@@ -280,6 +280,10 @@ def approve(_spender : address, _value : uint256) -> bool:
 def get_previous_balances() -> uint256[N_COINS]:
     return self.previous_balances
 
+@view
+@external
+def get_balances() -> uint256[N_COINS]:
+    return self.balances
 
 @view
 @external

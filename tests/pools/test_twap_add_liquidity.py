@@ -3,9 +3,8 @@ import pytest
 
 pytestmark = pytest.mark.usefixtures("mint_alice", "approve_alice")
 
-@pytest.mark.parametrize("min_amount", [0, 2 * 10**18])
 def test_twap(
-    chain, alice, swap, wrapped_coins, min_amount, wrapped_decimals, initial_amounts, base_pool
+    chain, alice, swap, wrapped_coins, wrapped_decimals, initial_amounts, base_pool
 ):
     amounts = [10**i for i in wrapped_decimals]
 
@@ -17,7 +16,7 @@ def test_twap(
     for i, coin in enumerate(wrapped_coins):
         assert twap[i] == 0
 
-    swap.add_liquidity(amounts, min_amount, {'from': alice})
+    swap.add_liquidity(amounts, 0, {'from': alice})
 
     twap = swap.get_price_cumulative_last()
     start = swap.block_timestamp_last()
@@ -27,7 +26,7 @@ def test_twap(
 
     chain.sleep(1)
 
-    swap.add_liquidity(amounts, min_amount, {'from': alice})
+    swap.add_liquidity(amounts, 0, {'from': alice})
 
     twap = swap.get_price_cumulative_last()
     after = swap.block_timestamp_last()
@@ -41,7 +40,7 @@ def test_twap(
 
     chain.sleep(1000000)
 
-    swap.add_liquidity(amounts, min_amount, {'from': alice})
+    swap.add_liquidity(amounts, 0, {'from': alice})
 
     twap = swap.get_price_cumulative_last()
     after = swap.block_timestamp_last()

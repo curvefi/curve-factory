@@ -64,7 +64,4 @@ def test_exchange_underlying(bob, swap, sending, receiving, underlying_coins, un
     amount = 10**underlying_decimals[sending]
     swap.exchange_underlying(sending, receiving, amount, 0, {'from': bob})
 
-    if 0 in (sending, receiving):
-        assert swap.get_virtual_price() > virtual_price
-    else:
-        assert swap.get_virtual_price() == virtual_price
+    assert swap.get_virtual_price() > virtual_price

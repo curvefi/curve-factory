@@ -44,6 +44,11 @@ def dave(accounts):
     yield accounts[3]
 
 
+@pytest.fixture(scope="session")
+def fee_receiver(accounts):
+    yield accounts[4]
+
+
 @pytest.fixture(scope="module")
 def implementation_usd(MetaImplementationUSD, alice):
     yield MetaImplementationUSD.deploy({'from': alice})
@@ -55,9 +60,9 @@ def implementation_btc(MetaImplementationBTC, alice):
 
 
 @pytest.fixture(scope="module")
-def factory(Factory, alice, base_pool, implementation_usd):
+def factory(Factory, alice, fee_receiver, base_pool, implementation_usd):
     contract = Factory.deploy({'from': alice})
-    contract.add_base_pool(base_pool, implementation_usd, {'from': alice})
+    contract.add_base_pool(base_pool, implementation_usd, fee_receiver, {'from': alice})
     yield contract
 
 
@@ -95,9 +100,9 @@ def base_pool():
 
 
 @pytest.fixture(scope="module")
-def base_pool_btc(alice, implementation_btc, factory):
+def base_pool_btc(alice, fee_receiver, implementation_btc, factory):
     pool = Contract("0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714")
-    factory.add_base_pool(pool, implementation_btc, {'from': alice})
+    factory.add_base_pool(pool, implementation_btc, fee_receiver, {'from': alice})
 
     yield pool
 

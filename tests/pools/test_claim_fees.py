@@ -1,11 +1,7 @@
 import pytest
-from brownie_tokens import MintableForkToken
 
 
-@pytest.fixture(scope="module", autouse=True)
-def setup(charlie, base_lp_token, add_initial_liquidity, mint_bob, approve_bob):
-    distributor = "0xA464e6DCda8AC41e03616F95f4BC98a13b8922Dc"
-    base_lp_token.transfer(charlie, base_lp_token.balanceOf(distributor), {'from': distributor})
+pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "mint_bob", "approve_bob")
 
 
 @pytest.mark.parametrize("sending,receiving", [(0, 1), (1, 0)])
@@ -22,9 +18,9 @@ def test_admin_balances(alice, bob, swap, wrapped_coins, initial_amounts, sendin
 
 @pytest.mark.parametrize("sending,receiving", [(0, 1), (1, 0)])
 def test_withdraw_one_coin(
-    alice, bob, swap, wrapped_coins, sending, receiving, initial_amounts, base_lp_token
+    alice, bob, fee_receiver, swap, wrapped_coins, sending, receiving, initial_amounts, base_lp_token
 ):
-    assert base_lp_token.balanceOf("0xA464e6DCda8AC41e03616F95f4BC98a13b8922Dc") == 0
+    assert base_lp_token.balanceOf(fee_receiver) == 0
 
     swap.exchange(sending, receiving, initial_amounts[sending], 0, {'from': bob})
 
@@ -35,11 +31,11 @@ def test_withdraw_one_coin(
 
     swap.withdraw_admin_fees({'from': alice})
 
-    assert base_lp_token.balanceOf("0xA464e6DCda8AC41e03616F95f4BC98a13b8922Dc") > 0
+    assert base_lp_token.balanceOf(fee_receiver) > 0
     assert swap.balances(receiving) == wrapped_coins[receiving].balanceOf(swap)
 
 
-def test_no_fees(bob, swap, base_lp_token):
+def test_no_fees(bob, fee_receiver, swap, base_lp_token):
     swap.withdraw_admin_fees({'from': bob})
 
-    assert base_lp_token.balanceOf("0xA464e6DCda8AC41e03616F95f4BC98a13b8922Dc") == 0
+    assert base_lp_token.balanceOf(fee_receiver) == 0

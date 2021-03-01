@@ -11,7 +11,12 @@ interface Curve:
     def stop_ramp_A(): nonpayable
 
 interface Factory:
-    def add_base_pool(_base_pool: address, _metapool_implementation: address): nonpayable
+    def add_base_pool(
+        _base_pool: address,
+        _metapool_implementation: address,
+        _fee_receiver: address,
+    ): nonpayable
+    def set_fee_receiver(_base_pool: address, _fee_receiver: address): nonpayable
     def commit_transfer_ownership(addr: address): nonpayable
     def accept_transfer_ownership(): nonpayable
 
@@ -105,11 +110,20 @@ def stop_ramp_A(_pool: address):
 
 
 @external
-def add_base_pool(_target: address, _base_pool: address, _metapool_implementation: address):
-
+def add_base_pool(
+    _target: address,
+    _base_pool: address,
+    _metapool_implementation: address,
+    _fee_receiver: address
+):
     assert msg.sender == self.parameter_admin
 
-    Factory(_target).add_base_pool(_base_pool, _metapool_implementation)
+    Factory(_target).add_base_pool(_base_pool, _metapool_implementation, _fee_receiver)
+
+
+@external
+def set_fee_receiver(_target: address, _base_pool: address, _fee_receiver: address):
+    Factory(_target).set_fee_receiver(_base_pool, _fee_receiver)
 
 
 @external

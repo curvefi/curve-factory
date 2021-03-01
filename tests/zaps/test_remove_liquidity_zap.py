@@ -38,7 +38,7 @@ def test_wrapped_balances(
 
     for coin, initial in zip(wrapped_coins, initial_amounts):
         assert coin.balanceOf(zap) == 0
-        assert coin.balanceOf(swap) == initial - (initial // divisor)
+        assert abs(coin.balanceOf(swap) - (initial - (initial // divisor))) <= 1
 
 
 @pytest.mark.parametrize("divisor", [1, 23, 1337])

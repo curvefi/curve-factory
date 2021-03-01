@@ -1,5 +1,4 @@
 import brownie
-import pytest
 
 MIN_RAMP_TIME = 86400
 

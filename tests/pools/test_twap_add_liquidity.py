@@ -1,4 +1,3 @@
-import brownie
 import pytest
 
 pytestmark = pytest.mark.usefixtures("mint_alice", "approve_alice")

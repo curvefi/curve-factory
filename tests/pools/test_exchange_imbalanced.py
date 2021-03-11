@@ -1,5 +1,4 @@
 import pytest
-from pytest import approx
 
 pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "approve_bob")
 

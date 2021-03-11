@@ -1,19 +1,17 @@
-import brownie
 import pytest
 
 pytestmark = pytest.mark.usefixtures("add_initial_liquidity")
 
 
 @pytest.mark.parametrize("idx", range(2))
-def test_amount_received(chain, alice, swap, wrapped_coins, wrapped_decimals, base_pool, idx):
-    decimals = wrapped_decimals[idx]
-    wrapped = wrapped_coins[idx]
-
+def test_amount_received(
+    chain, alice, swap, wrapped_coins, wrapped_decimals, base_pool, idx
+):
     twap_control = swap.get_price_cumulative_last()
     start = swap.block_timestamp_last()
     balances_before = swap.get_balances()
 
-    swap.remove_liquidity_one_coin(10**18, idx, 0, {'from': alice})
+    swap.remove_liquidity_one_coin(10 ** 18, idx, 0, {"from": alice})
 
     twap = swap.get_price_cumulative_last()
     after = swap.block_timestamp_last()
@@ -33,7 +31,7 @@ def test_lp_token_balance(alice, swap, idx, divisor):
     start = swap.block_timestamp_last()
     balances_before = swap.get_balances()
 
-    swap.remove_liquidity_one_coin(amount, idx, 0, {'from': alice})
+    swap.remove_liquidity_one_coin(amount, idx, 0, {"from": alice})
 
     twap = swap.get_price_cumulative_last()
     after = swap.block_timestamp_last()

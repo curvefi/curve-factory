@@ -27,6 +27,7 @@ interface Registry:
     def get_lp_token(pool: address) -> address: view
     def get_n_coins(pool: address) -> uint256: view
     def get_coins(pool: address) -> address[MAX_COINS]: view
+    def get_pool_from_lp_token(lp_token: address) -> address: view
 
 interface ERC20:
     def balanceOf(_addr: address) -> uint256: view
@@ -58,6 +59,9 @@ interface CurvePool:
         _receiver: address,
     ) -> uint256: nonpayable
 
+interface CurveFactoryMetapool:
+    def coins(i :uint256) -> address: view
+    def decimals() -> uint256: view
 
 event BasePoolAdded:
     base_pool: address
@@ -70,7 +74,7 @@ event MetaPoolDeployed:
     fee: uint256
     deployer: address
 
-
+N_POOLS: constant(int128) = 100   # number of pre-existing factory pools to add
 MAX_COINS: constant(int128) = 8
 ADDRESS_PROVIDER: constant(address) = 0x0000000022D53366457F9d5E68Ec105046FC4383
 
@@ -112,6 +116,17 @@ def find_pool_for_coins(_from: address, _to: address, i: uint256 = 0) -> address
     """
     key: uint256 = bitwise_xor(convert(_from, uint256), convert(_to, uint256))
     return self.markets[key][i]
+
+
+@view
+@external
+def get_base_pool(_pool: address) -> address:
+    """
+    @notice Get the base pool for a given factory metapool
+    @param _pool Metapool address
+    @return Address of base pool
+    """
+    return self.pool_data[_pool].base_pool
 
 
 @view
@@ -425,6 +440,52 @@ def deploy_metapool(
 
     log MetaPoolDeployed(_coin, _base_pool, _A, _fee, msg.sender)
     return pool
+
+
+@external
+def add_existing_pool(_pools: address[N_POOLS]) -> bool:
+    """
+    @notice Add existing factory pools to this factory
+    @dev Base pools that are used by the pools to be added must
+        be added separately with `add_base_pool`
+    @param _pools Addresses of existing pools to add
+    """
+    assert msg.sender == self.admin  # dev: admin only
+    assert self.base_pool_count > 0  # dev: base pools must be added prior to adding factory pools
+
+    registry: address = AddressProvider(ADDRESS_PROVIDER).get_registry()
+
+    for pool in _pools:
+        if pool == ZERO_ADDRESS:
+            break
+
+        # add pool to pool list
+        length: uint256 = self.pool_count
+        self.pool_list[length] = pool
+        self.pool_count = length + 1
+
+        self.pool_data[pool].decimals = CurveFactoryMetapool(pool).decimals()
+        base_lp_token: address = CurveFactoryMetapool(pool).coins(1)
+        base_pool: address = Registry(registry).get_pool_from_lp_token(base_lp_token)
+        assert base_pool != ZERO_ADDRESS  # dev: ensure base pool has been added prior
+        self.pool_data[pool].base_pool = base_pool
+        meta_coin: address = CurveFactoryMetapool(pool).coins(0)
+        self.pool_data[pool].coins = [meta_coin, self.base_pool_data[base_pool].lp_token]
+
+        is_finished: bool = False
+        for i in range(MAX_COINS):
+            swappable_coin: address = self.base_pool_data[base_pool].coins[i]
+            if swappable_coin == ZERO_ADDRESS:
+                is_finished = True
+                swappable_coin = base_lp_token
+
+            key: uint256 = bitwise_xor(convert(meta_coin, uint256), convert(swappable_coin, uint256))
+            length = self.market_counts[key]
+            self.markets[key][length] = pool
+            self.market_counts[key] = length + 1
+            if is_finished:
+                break
+    return True
 
 
 @external

@@ -464,10 +464,12 @@ def add_existing_pool(_pools: address[N_POOLS]) -> bool:
         self.pool_list[length] = pool
         self.pool_count = length + 1
 
+        # update pool data
         self.pool_data[pool].decimals = CurveFactoryMetapool(pool).decimals()
         base_lp_token: address = CurveFactoryMetapool(pool).coins(1)
         base_pool: address = Registry(registry).get_pool_from_lp_token(base_lp_token)
         assert base_pool != ZERO_ADDRESS  # dev: ensure base pool has been added prior
+
         self.pool_data[pool].base_pool = base_pool
         meta_coin: address = CurveFactoryMetapool(pool).coins(0)
         self.pool_data[pool].coins = [meta_coin, self.base_pool_data[base_pool].lp_token]

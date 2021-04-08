@@ -67,6 +67,13 @@ def factory(Factory, alice, fee_receiver, base_pool, implementation_usd):
 
 
 @pytest.fixture(scope="module")
+def newFactory(Factory, alice, fee_receiver, base_pool, implementation_usd):
+    contract = Factory.deploy({'from': alice})
+    contract.add_base_pool(base_pool, implementation_usd, fee_receiver, {'from': alice})
+    yield contract
+
+
+@pytest.fixture(scope="module")
 def swap(MetaImplementationUSD, alice, base_pool, factory, coin):
     tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", coin, 200, 4000000, {'from': alice})
     yield MetaImplementationUSD.at(tx.return_value)

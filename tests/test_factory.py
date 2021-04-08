@@ -128,3 +128,32 @@ def test_deploy_metapool(MetaImplementationUSD, factory, base_pool, alice, bob):
     assert factory.pool_count() == 3
     assert factory.pool_list(2) == swap
     assert factory.get_decimals(swap) == [7, 18]
+
+
+def test_add_existing_pool(factory, swap, swap_btc, newFactory, MetaImplementationUSD, base_pool, alice, bob):
+    coin = ERC20(decimals=7)
+
+    tx = factory.deploy_metapool(base_pool, "Name", "SYM", coin, 12345, 50000000, {'from': bob})
+    assert tx.return_value == tx.new_contracts[0]
+    new_swap = MetaImplementationUSD.at(tx.return_value)
+
+    assert new_swap.admin() == alice
+    assert factory.pool_count() == 3
+    assert factory.pool_list(2) == new_swap
+
+    # add existing pool to new factory
+    assert newFactory.pool_count() == 0
+    pools = [swap, swap_btc, new_swap]
+    newFactory.add_existing_pool(pools + [ZERO_ADDRESS] * 97)
+    assert newFactory.pool_count() == 3
+    for i, _ in enumerate(pools):
+        assert newFactory.pool_list(i) == pools[i]
+
+
+def test_add_existing_pool_only_admin(factory, swap, swap_btc, newFactory, MetaImplementationUSD, base_pool, alice, bob):
+    coin = ERC20(decimals=7)
+    tx = factory.deploy_metapool(base_pool, "Name", "SYM", coin, 12345, 50000000, {'from': bob})
+    new_swap = MetaImplementationUSD.at(tx.return_value)
+    pools = [swap, swap_btc, new_swap]
+    with brownie.reverts("dev: admin-only function"):
+        newFactory.add_existing_pool(pools + [ZERO_ADDRESS] * 97, {"from": bob})

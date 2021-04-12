@@ -450,7 +450,7 @@ def add_existing_pool(_pools: address[N_POOLS]) -> bool:
         be added separately with `add_base_pool`
     @param _pools Addresses of existing pools to add
     """
-    assert msg.sender == self.admin  # dev: admin only
+    assert msg.sender == self.admin  # dev: admin-only function
     assert self.base_pool_count > 0  # dev: base pools must be added prior to adding factory pools
 
     registry: address = AddressProvider(ADDRESS_PROVIDER).get_registry()
@@ -468,7 +468,7 @@ def add_existing_pool(_pools: address[N_POOLS]) -> bool:
         self.pool_data[pool].decimals = CurveFactoryMetapool(pool).decimals()
         base_lp_token: address = CurveFactoryMetapool(pool).coins(1)
         base_pool: address = Registry(registry).get_pool_from_lp_token(base_lp_token)
-        assert base_pool != ZERO_ADDRESS  # dev: ensure base pool has been added prior
+        assert base_pool != ZERO_ADDRESS  # dev: base pool must be added prior
 
         self.pool_data[pool].base_pool = base_pool
         meta_coin: address = CurveFactoryMetapool(pool).coins(0)
@@ -488,6 +488,15 @@ def add_existing_pool(_pools: address[N_POOLS]) -> bool:
             if is_finished:
                 break
     return True
+
+
+@pure
+@external
+def get_twap_balances(_first_balances: uint256[MAX_COINS], _last_balances: uint256[MAX_COINS], _time_elapsed: uint256) -> uint256[MAX_COINS]:
+    balances: uint256[MAX_COINS] = empty(uint256[MAX_COINS])
+    for i in range(MAX_COINS):
+        balances[i] = (_last_balances[i] - _first_balances[i]) / _time_elapsed
+    return balances
 
 
 @external

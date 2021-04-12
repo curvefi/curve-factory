@@ -67,9 +67,8 @@ def factory(Factory, alice, fee_receiver, base_pool, implementation_usd):
 
 
 @pytest.fixture(scope="module")
-def newFactory(Factory, alice, fee_receiver, base_pool, implementation_usd):
+def new_factory(Factory, alice, fee_receiver, base_pool, implementation_usd):
     contract = Factory.deploy({'from': alice})
-    contract.add_base_pool(base_pool, implementation_usd, fee_receiver, {'from': alice})
     yield contract
 
 

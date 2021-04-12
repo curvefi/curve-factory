@@ -443,17 +443,20 @@ def deploy_metapool(
 
 
 @external
-def add_existing_pool(_pools: address[N_POOLS]) -> bool:
+def add_existing_pools(_pools: address[N_POOLS], _base_pool: address) -> bool:
     """
     @notice Add existing factory pools to this factory
     @dev Base pools that are used by the pools to be added must
-        be added separately with `add_base_pool`
+        be added separately with `add_base_pool`. All pools given
+        in `_pools` must have the same `_base_pool`
     @param _pools Addresses of existing pools to add
+    @param _base_pool Address of the base pool for `_pools`
     """
     assert msg.sender == self.admin  # dev: admin-only function
-    assert self.base_pool_count > 0  # dev: base pools must be added prior to adding factory pools
+    assert self.base_pool_data[_base_pool].coins[0] != ZERO_ADDRESS # dev: base pool does not exist
 
     registry: address = AddressProvider(ADDRESS_PROVIDER).get_registry()
+    base_lp_token: address = Registry(registry).get_lp_token(_base_pool)
 
     for pool in _pools:
         if pool == ZERO_ADDRESS:
@@ -466,17 +469,13 @@ def add_existing_pool(_pools: address[N_POOLS]) -> bool:
 
         # update pool data
         self.pool_data[pool].decimals = CurveFactoryMetapool(pool).decimals()
-        base_lp_token: address = CurveFactoryMetapool(pool).coins(1)
-        base_pool: address = Registry(registry).get_pool_from_lp_token(base_lp_token)
-        assert base_pool != ZERO_ADDRESS  # dev: base pool must be added prior
-
-        self.pool_data[pool].base_pool = base_pool
+        self.pool_data[pool].base_pool = _base_pool
         meta_coin: address = CurveFactoryMetapool(pool).coins(0)
-        self.pool_data[pool].coins = [meta_coin, self.base_pool_data[base_pool].lp_token]
+        self.pool_data[pool].coins = [meta_coin, base_lp_token]
 
         is_finished: bool = False
         for i in range(MAX_COINS):
-            swappable_coin: address = self.base_pool_data[base_pool].coins[i]
+            swappable_coin: address = self.base_pool_data[_base_pool].coins[i]
             if swappable_coin == ZERO_ADDRESS:
                 is_finished = True
                 swappable_coin = base_lp_token

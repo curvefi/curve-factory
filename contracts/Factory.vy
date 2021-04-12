@@ -1,4 +1,4 @@
-# @version 0.2.8
+# @version 0.2.11
 """
 @title Curve Factory
 @license MIT
@@ -13,6 +13,7 @@ struct PoolArray:
 
 struct BasePoolArray:
     implementation: address
+    rebase_implementation: address
     lp_token: address
     coins: address[MAX_COINS]
     decimals: uint256
@@ -340,6 +341,7 @@ def add_base_pool(
     _base_pool: address,
     _metapool_implementation: address,
     _fee_receiver: address,
+    _metapool_implementation_rebase: address = ZERO_ADDRESS,
 ):
     """
     @notice Add a pool to the registry
@@ -359,6 +361,7 @@ def add_base_pool(
     self.base_pool_list[length] = _base_pool
     self.base_pool_count = length + 1
     self.base_pool_data[_base_pool].implementation = _metapool_implementation
+    self.base_pool_data[_base_pool].rebase_implementation = _metapool_implementation_rebase
     self.base_pool_data[_base_pool].lp_token = Registry(registry).get_lp_token(_base_pool)
     self.base_pool_data[_base_pool].n_coins = n_coins
 
@@ -385,6 +388,7 @@ def deploy_metapool(
     _coin: address,
     _A: uint256,
     _fee: uint256,
+    _rebase_coin: bool = False,
 ) -> address:
     """
     @notice Deploy a new metapool
@@ -403,13 +407,20 @@ def deploy_metapool(
     @param _fee Trade fee, given as an integer with 1e10 precision. The
                 minimum fee is 0.04% (4000000), the maximum is 1% (100000000).
                 50% of the fee is distributed to veCRV holders.
+
+    @param _rebase_coin True if metapool coin is a rebase coin (e.g. aDAI). If True,
+                then a metapool implementation supporting rebase tokens is deployed
     @return Address of the deployed pool
     """
-    implementation: address = self.base_pool_data[_base_pool].implementation
+    implementation: address = ZERO_ADDRESS
+    if _rebase_coin:
+        implementation = self.base_pool_data[_base_pool].rebase_implementation
+    else:
+        implementation = self.base_pool_data[_base_pool].implementation
     assert implementation != ZERO_ADDRESS
+    pool: address = create_forwarder_to(implementation)
 
     decimals: uint256 = ERC20(_coin).decimals()
-    pool: address = create_forwarder_to(implementation)
     CurvePool(pool).initialize(_name, _symbol, _coin, decimals, _A, _fee, self.admin)
     ERC20(_coin).approve(pool, MAX_UINT256)
 

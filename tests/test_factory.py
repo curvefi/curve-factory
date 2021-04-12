@@ -150,15 +150,12 @@ def test_add_existing_pools(factory, swap, swap_btc, new_factory, fee_receiver, 
     assert new_factory.pool_list(1) == swap_btc
 
 
-def test_add_existing_pools_no_base_pool(factory, swap, swap_btc, new_factory, base_pool):
+def test_add_existing_pools_no_base_pool(swap, new_factory, base_pool):
     with brownie.reverts("dev: base pool does not exist"):
         new_factory.add_existing_pools([swap] + [ZERO_ADDRESS] * 99, base_pool)
 
 
-def test_add_existing_pools_only_admin(factory, swap, swap_btc, new_factory, MetaImplementationUSD, base_pool, alice, bob):
-    coin = ERC20(decimals=7)
-    tx = factory.deploy_metapool(base_pool, "Name", "SYM", coin, 12345, 50000000, {'from': bob})
-    new_swap = MetaImplementationUSD.at(tx.return_value)
-    pools = [swap, swap_btc, new_swap]
+def test_add_existing_pools_only_admin(swap, implementation_usd, fee_receiver, new_factory, base_pool, alice, bob):
+    new_factory.add_base_pool(base_pool, implementation_usd, fee_receiver, {"from": alice})
     with brownie.reverts("dev: admin-only function"):
-        new_factory.add_existing_pools(pools + [ZERO_ADDRESS] * 97, {"from": bob})
+        new_factory.add_existing_pools([swap] + [ZERO_ADDRESS] * 99, base_pool, {"from": bob})

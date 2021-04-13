@@ -286,14 +286,6 @@ def get_previous_balances() -> uint256[N_COINS]:
 def get_balances() -> uint256[N_COINS]:
     return self.balances
 
-@view
-@external
-def get_twap_balances(_first_balances: uint256[N_COINS], _last_balances: uint256[N_COINS], _time_elapsed: uint256) -> uint256[N_COINS]:
-    balances: uint256[N_COINS] = empty(uint256[N_COINS])
-    for i in range(N_COINS):
-        balances[i] = (_last_balances[i] - _first_balances[i]) / _time_elapsed
-    return balances
-
 
 @view
 @external
@@ -725,17 +717,16 @@ def exchange(
 def exchange_underlying(
     i: int128,
     j: int128,
-    dx: uint256,
-    min_dy: uint256,
+    _dx: uint256,
+    _min_dy: uint256,
     _receiver: address = msg.sender,
 ) -> uint256:
     """
     @notice Perform an exchange between two underlying coins
-    @dev Index values can be found via the `underlying_coins` public getter method
     @param i Index value for the underlying coin to send
     @param j Index valie of the underlying coin to recieve
-    @param dx Amount of `i` being exchanged
-    @param min_dy Minimum amount of `j` to receive
+    @param _dx Amount of `i` being exchanged
+    @param _min_dy Minimum amount of `j` to receive
     @param _receiver Address that receives `j`
     @return Actual amount of `j` received
     """
@@ -770,11 +761,11 @@ def exchange_underlying(
         output_coin = base_coins[base_j]
 
     # Handle potential Tether fees
-    dx_w_fee: uint256 = dx
+    dx_w_fee: uint256 = _dx
     if j == 3:
         dx_w_fee = ERC20(input_coin).balanceOf(self)
 
-    ERC20(input_coin).transferFrom(msg.sender, self, dx)
+    ERC20(input_coin).transferFrom(msg.sender, self, _dx)
 
     # Handle potential Tether fees
     if j == 3:
@@ -823,17 +814,17 @@ def exchange_underlying(
             Curve(base_pool).remove_liquidity_one_coin(dy, base_j, 0)
             dy = ERC20(output_coin).balanceOf(self) - out_amount
 
-        assert dy >= min_dy
+        assert dy >= _min_dy
 
     else:
         # If both are from the base pool
         dy = ERC20(output_coin).balanceOf(self)
-        Curve(base_pool).exchange(base_i, base_j, dx_w_fee, min_dy)
+        Curve(base_pool).exchange(base_i, base_j, dx_w_fee, _min_dy)
         dy = ERC20(output_coin).balanceOf(self) - dy
 
     ERC20(output_coin).transfer(_receiver, dy)
 
-    log TokenExchangeUnderlying(msg.sender, i, dx, j, dy)
+    log TokenExchangeUnderlying(msg.sender, i, _dx, j, dy)
 
     return dy
 

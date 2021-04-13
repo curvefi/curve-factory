@@ -60,9 +60,19 @@ def implementation_btc(MetaImplementationBTC, alice):
 
 
 @pytest.fixture(scope="module")
-def factory(Factory, alice, fee_receiver, base_pool, implementation_usd):
+def implementation_rebase_btc(MetaImplementationRebaseBTC, alice):
+    yield MetaImplementationRebaseBTC.deploy({'from': alice})
+
+
+@pytest.fixture(scope="module")
+def implementation_rebase_usd(MetaImplementationRebaseUSD, alice):
+    yield MetaImplementationRebaseUSD.deploy({'from': alice})
+
+
+@pytest.fixture(scope="module")
+def factory(Factory, alice, fee_receiver, base_pool, implementation_usd, implementation_rebase_usd):
     contract = Factory.deploy({'from': alice})
-    contract.add_base_pool(base_pool, implementation_usd, fee_receiver, {'from': alice})
+    contract.add_base_pool(base_pool, implementation_usd, fee_receiver, implementation_rebase_usd, {'from': alice})
     yield contract
 
 
@@ -82,6 +92,31 @@ def swap(MetaImplementationUSD, alice, base_pool, factory, coin):
 def swap_btc(MetaImplementationBTC, alice, base_pool_btc, factory, coin):
     tx = factory.deploy_metapool(base_pool_btc, "Test Swap BTC", "TSTB", coin, 200, 4000000, {'from': alice})
     yield MetaImplementationBTC.at(tx.return_value)
+
+
+@pytest.fixture(scope="module")
+def rebase_coin(alice, ATokenMock, AaveLendingPoolMock, ERC20Mock):
+    aave_lending_pool_mock = AaveLendingPoolMock.deploy({"from": alice})
+    erc20_mock = ERC20Mock.deploy("ERC20MOCK", "ERC", 18, {"from": alice})
+    yield ATokenMock.deploy("Rebase Mock",
+                            "MOK",
+                            18,
+                            erc20_mock,
+                            aave_lending_pool_mock,
+                            {"from": alice})
+
+
+
+@pytest.fixture(scope="module")
+def swap_rebase(MetaImplementationRebaseUSD, alice, base_pool, factory, rebase_coin):
+    tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, True, {'from': alice})
+    yield MetaImplementationRebaseUSD.at(tx.return_value)
+
+
+@pytest.fixture(scope="module")
+def swap_rebase_btc(MetaImplementationRebaseBTC, alice, base_pool, factory, rebase_coin):
+    tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, {'from': alice})
+    yield MetaImplementationRebaseBTC.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")
@@ -106,9 +141,9 @@ def base_pool():
 
 
 @pytest.fixture(scope="module")
-def base_pool_btc(alice, fee_receiver, implementation_btc, factory):
+def base_pool_btc(alice, fee_receiver, implementation_btc, factory, implementation_rebase_btc):
     pool = Contract("0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714")
-    factory.add_base_pool(pool, implementation_btc, fee_receiver, {'from': alice})
+    factory.add_base_pool(pool, implementation_btc, fee_receiver, implementation_rebase_btc, {'from': alice})
 
     yield pool
 

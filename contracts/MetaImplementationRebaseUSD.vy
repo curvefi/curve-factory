@@ -734,7 +734,7 @@ def exchange_underlying(
     i: int128,
     j: int128,
     _dx: uint256,
-    min_dy: uint256,
+    _min_dy: uint256,
     _receiver: address = msg.sender,
 ) -> uint256:
     """
@@ -742,7 +742,7 @@ def exchange_underlying(
     @param i Index value for the underlying coin to send
     @param j Index valie of the underlying coin to receive
     @param _dx Amount of `i` being exchanged
-    @param min_dy Minimum amount of `j` to receive
+    @param _min_dy Minimum amount of `j` to receive
     @param _receiver Address that receives `j`
     @return Actual amount of `j` received
     """
@@ -827,12 +827,12 @@ def exchange_underlying(
             Curve(base_pool).remove_liquidity_one_coin(dy, base_j, 0)
             dy = ERC20(output_coin).balanceOf(self) - out_amount
 
-        assert dy >= min_dy
+        assert dy >= _min_dy
 
     else:
         # If both are from the base pool
         dy = ERC20(output_coin).balanceOf(self)
-        Curve(base_pool).exchange(base_i, base_j, dx_w_fee, min_dy)
+        Curve(base_pool).exchange(base_i, base_j, dx_w_fee, _min_dy)
         dy = ERC20(output_coin).balanceOf(self) - dy
 
     ERC20(output_coin).transfer(_receiver, dy)

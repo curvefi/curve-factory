@@ -1110,17 +1110,16 @@ def withdraw_admin_fees():
     factory: address = self.factory
     coin: address = self.coins[0]
     amount: uint256 = self.admin_balances[0]
-    old_balance: uint256 = balances[1]
     if amount > 0:
         ERC20(coin).transfer(factory, amount)
         Factory(factory).convert_fees()
         self.admin_balances[0] -= amount
 
-    balances = self._balances()
-
     # transfer coin 1 to the receiver
     coin = self.coins[1]
-    amount = balances[1] - old_balance
+    amount = self.admin_balances[1]
+
     if amount > 0:
         receiver: address = Factory(factory).fee_receiver(BASE_POOL)
         ERC20(coin).transfer(receiver, amount)
+        self.admin_balances[1] = 0

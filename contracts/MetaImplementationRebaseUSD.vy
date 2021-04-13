@@ -1,3 +1,4 @@
+
 # @version 0.2.11
 """
 @title StableSwap
@@ -690,8 +691,8 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_CO
 def exchange(
     i: int128,
     j: int128,
-    dx: uint256,
-    min_dy: uint256,
+    _dx: uint256,
+    _min_dy: uint256,
     _receiver: address = msg.sender,
 ) -> uint256:
     """
@@ -699,8 +700,8 @@ def exchange(
     @dev Index values can be found via the `coins` public getter method
     @param i Index value for the coin to send
     @param j Index valie of the coin to recieve
-    @param dx Amount of `i` being exchanged
-    @param min_dy Minimum amount of `j` to receive
+    @param _dx Amount of `i` being exchanged
+    @param _min_dy Minimum amount of `j` to receive
     @param _receiver Address that receives `j`
     @return Actual amount of `j` received
     """
@@ -710,20 +711,20 @@ def exchange(
 
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
-    x: uint256 = xp[i] + dx * rates[i] / PRECISION
+    x: uint256 = xp[i] + _dx * rates[i] / PRECISION
     dy: uint256 = xp[j] - self.get_y(i, j, x, xp) - 1  # -1 just in case there were some rounding errors
     dy_fee: uint256 = dy * self.fee / FEE_DENOMINATOR
 
     # Convert all to real units
     dy = (dy - dy_fee) * PRECISION / rates[j]
-    assert dy >= min_dy
+    assert dy >= _min_dy
 
     self.admin_balances[j] += (dy_fee * ADMIN_FEE / FEE_DENOMINATOR) * PRECISION / rates[j]
 
-    ERC20(self.coins[i]).transferFrom(msg.sender, self, dx)
+    ERC20(self.coins[i]).transferFrom(msg.sender, self, _dx)
     ERC20(self.coins[j]).transfer(_receiver, dy)
 
-    log TokenExchange(msg.sender, i, dx, j, dy)
+    log TokenExchange(msg.sender, i, _dx, j, dy)
 
     return dy
 
@@ -1115,17 +1116,16 @@ def withdraw_admin_fees():
     factory: address = self.factory
     coin: address = self.coins[0]
     amount: uint256 = self.admin_balances[0]
-    old_balance: uint256 = balances[1]
     if amount > 0:
         ERC20(coin).transfer(factory, amount)
         Factory(factory).convert_fees()
         self.admin_balances[0] -= amount
 
-    balances = self._balances()
-
     # transfer coin 1 to the receiver
     coin = self.coins[1]
-    amount = balances[1] - old_balance
+    amount = self.admin_balances[1]
+
     if amount > 0:
         receiver: address = Factory(factory).fee_receiver(BASE_POOL)
         ERC20(coin).transfer(receiver, amount)
+        self.admin_balances[1] = 0

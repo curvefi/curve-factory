@@ -1,31 +1,6 @@
 import pytest
 
 
-@pytest.fixture(scope="module")
-def wrapped_rebase_coins(rebase_coin, base_lp_token):
-    yield [rebase_coin, base_lp_token]
-
-
-@pytest.fixture(scope="module")
-def wrapped_rebase_decimals(wrapped_rebase_coins):
-    yield [i.decimals() for i in wrapped_rebase_coins]
-
-
-@pytest.fixture(scope="module")
-def wrapped_rebase_amounts(base_pool, wrapped_coins, wrapped_decimals):
-    wrapped_amounts = [10**i * 1000000 for i in wrapped_decimals]
-    wrapped_amounts[1] = wrapped_amounts[1] * 10**18 // base_pool.get_virtual_price()
-    yield wrapped_amounts
-
-
-@pytest.fixture(scope="module")
-def mint_and_deposit(wrapped_rebase_coins, wrapped_rebase_amounts, alice, swap_rebase):
-    for coin, amount in zip(wrapped_rebase_coins, wrapped_rebase_amounts):
-        coin._mint_for_testing(alice, amount, {"from": alice})
-        coin.approve(swap_rebase, amount, {"from": alice})
-    swap_rebase.add_liquidity(wrapped_rebase_amounts, 0, {"from": alice})
-
-
 def test_get_balances(alice, mint_and_deposit, wrapped_rebase_coins, wrapped_rebase_decimals, wrapped_rebase_amounts, base_pool, swap_rebase):
     balances = swap_rebase.get_balances()
     assert len(balances) == 2

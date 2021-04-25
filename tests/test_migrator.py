@@ -19,7 +19,9 @@ def migrator(PoolMigrator, alice, swap):
     yield contract
 
 
-def test_migrate(alice, migrator, swap, swap2):
+def test_migrate(alice, is_rebase, migrator, swap, swap2):
+    if is_rebase:
+        pytest.skip()
     balance = swap.balanceOf(alice)
     migrator.migrate_to_new_pool(swap, swap2, balance, {"from": alice})
 
@@ -30,7 +32,9 @@ def test_migrate(alice, migrator, swap, swap2):
     assert swap2.balanceOf(migrator) == 0
 
 
-def test_migrate_partial(alice, migrator, swap, swap2, coin):
+def test_migrate_partial(alice, is_rebase, migrator, swap, swap2, coin):
+    if is_rebase:
+        pytest.skip()
     balance = swap.balanceOf(alice)
     migrator.migrate_to_new_pool(swap, swap2, balance // 4, {"from": alice})
 
@@ -41,7 +45,9 @@ def test_migrate_partial(alice, migrator, swap, swap2, coin):
     assert swap2.balanceOf(migrator) == 0
 
 
-def test_migrate_multiple(alice, migrator, swap, swap2, coin):
+def test_migrate_multiple(alice, migrator, is_rebase, swap, swap2, coin):
+    if is_rebase:
+        pytest.skip()
     balance = swap.balanceOf(alice)
     for i in range(4):
         migrator.migrate_to_new_pool(swap, swap2, balance // 4, {"from": alice})
@@ -53,7 +59,9 @@ def test_migrate_multiple(alice, migrator, swap, swap2, coin):
     assert swap2.balanceOf(migrator) == 0
 
 
-def test_migrate_bidirectional(alice, migrator, swap, swap2):
+def test_migrate_bidirectional(alice, migrator, is_rebase, swap, swap2):
+    if is_rebase:
+        pytest.skip()
     balance = swap.balanceOf(alice)
     migrator.migrate_to_new_pool(swap, swap2, balance, {"from": alice})
     swap2.approve(migrator, 2 ** 256 - 1, {"from": alice})

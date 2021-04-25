@@ -6,7 +6,7 @@ from brownie import ZERO_ADDRESS, Contract
 from brownie_tokens import ERC20
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(autouse=True)
 def setup(swap, bob, add_initial_liquidity, mint_bob, approve_bob, coin, swap_btc):
     amount = 10**coin.decimals()
     swap.exchange(0, 1, amount, 0, {'from': bob})
@@ -14,14 +14,16 @@ def setup(swap, bob, add_initial_liquidity, mint_bob, approve_bob, coin, swap_bt
 
 
 @pytest.mark.parametrize('sending,receiving', [(0, 1), (1, 0)])
-def test_find_pool_for_coins(factory, swap, wrapped_coins, sending, receiving):
-    assert factory.find_pool_for_coins(wrapped_coins[sending], wrapped_coins[receiving]) == swap
+def test_find_pool_for_coins(factory, is_rebase, swap, wrapped_coins, sending, receiving):
+    if not is_rebase:
+        assert factory.find_pool_for_coins(wrapped_coins[sending], wrapped_coins[receiving]) == swap
 
 
 @pytest.mark.parametrize('idx', range(1, 4))
-def test_find_pool_for_coins_underlying(factory, swap, underlying_coins, idx):
-    assert factory.find_pool_for_coins(underlying_coins[0], underlying_coins[idx]) == swap
-    assert factory.find_pool_for_coins(underlying_coins[idx], underlying_coins[0]) == swap
+def test_find_pool_for_coins_underlying(factory, is_rebase, swap, underlying_coins, idx):
+    if not is_rebase:
+        assert factory.find_pool_for_coins(underlying_coins[0], underlying_coins[idx]) == swap
+        assert factory.find_pool_for_coins(underlying_coins[idx], underlying_coins[0]) == swap
 
 
 @pytest.mark.parametrize('sending,receiving', itertools.permutations(range(1, 4), 2))
@@ -113,7 +115,10 @@ def test_add_base_pool_only_admin(factory, base_pool, bob, fee_receiver):
         factory.add_base_pool("0xA5407eAE9Ba41422680e2e00537571bcC53efBfD", bob, fee_receiver, {'from': bob})
 
 
-def test_deploy_metapool(MetaImplementationUSD, factory, base_pool, alice, bob):
+def test_deploy_metapool(MetaImplementationUSD, is_rebase, factory, base_pool, alice, bob):
+    if is_rebase:
+        pytest.skip()
+
     coin = ERC20(decimals=7)
 
     tx = factory.deploy_metapool(base_pool, "Name", "SYM", coin, 12345, 50000000, {'from': bob})
@@ -130,10 +135,15 @@ def test_deploy_metapool(MetaImplementationUSD, factory, base_pool, alice, bob):
     assert factory.get_decimals(swap) == [7, 18]
 
 
-def test_add_existing_pools(factory, swap, swap_btc, new_factory, fee_receiver, implementation_btc, implementation_usd, base_pool, base_pool_btc, alice):
-    assert factory.pool_count() == 2
-    assert factory.pool_list(0) == swap
-    assert factory.pool_list(1) == swap_btc
+def test_add_existing_pools(factory, swap, swap_btc, swap_rebase, new_factory, fee_receiver, implementation_btc, implementation_usd, base_pool, base_pool_btc, alice):
+    if factory.pool_count() == 3:
+        assert factory.pool_list(0) == swap
+        assert factory.pool_list(1) == swap_btc
+    else:
+        assert factory.pool_list(1) == swap_btc
+        assert factory.pool_list(2) == swap_rebase
+        assert factory.pool_list(3) == swap
+
 
     assert new_factory.pool_count() == 0
     # add existing USD pools to new factory

@@ -82,12 +82,6 @@ def new_factory(Factory, alice, fee_receiver, base_pool, implementation_usd):
     yield contract
 
 
-# @pytest.fixture(scope="module")
-# def swap(MetaImplementationUSD, alice, base_pool, factory, coin):
-#     tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", coin, 200, 4000000, {'from': alice})
-#     yield MetaImplementationUSD.at(tx.return_value)
-
-
 @pytest.fixture(scope="module")
 def swap(MetaImplementationUSD, MetaImplementationRebaseUSD, is_rebase, alice, rebase_coin, base_pool, factory, coin):
     if is_rebase:
@@ -271,7 +265,7 @@ def approve_alice(alice, swap, underlying_coins, wrapped_coins):
     _approve(alice, swap, underlying_coins, wrapped_coins)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def approve_zap(alice, bob, zap, swap, underlying_coins, initial_amounts_underlying):
     for underlying, amount in zip(underlying_coins, initial_amounts_underlying):
         if underlying == "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE":
@@ -304,7 +298,7 @@ def wrapped_rebase_amounts(base_pool, wrapped_coins, wrapped_decimals):
     yield wrapped_amounts
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def mint_and_deposit(wrapped_rebase_coins, wrapped_rebase_amounts, alice, swap_rebase):
     for coin, amount in zip(wrapped_rebase_coins, wrapped_rebase_amounts):
         coin._mint_for_testing(alice, amount, {"from": alice})

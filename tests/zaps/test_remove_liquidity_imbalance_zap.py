@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(autouse=True)
 def setup(alice, bob, swap, add_initial_liquidity, approve_zap):
     swap.transfer(bob, swap.balanceOf(alice), {'from': alice})
 

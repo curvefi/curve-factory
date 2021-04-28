@@ -1,4 +1,4 @@
-# @version 0.2.8
+# @version 0.2.12
 """
 @title StableSwap
 @author Curve.Fi
@@ -280,18 +280,11 @@ def approve(_spender : address, _value : uint256) -> bool:
 def get_previous_balances() -> uint256[N_COINS]:
     return self.previous_balances
 
+
 @view
 @external
 def get_balances() -> uint256[N_COINS]:
     return self.balances
-
-@view
-@external
-def get_twap_balances(_first_balances: uint256[N_COINS], _last_balances: uint256[N_COINS], _time_elapsed: uint256) -> uint256[N_COINS]:
-    balances: uint256[N_COINS] = empty(uint256[N_COINS])
-    for x in range(N_COINS):
-        balances[x] = (_last_balances[x] - _first_balances[x]) / _time_elapsed
-    return balances
 
 
 @view

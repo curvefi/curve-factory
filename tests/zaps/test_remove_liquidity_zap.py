@@ -4,7 +4,7 @@ import pytest
 pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "approve_zap")
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(autouse=True)
 def setup(add_initial_liquidity, approve_zap, alice, bob, swap):
     swap.transfer(bob, swap.balanceOf(alice), {'from': alice})
 

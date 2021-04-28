@@ -1,4 +1,4 @@
-# @version 0.2.8
+# @version 0.2.12
 """
 @title Curve Factory
 @license MIT
@@ -13,6 +13,7 @@ struct PoolArray:
 
 struct BasePoolArray:
     implementation: address
+    rebase_implementation: address
     lp_token: address
     coins: address[MAX_COINS]
     decimals: uint256
@@ -27,6 +28,7 @@ interface Registry:
     def get_lp_token(pool: address) -> address: view
     def get_n_coins(pool: address) -> uint256: view
     def get_coins(pool: address) -> address[MAX_COINS]: view
+    def get_pool_from_lp_token(lp_token: address) -> address: view
 
 interface ERC20:
     def balanceOf(_addr: address) -> uint256: view
@@ -58,6 +60,9 @@ interface CurvePool:
         _receiver: address,
     ) -> uint256: nonpayable
 
+interface CurveFactoryMetapool:
+    def coins(i :uint256) -> address: view
+    def decimals() -> uint256: view
 
 event BasePoolAdded:
     base_pool: address
@@ -70,7 +75,7 @@ event MetaPoolDeployed:
     fee: uint256
     deployer: address
 
-
+N_POOLS: constant(int128) = 100   # number of pre-existing factory pools to add
 MAX_COINS: constant(int128) = 8
 ADDRESS_PROVIDER: constant(address) = 0x0000000022D53366457F9d5E68Ec105046FC4383
 
@@ -112,6 +117,17 @@ def find_pool_for_coins(_from: address, _to: address, i: uint256 = 0) -> address
     """
     key: uint256 = bitwise_xor(convert(_from, uint256), convert(_to, uint256))
     return self.markets[key][i]
+
+
+@view
+@external
+def get_base_pool(_pool: address) -> address:
+    """
+    @notice Get the base pool for a given factory metapool
+    @param _pool Metapool address
+    @return Address of base pool
+    """
+    return self.pool_data[_pool].base_pool
 
 
 @view
@@ -325,6 +341,7 @@ def add_base_pool(
     _base_pool: address,
     _metapool_implementation: address,
     _fee_receiver: address,
+    _metapool_implementation_rebase: address = ZERO_ADDRESS,
 ):
     """
     @notice Add a pool to the registry
@@ -344,6 +361,7 @@ def add_base_pool(
     self.base_pool_list[length] = _base_pool
     self.base_pool_count = length + 1
     self.base_pool_data[_base_pool].implementation = _metapool_implementation
+    self.base_pool_data[_base_pool].rebase_implementation = _metapool_implementation_rebase
     self.base_pool_data[_base_pool].lp_token = Registry(registry).get_lp_token(_base_pool)
     self.base_pool_data[_base_pool].n_coins = n_coins
 
@@ -370,6 +388,7 @@ def deploy_metapool(
     _coin: address,
     _A: uint256,
     _fee: uint256,
+    _rebase_coin: bool = False,
 ) -> address:
     """
     @notice Deploy a new metapool
@@ -388,13 +407,20 @@ def deploy_metapool(
     @param _fee Trade fee, given as an integer with 1e10 precision. The
                 minimum fee is 0.04% (4000000), the maximum is 1% (100000000).
                 50% of the fee is distributed to veCRV holders.
+
+    @param _rebase_coin True if metapool coin is a rebase coin (e.g. aDAI). If True,
+                then a metapool implementation supporting rebase tokens is deployed
     @return Address of the deployed pool
     """
-    implementation: address = self.base_pool_data[_base_pool].implementation
+    implementation: address = ZERO_ADDRESS
+    if _rebase_coin:
+        implementation = self.base_pool_data[_base_pool].rebase_implementation
+    else:
+        implementation = self.base_pool_data[_base_pool].implementation
     assert implementation != ZERO_ADDRESS
+    pool: address = create_forwarder_to(implementation)
 
     decimals: uint256 = ERC20(_coin).decimals()
-    pool: address = create_forwarder_to(implementation)
     CurvePool(pool).initialize(_name, _symbol, _coin, decimals, _A, _fee, self.admin)
     ERC20(_coin).approve(pool, MAX_UINT256)
 
@@ -425,6 +451,64 @@ def deploy_metapool(
 
     log MetaPoolDeployed(_coin, _base_pool, _A, _fee, msg.sender)
     return pool
+
+
+@external
+def add_existing_pools(_pools: address[N_POOLS], _base_pool: address) -> bool:
+    """
+    @notice Add existing factory pools to this factory
+    @dev Base pools that are used by the pools to be added must
+        be added separately with `add_base_pool`. All pools given
+        in `_pools` must have the same `_base_pool`
+    @param _pools Addresses of existing pools to add
+    @param _base_pool Address of the base pool for `_pools`
+    """
+    assert msg.sender == self.admin  # dev: admin-only function
+    assert self.base_pool_data[_base_pool].coins[0] != ZERO_ADDRESS # dev: base pool does not exist
+
+    registry: address = AddressProvider(ADDRESS_PROVIDER).get_registry()
+    base_lp_token: address = Registry(registry).get_lp_token(_base_pool)
+    base_pool_coins: address[MAX_COINS] = self.base_pool_data[_base_pool].coins
+    length: uint256 = self.pool_count
+    for pool in _pools:
+        if pool == ZERO_ADDRESS:
+            break
+
+        # add pool to pool list
+        self.pool_list[length] = pool
+        length += 1
+
+        # update pool data
+        self.pool_data[pool].decimals = CurveFactoryMetapool(pool).decimals()
+        self.pool_data[pool].base_pool = _base_pool
+        meta_coin: address = CurveFactoryMetapool(pool).coins(0)
+        self.pool_data[pool].coins = [meta_coin, base_lp_token]
+
+        is_finished: bool = False
+        for i in range(MAX_COINS):
+            swappable_coin: address = base_pool_coins[i]
+            if swappable_coin == ZERO_ADDRESS:
+                is_finished = True
+                swappable_coin = base_lp_token
+
+            key: uint256 = bitwise_xor(convert(meta_coin, uint256), convert(swappable_coin, uint256))
+            market_idx: uint256 = self.market_counts[key]
+            self.markets[key][market_idx] = pool
+            self.market_counts[key] = market_idx + 1
+            if is_finished:
+                break
+
+    self.pool_count = length
+    return True
+
+
+@pure
+@external
+def get_twap_balances(_first_balances: uint256[MAX_COINS], _last_balances: uint256[MAX_COINS], _time_elapsed: uint256) -> uint256[MAX_COINS]:
+    balances: uint256[MAX_COINS] = empty(uint256[MAX_COINS])
+    for i in range(MAX_COINS):
+        balances[i] = (_last_balances[i] - _first_balances[i]) / _time_elapsed
+    return balances
 
 
 @external

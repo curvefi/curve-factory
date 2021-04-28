@@ -8,12 +8,12 @@
 
 struct PoolArray:
     base_pool: address
-    coins: address[2]
+    implementation: address
+    coins: address[4]
     decimals: uint256
 
 struct BasePoolArray:
-    implementation: address
-    rebase_implementation: address
+    implementations: address[10]
     lp_token: address
     coins: address[MAX_COINS]
     decimals: uint256
@@ -66,7 +66,6 @@ interface CurveFactoryMetapool:
 
 event BasePoolAdded:
     base_pool: address
-    implementat: address
 
 event MetaPoolDeployed:
     coin: address
@@ -144,7 +143,7 @@ def get_n_coins(_pool: address) -> (uint256, uint256):
 
 @view
 @external
-def get_coins(_pool: address) -> address[2]:
+def get_coins(_pool: address) -> address[4]:
     """
     @notice Get the coins within a pool
     @param _pool Pool address
@@ -336,19 +335,24 @@ def get_coin_indices(
     return i, j, True
 
 
+@view
+@external
+def get_implementations(_base_pool: address) -> address[10]:
+    return self.base_pool_data[_base_pool].implementations
+
+
 @external
 def add_base_pool(
     _base_pool: address,
-    _metapool_implementation: address,
     _fee_receiver: address,
-    _metapool_implementation_rebase: address = ZERO_ADDRESS,
+    _implementations: address[10],
 ):
     """
     @notice Add a pool to the registry
     @dev Only callable by admin
     @param _base_pool Pool address to add
-    @param _metapool_implementation Implementation address to use when deploying metapools
     @param _fee_receiver Admin fee receiver address for metapools using this base pool
+    @param _implementations List of implementation addresses that can be used with this base pool
     """
     assert msg.sender == self.admin  # dev: admin-only function
     assert self.base_pool_data[_base_pool].coins[0] == ZERO_ADDRESS  # dev: pool exists
@@ -360,10 +364,14 @@ def add_base_pool(
     length: uint256 = self.base_pool_count
     self.base_pool_list[length] = _base_pool
     self.base_pool_count = length + 1
-    self.base_pool_data[_base_pool].implementation = _metapool_implementation
-    self.base_pool_data[_base_pool].rebase_implementation = _metapool_implementation_rebase
     self.base_pool_data[_base_pool].lp_token = Registry(registry).get_lp_token(_base_pool)
     self.base_pool_data[_base_pool].n_coins = n_coins
+
+    for i in range(MAX_COINS):
+        implementation: address = _implementations[i]
+        if implementation == ZERO_ADDRESS:
+            break
+        self.base_pool_data[_base_pool].implementations[i] = implementation
 
     decimals: uint256 = 0
     coins: address[MAX_COINS] = Registry(registry).get_coins(_base_pool)
@@ -377,7 +385,31 @@ def add_base_pool(
     self.base_pool_data[_base_pool].decimals = decimals
     self.fee_receiver[_base_pool] = _fee_receiver
 
-    log BasePoolAdded(_base_pool, _metapool_implementation)
+    log BasePoolAdded(_base_pool)
+
+
+@external
+def set_pool_implementations(
+    _base_pool: address,
+    _implementations: address[10],
+):
+    """
+    @notice Set implementation contracts for a metapool
+    @dev Only callable by admin
+    @param _base_pool Pool address to add
+    @param _implementations Implementation address to use when deploying metapools
+    """
+    assert msg.sender == self.admin  # dev: admin-only function
+    assert self.base_pool_data[_base_pool].coins[0] == ZERO_ADDRESS  # dev: pool does not exist
+
+    for i in range(MAX_COINS):
+        new_imp: address = _implementations[i]
+        current_imp: address = self.base_pool_data[_base_pool].implementations[i]
+        if new_imp == current_imp:
+            if new_imp == ZERO_ADDRESS:
+                break
+        else:
+            self.base_pool_data[_base_pool].implementations[i] = new_imp
 
 
 @external
@@ -388,7 +420,7 @@ def deploy_metapool(
     _coin: address,
     _A: uint256,
     _fee: uint256,
-    _rebase_coin: bool = False,
+    _implementation_idx: uint256 = 0,
 ) -> address:
     """
     @notice Deploy a new metapool
@@ -407,16 +439,9 @@ def deploy_metapool(
     @param _fee Trade fee, given as an integer with 1e10 precision. The
                 minimum fee is 0.04% (4000000), the maximum is 1% (100000000).
                 50% of the fee is distributed to veCRV holders.
-
-    @param _rebase_coin True if metapool coin is a rebase coin (e.g. aDAI). If True,
-                then a metapool implementation supporting rebase tokens is deployed
     @return Address of the deployed pool
     """
-    implementation: address = ZERO_ADDRESS
-    if _rebase_coin:
-        implementation = self.base_pool_data[_base_pool].rebase_implementation
-    else:
-        implementation = self.base_pool_data[_base_pool].implementation
+    implementation: address = self.base_pool_data[_base_pool].implementations[_implementation_idx]
     assert implementation != ZERO_ADDRESS
     pool: address = create_forwarder_to(implementation)
 
@@ -433,7 +458,9 @@ def deploy_metapool(
 
     self.pool_data[pool].decimals = decimals
     self.pool_data[pool].base_pool = _base_pool
-    self.pool_data[pool].coins = [_coin, self.base_pool_data[_base_pool].lp_token]
+    self.pool_data[pool].coins[0] = _coin
+    self.pool_data[pool].coins[1] = self.base_pool_data[_base_pool].lp_token
+    self.pool_data[pool].implementation = implementation
 
     is_finished: bool = False
     for i in range(MAX_COINS):
@@ -454,7 +481,7 @@ def deploy_metapool(
 
 
 @external
-def add_existing_pools(_pools: address[N_POOLS], _base_pool: address) -> bool:
+def add_existing_pools(_pools: address[N_POOLS], _base_pool: address, _implementation: address) -> bool:
     """
     @notice Add existing factory pools to this factory
     @dev Base pools that are used by the pools to be added must
@@ -482,7 +509,9 @@ def add_existing_pools(_pools: address[N_POOLS], _base_pool: address) -> bool:
         self.pool_data[pool].decimals = CurveFactoryMetapool(pool).decimals()
         self.pool_data[pool].base_pool = _base_pool
         meta_coin: address = CurveFactoryMetapool(pool).coins(0)
-        self.pool_data[pool].coins = [meta_coin, base_lp_token]
+        self.pool_data[pool].coins[0] = meta_coin
+        self.pool_data[pool].coins[1] = base_lp_token
+        self.pool_data[pool].implementation = _implementation
 
         is_finished: bool = False
         for i in range(MAX_COINS):

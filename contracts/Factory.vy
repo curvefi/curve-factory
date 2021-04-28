@@ -89,6 +89,9 @@ base_pool_list: public(address[4294967296])   # master list of pools
 base_pool_count: public(uint256)         # actual length of pool_list
 base_pool_data: HashMap[address, BasePoolArray]
 
+base_pool_assets: public(HashMap[address, bool])  # asset -> is used in a metapool?
+plain_implementations: public(HashMap[uint256, address[10]])  # number of coins -> implementation addresses
+
 # mapping of coins -> pools for trading
 # a mapping key is generated for each pair of addresses via
 # `bitwise_xor(convert(a, uint256), convert(b, uint256))`
@@ -337,7 +340,7 @@ def get_coin_indices(
 
 @view
 @external
-def get_implementations(_base_pool: address) -> address[10]:
+def metapool_implementations(_base_pool: address) -> address[10]:
     return self.base_pool_data[_base_pool].implementations
 
 
@@ -367,7 +370,7 @@ def add_base_pool(
     self.base_pool_data[_base_pool].lp_token = Registry(registry).get_lp_token(_base_pool)
     self.base_pool_data[_base_pool].n_coins = n_coins
 
-    for i in range(MAX_COINS):
+    for i in range(10):
         implementation: address = _implementations[i]
         if implementation == ZERO_ADDRESS:
             break
@@ -380,6 +383,7 @@ def add_base_pool(
             break
         coin: address = coins[i]
         self.base_pool_data[_base_pool].coins[i] = coin
+        self.base_pool_assets[coin] = True
         decimals += shift(ERC20(coin).decimals(), convert(i*8, int128))
 
     self.base_pool_data[_base_pool].decimals = decimals
@@ -389,7 +393,7 @@ def add_base_pool(
 
 
 @external
-def set_pool_implementations(
+def set_metapool_implementations(
     _base_pool: address,
     _implementations: address[10],
 ):
@@ -402,7 +406,7 @@ def set_pool_implementations(
     assert msg.sender == self.admin  # dev: admin-only function
     assert self.base_pool_data[_base_pool].coins[0] == ZERO_ADDRESS  # dev: pool does not exist
 
-    for i in range(MAX_COINS):
+    for i in range(10):
         new_imp: address = _implementations[i]
         current_imp: address = self.base_pool_data[_base_pool].implementations[i]
         if new_imp == current_imp:
@@ -410,6 +414,23 @@ def set_pool_implementations(
                 break
         else:
             self.base_pool_data[_base_pool].implementations[i] = new_imp
+
+
+@external
+def set_plain_implementations(
+    _n_coins: uint256,
+    _implementations: address[10],
+):
+    assert msg.sender == self.admin  # dev: admin-only function
+
+    for i in range(10):
+        new_imp: address = _implementations[i]
+        current_imp: address = self.plain_implementations[_n_coins][i]
+        if new_imp == current_imp:
+            if new_imp == ZERO_ADDRESS:
+                break
+        else:
+            self.plain_implementations[_n_coins][i] = new_imp
 
 
 @external

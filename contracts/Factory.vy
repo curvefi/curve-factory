@@ -36,6 +36,17 @@ interface ERC20:
     def totalSupply() -> uint256: view
     def approve(_spender: address, _amount: uint256): nonpayable
 
+interface CurvePlainPool:
+    def initialize(
+    _name: String[32],
+    _symbol: String[10],
+    _coins: address[4],
+    _decimals: uint256[4],
+    _A: uint256,
+    _fee: uint256,
+    _admin: address
+): nonpayable
+
 interface CurvePool:
     def A() -> uint256: view
     def fee() -> uint256: view
@@ -66,6 +77,12 @@ interface CurveFactoryMetapool:
 
 event BasePoolAdded:
     base_pool: address
+
+event PlainPoolDeployed:
+    coins: address[4]
+    A: uint256
+    fee: uint256
+    deployer: address
 
 event MetaPoolDeployed:
     coin: address
@@ -512,14 +529,41 @@ def deploy_plain_pool(
 ) -> address:
     # iterate _coins to determine n_coins and check against self.base_pool_assets
     # deploy pool and store data
+    n_coins: uint256 = 0
+    decimals: uint256[4] = empty(uint256[4])
+    for coin in _coins:
+        assert self.base_pool_assets[coin] == False  # dev: pool should be deployed as metapool
+        decimals[n_coins] = ERC20(coin).decimals()
+        n_coins += 1
 
+    implementation: address = self.plain_implementations[n_coins][_implementation_idx]
+    assert implementation != ZERO_ADDRESS
+    pool: address = create_forwarder_to(implementation)
+
+    CurvePlainPool(pool).initialize(_name, _symbol, _coins, decimals, _A, _fee, self.admin)
+
+    length: uint256 = self.pool_count
+    self.pool_list[length] = pool
+    self.pool_count = length + 1
+
+    # need to add decimals (modify pool_data struct)
+    self.pool_data[pool].base_pool = ZERO_ADDRESS
+    self.pool_data[pool].implementation = implementation
+    for i in range(4):
+        if _coins[i] == ZERO_ADDRESS:
+            break
+        self.pool_data[pool].coins[i] = _coins[i]
+        ERC20(_coins[i]).approve(pool, MAX_UINT256)
+
+    # add logic for registering swappable pairs/markets
+
+    log PlainPoolDeployed(_coins, _A, _fee, msg.sender)
     # need to expand getters for not-metapools!
-    return ZERO_ADDRESS
-
+    return pool
 
 
 @external
-def add_existing_pools(_pools: address[N_POOLS], _base_pool: address, _implementation: address) -> bool:
+def add_existing_metapools(_pools: address[N_POOLS], _base_pool: address, _implementation: address) -> bool:
     """
     @notice Add existing factory pools to this factory
     @dev Base pools that are used by the pools to be added must
@@ -527,6 +571,7 @@ def add_existing_pools(_pools: address[N_POOLS], _base_pool: address, _implement
         in `_pools` must have the same `_base_pool`
     @param _pools Addresses of existing pools to add
     @param _base_pool Address of the base pool for `_pools`
+    @param _implementation Address of the implementation for the pools
     """
     assert msg.sender == self.admin  # dev: admin-only function
     assert self.base_pool_data[_base_pool].coins[0] != ZERO_ADDRESS # dev: base pool does not exist

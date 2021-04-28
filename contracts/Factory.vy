@@ -502,6 +502,23 @@ def deploy_metapool(
 
 
 @external
+def deploy_plain_pool(
+    _name: String[32],
+    _symbol: String[10],
+    _coins: address[4],
+    _A: uint256,
+    _fee: uint256,
+    _implementation_idx: uint256 = 0,
+) -> address:
+    # iterate _coins to determine n_coins and check against self.base_pool_assets
+    # deploy pool and store data
+
+    # need to expand getters for not-metapools!
+    return ZERO_ADDRESS
+
+
+
+@external
 def add_existing_pools(_pools: address[N_POOLS], _base_pool: address, _implementation: address) -> bool:
     """
     @notice Add existing factory pools to this factory

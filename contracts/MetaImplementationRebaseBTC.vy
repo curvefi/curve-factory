@@ -1,4 +1,4 @@
-# @version 0.2.11
+# @version 0.2.12
 """
 @title StableSwap
 @author Curve.Fi
@@ -283,15 +283,6 @@ def get_previous_balances() -> uint256[N_COINS]:
 
 @view
 @external
-def get_balances() -> uint256[N_COINS]:
-    balances: uint256[N_COINS] = empty(uint256[N_COINS])
-    for i in range(N_COINS):
-        balances[i] = ERC20(self.coins[i]).balanceOf(self) - self.admin_balances[i]
-    return balances
-
-
-@view
-@external
 def get_price_cumulative_last() -> uint256[N_COINS]:
     return self.price_cumulative_last
 
@@ -315,6 +306,12 @@ def _balances() -> uint256[N_COINS]:
     for i in range(N_COINS):
         result[i] = ERC20(self.coins[i]).balanceOf(self) - self.admin_balances[i]
     return result
+
+
+@view
+@external
+def get_balances() -> uint256[N_COINS]:
+    return self._balances()
 
 
 @view
@@ -1113,7 +1110,7 @@ def withdraw_admin_fees():
     if amount > 0:
         ERC20(coin).transfer(factory, amount)
         Factory(factory).convert_fees()
-        self.admin_balances[0] -= amount
+        self.admin_balances[0] = 0
 
     # transfer coin 1 to the receiver
     coin = self.coins[1]

@@ -1,4 +1,4 @@
-# @version 0.2.11
+# @version 0.2.12
 """
 @title Curve Factory
 @license MIT
@@ -468,15 +468,15 @@ def add_existing_pools(_pools: address[N_POOLS], _base_pool: address) -> bool:
 
     registry: address = AddressProvider(ADDRESS_PROVIDER).get_registry()
     base_lp_token: address = Registry(registry).get_lp_token(_base_pool)
-
+    base_pool_coins: address[MAX_COINS] = self.base_pool_data[_base_pool].coins
+    length: uint256 = self.pool_count
     for pool in _pools:
         if pool == ZERO_ADDRESS:
             break
 
         # add pool to pool list
-        length: uint256 = self.pool_count
         self.pool_list[length] = pool
-        self.pool_count = length + 1
+        length += 1
 
         # update pool data
         self.pool_data[pool].decimals = CurveFactoryMetapool(pool).decimals()
@@ -486,17 +486,19 @@ def add_existing_pools(_pools: address[N_POOLS], _base_pool: address) -> bool:
 
         is_finished: bool = False
         for i in range(MAX_COINS):
-            swappable_coin: address = self.base_pool_data[_base_pool].coins[i]
+            swappable_coin: address = base_pool_coins[i]
             if swappable_coin == ZERO_ADDRESS:
                 is_finished = True
                 swappable_coin = base_lp_token
 
             key: uint256 = bitwise_xor(convert(meta_coin, uint256), convert(swappable_coin, uint256))
-            length = self.market_counts[key]
-            self.markets[key][length] = pool
-            self.market_counts[key] = length + 1
+            market_idx: uint256 = self.market_counts[key]
+            self.markets[key][market_idx] = pool
+            self.market_counts[key] = market_idx + 1
             if is_finished:
                 break
+
+    self.pool_count = length
     return True
 
 

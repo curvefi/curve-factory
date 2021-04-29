@@ -9,8 +9,8 @@
 struct PoolArray:
     base_pool: address
     implementation: address
-    coins: address[4]
-    decimals: uint256
+    coins: address[MAX_PLAIN_COINS]
+    decimals: uint256[MAX_PLAIN_COINS]
 
 struct BasePoolArray:
     implementations: address[10]
@@ -93,6 +93,7 @@ event MetaPoolDeployed:
 
 N_POOLS: constant(int128) = 100   # number of pre-existing factory pools to add
 MAX_COINS: constant(int128) = 8
+MAX_PLAIN_COINS: constant(int128) = 4  # max coins in a plain pool
 ADDRESS_PROVIDER: constant(address) = 0x0000000022D53366457F9d5E68Ec105046FC4383
 
 admin: public(address)
@@ -115,7 +116,11 @@ plain_implementations: public(HashMap[uint256, address[10]])  # number of coins 
 markets: HashMap[uint256, address[4294967296]]
 market_counts: HashMap[uint256, uint256]
 
-# base pool -> address to transfer admin fees to
+# mapping of coin address -> seen
+# used to ensure plain pools do not contain duplicate coins
+registered_coins: HashMap[address, bool]
+
+# base pool/plain pool -> address to transfer admin fees to
 fee_receiver: public(HashMap[address, address])
 
 @external
@@ -181,8 +186,9 @@ def get_underlying_coins(_pool: address) -> address[MAX_COINS]:
     @return List of coin addresses
     """
     coins: address[MAX_COINS] = empty(address[MAX_COINS])
-    coins[0] = self.pool_data[_pool].coins[0]
     base_pool: address = self.pool_data[_pool].base_pool
+    assert base_pool != ZERO_ADDRESS  # dev: pool is not metapool
+    coins[0] = self.pool_data[_pool].coins[0]
     for i in range(1, MAX_COINS):
         coins[i] = self.base_pool_data[base_pool].coins[i - 1]
         if coins[i] == ZERO_ADDRESS:
@@ -193,16 +199,18 @@ def get_underlying_coins(_pool: address) -> address[MAX_COINS]:
 
 @view
 @external
-def get_decimals(_pool: address) -> uint256[2]:
+def get_decimals(_pool: address) -> uint256[MAX_PLAIN_COINS]:
     """
     @notice Get decimal places for each coin within a pool
     @param _pool Pool address
     @return uint256 list of decimals
     """
-    decimals: uint256[2] = [0, 18]
-    decimals[0] = self.pool_data[_pool].decimals
-    return decimals
-
+    if self.pool_data[_pool].base_pool != ZERO_ADDRESS:
+        decimals: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
+        decimals = self.pool_data[_pool].decimals
+        decimals[1] = 18
+        return decimals
+    return self.pool_data[_pool].decimals
 
 @view
 @external
@@ -214,8 +222,10 @@ def get_underlying_decimals(_pool: address) -> uint256[MAX_COINS]:
     """
     # decimals are tightly packed as a series of uint8 within a little-endian bytes32
     # the packed value is stored as uint256 to simplify unpacking via shift and modulo
+    pool_decimals: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
+    pool_decimals = self.pool_data[_pool].decimals
     decimals: uint256[MAX_COINS] = empty(uint256[MAX_COINS])
-    decimals[0] = self.pool_data[_pool].decimals
+    decimals[0] = pool_decimals[0]
     base_pool: address = self.pool_data[_pool].base_pool
     packed_decimals: uint256 = self.base_pool_data[base_pool].decimals
     for i in range(MAX_COINS):
@@ -361,6 +371,12 @@ def metapool_implementations(_base_pool: address) -> address[10]:
     return self.base_pool_data[_base_pool].implementations
 
 
+@view
+@external
+def plain_pool_implementation(_pool: address) -> address:
+    return self.pool_data[_pool].implementation
+
+
 @external
 def add_base_pool(
     _base_pool: address,
@@ -494,7 +510,7 @@ def deploy_metapool(
 
     base_lp_token: address = self.base_pool_data[_base_pool].lp_token
 
-    self.pool_data[pool].decimals = decimals
+    self.pool_data[pool].decimals = [decimals, 0, 0, 0]
     self.pool_data[pool].base_pool = _base_pool
     self.pool_data[pool].coins[0] = _coin
     self.pool_data[pool].coins[1] = self.base_pool_data[_base_pool].lp_token
@@ -517,7 +533,6 @@ def deploy_metapool(
     log MetaPoolDeployed(_coin, _base_pool, _A, _fee, msg.sender)
     return pool
 
-
 @external
 def deploy_plain_pool(
     _name: String[32],
@@ -527,14 +542,17 @@ def deploy_plain_pool(
     _fee: uint256,
     _implementation_idx: uint256 = 0,
 ) -> address:
-    # iterate _coins to determine n_coins and check against self.base_pool_assets
-    # deploy pool and store data
     n_coins: uint256 = 0
     decimals: uint256[4] = empty(uint256[4])
     for coin in _coins:
         assert self.base_pool_assets[coin] == False  # dev: pool should be deployed as metapool
+        assert self.registered_coins[coin] == False # dev: pool cannot contain duplicate coins
+        self.registered_coins[coin] = True
         decimals[n_coins] = ERC20(coin).decimals()
         n_coins += 1
+
+    for coin in _coins:
+        self.registered_coins[coin] = False  # reset seen coins for next pool
 
     implementation: address = self.plain_implementations[n_coins][_implementation_idx]
     assert implementation != ZERO_ADDRESS
@@ -545,8 +563,7 @@ def deploy_plain_pool(
     length: uint256 = self.pool_count
     self.pool_list[length] = pool
     self.pool_count = length + 1
-
-    # need to add decimals (modify pool_data struct)
+    self.pool_data[pool].decimals = decimals
     self.pool_data[pool].base_pool = ZERO_ADDRESS
     self.pool_data[pool].implementation = implementation
     for i in range(4):
@@ -568,13 +585,15 @@ def add_existing_metapools(_pools: address[N_POOLS], _base_pool: address, _imple
     @notice Add existing factory pools to this factory
     @dev Base pools that are used by the pools to be added must
         be added separately with `add_base_pool`. All pools given
-        in `_pools` must have the same `_base_pool`
+        in `_pools` must have the same `_base_pool` and `implementation`.
+        Note that a pool address already registered cannot be readded.
     @param _pools Addresses of existing pools to add
     @param _base_pool Address of the base pool for `_pools`
     @param _implementation Address of the implementation for the pools
     """
     assert msg.sender == self.admin  # dev: admin-only function
     assert self.base_pool_data[_base_pool].coins[0] != ZERO_ADDRESS # dev: base pool does not exist
+    assert _implementation != ZERO_ADDRESS
 
     registry: address = AddressProvider(ADDRESS_PROVIDER).get_registry()
     base_lp_token: address = Registry(registry).get_lp_token(_base_pool)
@@ -583,13 +602,15 @@ def add_existing_metapools(_pools: address[N_POOLS], _base_pool: address, _imple
     for pool in _pools:
         if pool == ZERO_ADDRESS:
             break
+        assert self.pool_data[pool].coins[0] == ZERO_ADDRESS  # dev: pool already exists
 
         # add pool to pool list
         self.pool_list[length] = pool
         length += 1
 
         # update pool data
-        self.pool_data[pool].decimals = CurveFactoryMetapool(pool).decimals()
+        meta_decimals: uint256 = CurveFactoryMetapool(pool).decimals()
+        self.pool_data[pool].decimals = [meta_decimals, 0, 0, 0]
         self.pool_data[pool].base_pool = _base_pool
         meta_coin: address = CurveFactoryMetapool(pool).coins(0)
         self.pool_data[pool].coins[0] = meta_coin
@@ -623,15 +644,26 @@ def get_twap_balances(_first_balances: uint256[MAX_COINS], _last_balances: uint2
     return balances
 
 
+@view
 @external
-def commit_transfer_ownership(addr: address):
+def is_meta(_pool: address) -> bool:
+    """
+    @notice Verify `_pool` is a metapool
+    @param _pool Pool address
+    @return True if `_pool` is a metapool
+    """
+    return self.pool_data[_pool].base_pool != ZERO_ADDRESS
+
+
+@external
+def commit_transfer_ownership(_addr: address):
     """
     @notice Transfer ownership of this contract to `addr`
-    @param addr Address of the new owner
+    @param _addr Address of the new owner
     """
     assert msg.sender == self.admin  # dev: admin only
 
-    self.future_admin = addr
+    self.future_admin = _addr
 
 
 @external
@@ -648,13 +680,19 @@ def accept_transfer_ownership():
 
 
 @external
-def set_fee_receiver(_base_pool: address, _fee_receiver: address):
+def set_fee_receiver(_pool: address, _fee_receiver: address):
+    """
+    @notice Set fee receiver for base and plain pools
+    @param _pool Address of pool to set fee receiver for
+    @param _fee_receiver Address of receiver of fees from `_pool`
+    """
     assert msg.sender == self.admin  # dev: admin only
-    self.fee_receiver[_base_pool] = _fee_receiver
+    self.fee_receiver[_pool] = _fee_receiver
 
 
 @external
-def convert_fees() -> bool:
+def convert_metapool_fees() -> bool:
+    assert self.pool_data[msg.sender].base_pool != ZERO_ADDRESS  # dev: sender must be metapool
     coin: address = self.pool_data[msg.sender].coins[0]
     assert coin != ZERO_ADDRESS  # dev: unknown pool
 

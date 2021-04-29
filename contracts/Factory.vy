@@ -11,6 +11,7 @@ struct PoolArray:
     implementation: address
     coins: address[MAX_PLAIN_COINS]
     decimals: uint256[MAX_PLAIN_COINS]
+    n_coins: uint256
 
 struct BasePoolArray:
     implementations: address[10]
@@ -156,7 +157,7 @@ def get_base_pool(_pool: address) -> address:
 
 @view
 @external
-def get_n_coins(_pool: address) -> (uint256, uint256):
+def get_meta_n_coins(_pool: address) -> (uint256, uint256):
     """
     @notice Get the number of coins in a pool
     @param _pool Pool address
@@ -164,6 +165,17 @@ def get_n_coins(_pool: address) -> (uint256, uint256):
     """
     base_pool: address = self.pool_data[_pool].base_pool
     return 2, self.base_pool_data[base_pool].n_coins + 1
+
+
+@view
+@external
+def get_n_coins(_pool: address) -> (uint256):
+    """
+    @notice Get the number of coins in a pool
+    @param _pool Pool address
+    @return Number of coins
+    """
+    return self.pool_data[_pool].n_coins
 
 
 @view
@@ -212,6 +224,7 @@ def get_decimals(_pool: address) -> uint256[MAX_PLAIN_COINS]:
         return decimals
     return self.pool_data[_pool].decimals
 
+
 @view
 @external
 def get_underlying_decimals(_pool: address) -> uint256[MAX_COINS]:
@@ -239,7 +252,7 @@ def get_underlying_decimals(_pool: address) -> uint256[MAX_COINS]:
 
 @view
 @external
-def get_rates(_pool: address) -> uint256[2]:
+def get_metapool_rates(_pool: address) -> uint256[2]:
     """
     @notice Get rates for coins within a pool
     @param _pool Pool address
@@ -252,14 +265,23 @@ def get_rates(_pool: address) -> uint256[2]:
 
 @view
 @external
-def get_balances(_pool: address) -> uint256[2]:
+def get_balances(_pool: address) -> uint256[MAX_PLAIN_COINS]:
     """
     @notice Get balances for each coin within a pool
     @dev For pools using lending, these are the wrapped coin balances
     @param _pool Pool address
     @return uint256 list of balances
     """
-    return [CurvePool(_pool).balances(0), CurvePool(_pool).balances(1)]
+    if self.pool_data[_pool].base_pool != ZERO_ADDRESS:
+        return [CurvePool(_pool).balances(0), CurvePool(_pool).balances(1), 0, 0]
+    n_coins: uint256 = self.pool_data[_pool].n_coins
+    balances: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
+    for i in range(MAX_PLAIN_COINS):
+        if i < n_coins:
+            balances[i] = CurvePool(_pool).balances(i)
+        else:
+            balances[i] = 0
+    return balances
 
 
 @view
@@ -373,7 +395,7 @@ def metapool_implementations(_base_pool: address) -> address[10]:
 
 @view
 @external
-def plain_pool_implementation(_pool: address) -> address:
+def pool_implementation(_pool: address) -> address:
     return self.pool_data[_pool].implementation
 
 
@@ -511,6 +533,7 @@ def deploy_metapool(
     base_lp_token: address = self.base_pool_data[_base_pool].lp_token
 
     self.pool_data[pool].decimals = [decimals, 0, 0, 0]
+    self.pool_data[pool].n_coins = 2
     self.pool_data[pool].base_pool = _base_pool
     self.pool_data[pool].coins[0] = _coin
     self.pool_data[pool].coins[1] = self.base_pool_data[_base_pool].lp_token
@@ -551,8 +574,9 @@ def deploy_plain_pool(
         decimals[n_coins] = ERC20(coin).decimals()
         n_coins += 1
 
+    # reset seen coins for next pool
     for coin in _coins:
-        self.registered_coins[coin] = False  # reset seen coins for next pool
+        self.registered_coins[coin] = False
 
     implementation: address = self.plain_implementations[n_coins][_implementation_idx]
     assert implementation != ZERO_ADDRESS
@@ -564,6 +588,7 @@ def deploy_plain_pool(
     self.pool_list[length] = pool
     self.pool_count = length + 1
     self.pool_data[pool].decimals = decimals
+    self.pool_data[pool].n_coins = n_coins
     self.pool_data[pool].base_pool = ZERO_ADDRESS
     self.pool_data[pool].implementation = implementation
     for i in range(MAX_PLAIN_COINS):

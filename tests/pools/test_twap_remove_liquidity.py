@@ -21,6 +21,8 @@ def test_remove_liquidity(alice, swap, wrapped_coins, min_amount, initial_amount
     elapsed = after - start
 
     for i, balance in enumerate(balances_before):
+        if i == len(twap):
+            break
         assert twap[i] == twap_control[i] + (balance * elapsed)
 
 
@@ -38,4 +40,6 @@ def test_remove_partial(alice, swap, wrapped_coins, initial_amounts):
     elapsed = after - start
 
     for i, balance in enumerate(balances_before):
+        if i == len(twap):
+            break
         assert twap[i] == twap_control[i] + (balance * elapsed)

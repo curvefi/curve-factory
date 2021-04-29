@@ -32,7 +32,7 @@ def test_find_pool_underlying_base_pool_only(factory, underlying_coins, sending,
 
 
 def test_factory(factory, swap):
-    assert factory.get_n_coins(swap) == [2, 4]
+    assert factory.get_meta_n_coins(swap) == [2, 4]
 
 
 def test_get_coins(factory, swap, wrapped_coins):
@@ -53,12 +53,12 @@ def test_get_underlying_decimals(factory, swap, underlying_decimals):
     assert factory.get_underlying_decimals(swap) == underlying_decimals + [0] * 4
 
 
-def test_get_rates(factory, swap, base_pool):
-    assert factory.get_rates(swap) == [10**18, base_pool.get_virtual_price()]
+def test_get_metapool_rates(factory, swap, base_pool):
+    assert factory.get_metapool_rates(swap) == [10**18, base_pool.get_virtual_price()]
 
 
 def test_get_balances(factory, swap):
-    assert factory.get_balances(swap) == [swap.balances(0), swap.balances(1)]
+    assert factory.get_balances(swap) == [swap.balances(0), swap.balances(1), 0, 0]
 
 
 def get_underlying_balances(factory, swap, base_pool):

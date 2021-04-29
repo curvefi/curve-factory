@@ -78,22 +78,6 @@ event RemoveLiquidityImbalance:
     invariant: uint256
     token_supply: uint256
 
-event CommitNewAdmin:
-    deadline: indexed(uint256)
-    admin: indexed(address)
-
-event NewAdmin:
-    admin: indexed(address)
-
-event CommitNewFee:
-    deadline: indexed(uint256)
-    fee: uint256
-    admin_fee: uint256
-
-event NewFee:
-    fee: uint256
-    admin_fee: uint256
-
 event RampA:
     old_A: uint256
     new_A: uint256

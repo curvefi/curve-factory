@@ -36,7 +36,8 @@ def test_factory(factory, swap):
 
 
 def test_get_coins(factory, swap, wrapped_coins):
-    assert factory.get_coins(swap) == wrapped_coins
+    coins = factory.get_coins(swap)
+    assert coins == wrapped_coins + [ZERO_ADDRESS] * 2
 
 
 def test_get_underlying_coins(factory, swap, underlying_coins):
@@ -44,7 +45,8 @@ def test_get_underlying_coins(factory, swap, underlying_coins):
 
 
 def test_get_decimals(factory, swap, wrapped_decimals):
-    assert factory.get_decimals(swap) == wrapped_decimals
+    decimals = factory.get_decimals(swap)
+    assert decimals == wrapped_decimals + [0] * (len(decimals) - len(wrapped_decimals))
 
 
 def test_get_underlying_decimals(factory, swap, underlying_decimals):
@@ -97,22 +99,22 @@ def test_get_coin_indices_reverts(factory, swap, base_lp_token, underlying_coins
         factory.get_coin_indices(swap, base_lp_token, underlying_coins[idx])
 
 
-def test_add_base_pool(factory, alice, bob, fee_receiver):
+def test_add_base_pool(factory, alice, fee_receiver, implementation_usd):
     susd_pool = "0xA5407eAE9Ba41422680e2e00537571bcC53efBfD"
-    factory.add_base_pool(susd_pool, bob, fee_receiver, {'from': alice})
+    factory.add_base_pool(susd_pool, fee_receiver, [implementation_usd] + [ZERO_ADDRESS] * 9, {'from': alice})
     assert factory.base_pool_count() == 3
     assert factory.base_pool_list(2) == susd_pool
     assert factory.fee_receiver(susd_pool) == fee_receiver
 
 
-def test_add_base_pool_already_exists(factory, base_pool, alice, bob, fee_receiver):
+def test_add_base_pool_already_exists(factory, base_pool, alice, fee_receiver, implementation_usd):
     with brownie.reverts("dev: pool exists"):
-        factory.add_base_pool(base_pool, bob, fee_receiver, {'from': alice})
+        factory.add_base_pool(base_pool, fee_receiver, [implementation_usd] + [ZERO_ADDRESS] * 9, {'from': alice})
 
 
-def test_add_base_pool_only_admin(factory, base_pool, bob, fee_receiver):
+def test_add_base_pool_only_admin(factory, base_pool, bob, fee_receiver, implementation_usd):
     with brownie.reverts("dev: admin-only function"):
-        factory.add_base_pool("0xA5407eAE9Ba41422680e2e00537571bcC53efBfD", bob, fee_receiver, {'from': bob})
+        factory.add_base_pool("0xA5407eAE9Ba41422680e2e00537571bcC53efBfD", fee_receiver, [implementation_usd] + [ZERO_ADDRESS] * 9, {'from': bob})
 
 
 def test_deploy_metapool(MetaImplementationUSD, is_rebase, factory, base_pool, alice, bob):
@@ -132,10 +134,10 @@ def test_deploy_metapool(MetaImplementationUSD, is_rebase, factory, base_pool, a
 
     assert factory.pool_count() == 3
     assert factory.pool_list(2) == swap
-    assert factory.get_decimals(swap) == [7, 18]
+    assert factory.get_decimals(swap) == [7, 18, 0, 0]
 
 
-def test_add_existing_pools(factory, swap, swap_btc, swap_rebase, new_factory, fee_receiver, implementation_btc, implementation_usd, base_pool, base_pool_btc, alice):
+def test_add_existing_metapools(factory, swap, swap_btc, swap_rebase, new_factory, fee_receiver, implementation_btc, implementation_usd, base_pool, base_pool_btc, alice):
     if factory.pool_count() == 3:
         assert factory.pool_list(0) == swap
         assert factory.pool_list(1) == swap_btc
@@ -147,25 +149,25 @@ def test_add_existing_pools(factory, swap, swap_btc, swap_rebase, new_factory, f
 
     assert new_factory.pool_count() == 0
     # add existing USD pools to new factory
-    new_factory.add_base_pool(base_pool, implementation_usd, fee_receiver, {"from": alice})
-    new_factory.add_existing_pools([swap] + [ZERO_ADDRESS] * 99, base_pool)
+    new_factory.add_base_pool(base_pool, fee_receiver, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice})
+    new_factory.add_existing_metapools([swap] + [ZERO_ADDRESS] * 99, base_pool, implementation_usd)
     assert new_factory.pool_count() == 1
     assert new_factory.pool_list(0) == swap
 
     # add existing BTC pools to new factory
     pool = Contract("0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714")
-    new_factory.add_base_pool(pool, implementation_btc, fee_receiver, {'from': alice})
-    new_factory.add_existing_pools([swap_btc] + [ZERO_ADDRESS] * 99, pool)
+    new_factory.add_base_pool(pool, fee_receiver, [implementation_btc] + [ZERO_ADDRESS] * 9, {'from': alice})
+    new_factory.add_existing_metapools([swap_btc] + [ZERO_ADDRESS] * 99, pool, implementation_btc)
     assert new_factory.pool_count() == 2
     assert new_factory.pool_list(1) == swap_btc
 
 
-def test_add_existing_pools_no_base_pool(swap, new_factory, base_pool):
+def test_add_existing_metapools_no_base_pool(swap, new_factory, base_pool, implementation_usd):
     with brownie.reverts("dev: base pool does not exist"):
-        new_factory.add_existing_pools([swap] + [ZERO_ADDRESS] * 99, base_pool)
+        new_factory.add_existing_metapools([swap] + [ZERO_ADDRESS] * 99, base_pool, implementation_usd)
 
 
-def test_add_existing_pools_only_admin(swap, implementation_usd, fee_receiver, new_factory, base_pool, alice, bob):
-    new_factory.add_base_pool(base_pool, implementation_usd, fee_receiver, {"from": alice})
+def test_add_existing_metapools_only_admin(swap, implementation_usd, fee_receiver, new_factory, base_pool, alice, bob):
+    new_factory.add_base_pool(base_pool, fee_receiver, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice})
     with brownie.reverts("dev: admin-only function"):
-        new_factory.add_existing_pools([swap] + [ZERO_ADDRESS] * 99, base_pool, {"from": bob})
+        new_factory.add_existing_metapools([swap] + [ZERO_ADDRESS] * 99, base_pool, implementation_usd, {"from": bob})

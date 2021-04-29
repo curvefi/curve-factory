@@ -79,7 +79,7 @@ event BasePoolAdded:
     base_pool: address
 
 event PlainPoolDeployed:
-    coins: address[4]
+    coins: address[MAX_PLAIN_COINS]
     A: uint256
     fee: uint256
     deployer: address
@@ -168,7 +168,7 @@ def get_n_coins(_pool: address) -> (uint256, uint256):
 
 @view
 @external
-def get_coins(_pool: address) -> address[4]:
+def get_coins(_pool: address) -> address[MAX_PLAIN_COINS]:
     """
     @notice Get the coins within a pool
     @param _pool Pool address
@@ -537,13 +537,13 @@ def deploy_metapool(
 def deploy_plain_pool(
     _name: String[32],
     _symbol: String[10],
-    _coins: address[4],
+    _coins: address[MAX_PLAIN_COINS],
     _A: uint256,
     _fee: uint256,
     _implementation_idx: uint256 = 0,
 ) -> address:
     n_coins: uint256 = 0
-    decimals: uint256[4] = empty(uint256[4])
+    decimals: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
     for coin in _coins:
         assert self.base_pool_assets[coin] == False  # dev: pool should be deployed as metapool
         assert self.registered_coins[coin] == False # dev: pool cannot contain duplicate coins
@@ -566,7 +566,7 @@ def deploy_plain_pool(
     self.pool_data[pool].decimals = decimals
     self.pool_data[pool].base_pool = ZERO_ADDRESS
     self.pool_data[pool].implementation = implementation
-    for i in range(4):
+    for i in range(MAX_PLAIN_COINS):
         if _coins[i] == ZERO_ADDRESS:
             break
         self.pool_data[pool].coins[i] = _coins[i]

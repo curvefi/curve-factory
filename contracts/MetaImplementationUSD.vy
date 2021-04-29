@@ -24,7 +24,7 @@ interface Curve:
     def remove_liquidity_one_coin(_token_amount: uint256, i: int128, min_amount: uint256): nonpayable
 
 interface Factory:
-    def convert_fees() -> bool: nonpayable
+    def convert_metapool_fees() -> bool: nonpayable
     def fee_receiver(_base_pool: address) -> address: view
 
 
@@ -1113,7 +1113,7 @@ def withdraw_admin_fees():
     amount: uint256 = ERC20(coin).balanceOf(self) - self.balances[0]
     if amount > 0:
         ERC20(coin).transfer(factory, amount)
-        Factory(factory).convert_fees()
+        Factory(factory).convert_metapool_fees()
 
     # transfer coin 1 to the receiver
     coin = self.coins[1]

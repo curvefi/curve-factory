@@ -254,7 +254,7 @@ def get_underlying_decimals(_pool: address) -> uint256[MAX_COINS]:
 @external
 def get_metapool_rates(_pool: address) -> uint256[2]:
     """
-    @notice Get rates for coins within a pool
+    @notice Get rates for coins within a metapool
     @param _pool Pool address
     @return Rates for each coin, precision normalized to 10**18
     """
@@ -288,8 +288,8 @@ def get_balances(_pool: address) -> uint256[MAX_PLAIN_COINS]:
 @external
 def get_underlying_balances(_pool: address) -> uint256[MAX_COINS]:
     """
-    @notice Get balances for each underlying coin within a pool
-    @param _pool Pool address
+    @notice Get balances for each underlying coin within a metapool
+    @param _pool Metapool address
     @return uint256 list of underlying balances
     """
 
@@ -300,6 +300,7 @@ def get_underlying_balances(_pool: address) -> uint256[MAX_COINS]:
     if base_total_supply > 0:
         underlying_pct: uint256 = CurvePool(_pool).balances(1) * 10**36 / base_total_supply
         base_pool: address = self.pool_data[_pool].base_pool
+        assert base_pool != ZERO_ADDRESS  # dev: pool is not a metapool
         n_coins: uint256 = self.base_pool_data[base_pool].n_coins
         for i in range(MAX_COINS):
             if i == n_coins:
@@ -326,20 +327,27 @@ def get_fees(_pool: address) -> (uint256, uint256):
     """
     @notice Get the fees for a pool
     @dev Fees are expressed as integers
-    @return Pool fee as uint256 with 1e10 precision
+    @return Pool fee and admin fee as uint256 with 1e10 precision
     """
     return CurvePool(_pool).fee(), CurvePool(_pool).admin_fee()
 
 
 @view
 @external
-def get_admin_balances(_pool: address) -> uint256[2]:
+def get_admin_balances(_pool: address) -> uint256[MAX_PLAIN_COINS]:
     """
     @notice Get the current admin balances (uncollected fees) for a pool
     @param _pool Pool address
     @return List of uint256 admin balances
     """
-    return [CurvePool(_pool).admin_balances(0), CurvePool(_pool).admin_balances(1)]
+    n_coins: uint256 = self.pool_data[_pool].n_coins
+    admin_balances: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
+    for i in range(MAX_PLAIN_COINS):
+        if i < n_coins:
+            admin_balances[i] = CurvePool(_pool).admin_balances(i)
+        else:
+            admin_balances[i] = 0
+    return admin_balances
 
 
 @view
@@ -356,20 +364,26 @@ def get_coin_indices(
     @return int128 `i`, int128 `j`, boolean indicating if `i` and `j` are underlying coins
     """
     coin: address = self.pool_data[_pool].coins[0]
-    if coin in [_from, _to]:
+    base_pool: address = self.pool_data[_pool].base_pool
+    if coin in [_from, _to] and base_pool != ZERO_ADDRESS:
         base_lp_token: address = self.pool_data[_pool].coins[1]
         if base_lp_token in [_from, _to]:
             # True and False convert to 1 and 0 - a bit of voodoo that
-            # works because we only ever have 2 non-underlying coins
+            # works because we only ever have 2 non-underlying coins if base pool is ZERO_ADDRESS
             return convert(_to == coin, int128), convert(_from == coin, int128), False
 
-    base_pool: address = self.pool_data[_pool].base_pool
     found_market: bool = False
     i: int128 = 0
     j: int128 = 0
     for x in range(MAX_COINS):
-        if x != 0:
-            coin = self.base_pool_data[base_pool].coins[x-1]
+        if base_pool == ZERO_ADDRESS:
+            if x >= MAX_PLAIN_COINS:
+                raise "No available market"
+            if x != 0:
+                coin = self.pool_data[_pool].coins[x]
+        else:
+            if x != 0:
+                coin = self.base_pool_data[base_pool].coins[x-1]
         if coin == ZERO_ADDRESS:
             raise "No available market"
         if coin == _from:
@@ -591,16 +605,22 @@ def deploy_plain_pool(
     self.pool_data[pool].n_coins = n_coins
     self.pool_data[pool].base_pool = ZERO_ADDRESS
     self.pool_data[pool].implementation = implementation
-    for i in range(MAX_PLAIN_COINS):
-        if _coins[i] == ZERO_ADDRESS:
-            break
-        self.pool_data[pool].coins[i] = _coins[i]
-        ERC20(_coins[i]).approve(pool, MAX_UINT256)
 
-    # add logic for registering swappable pairs/markets
+    for i in range(MAX_PLAIN_COINS):
+        coin: address = _coins[i]
+        if coin == ZERO_ADDRESS:
+            break
+        self.pool_data[pool].coins[i] = coin
+        ERC20(coin).approve(pool, MAX_UINT256)
+        for j in range(MAX_PLAIN_COINS):
+            if i < j:
+                swappable_coin: address = self.pool_data[pool].coins[j]
+                key: uint256 = bitwise_xor(convert(coin, uint256), convert(swappable_coin, uint256))
+                length = self.market_counts[key]
+                self.markets[key][length] = pool
+                self.market_counts[key] = length + 1
 
     log PlainPoolDeployed(_coins, _A, _fee, msg.sender)
-    # need to expand getters for not-metapools!
     return pool
 
 
@@ -717,6 +737,11 @@ def set_fee_receiver(_pool: address, _fee_receiver: address):
 
 @external
 def convert_metapool_fees() -> bool:
+    """
+    @notice Convert the fees of a metapool and transfer to
+            the metapool's fee receiver
+    @dev All fees are converted to LP token of base pool
+    """
     assert self.pool_data[msg.sender].base_pool != ZERO_ADDRESS  # dev: sender must be metapool
     coin: address = self.pool_data[msg.sender].coins[0]
     assert coin != ZERO_ADDRESS  # dev: unknown pool

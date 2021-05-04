@@ -949,5 +949,16 @@ def admin_balances(i: uint256) -> uint256:
 
 @external
 def withdraw_admin_fees():
-    # Do some fee burning magic through factory
     factory: address = self.factory
+    receiver: address = Factory(factory).fee_receiver(self)
+    assert receiver != ZERO_ADDRESS  # dev: receiver is not set
+
+    fees: uint256 = 0
+    for i in range(N_COINS):
+        coin: address = self.coins[i]
+        if coin == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
+            fees = self.balance - self.balances[i]
+            raw_call(receiver, b"", value=fees)
+        else:
+            fees = ERC20(coin).balanceOf(self) - self.balances[i]
+            ERC20(coin).transfer(receiver, fees)

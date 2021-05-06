@@ -19,6 +19,8 @@ def test_remove_balanced(alice, swap, wrapped_coins, divisor, initial_amounts):
     elapsed = after - start
 
     for i, balance in enumerate(balances_before):
+        if i == len(twap):
+            break
         assert twap[i] == twap_control[i] + (balance * elapsed)
 
 
@@ -38,4 +40,6 @@ def test_remove_one(alice, swap, wrapped_coins, idx, initial_amounts):
     elapsed = after - start
 
     for i, balance in enumerate(balances_before):
+        if i == len(twap):
+            break
         assert twap[i] == twap_control[i] + (balance * elapsed)

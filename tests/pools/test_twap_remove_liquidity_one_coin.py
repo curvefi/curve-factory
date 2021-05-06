@@ -20,6 +20,8 @@ def test_amount_received(chain, alice, swap, wrapped_coins, wrapped_decimals, ba
     elapsed = after - start
 
     for i, balance in enumerate(balances_before):
+        if i == len(twap):
+            break
         assert twap[i] == twap_control[i] + (balance * elapsed)
 
 
@@ -40,4 +42,6 @@ def test_lp_token_balance(alice, swap, idx, divisor):
     elapsed = after - start
 
     for i, balance in enumerate(balances_before):
+        if i == len(twap):
+            break
         assert twap[i] == twap_control[i] + (balance * elapsed)

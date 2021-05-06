@@ -60,6 +60,11 @@ def implementation_btc(MetaImplementationBTC, alice):
 
 
 @pytest.fixture(scope="module")
+def implementation_plain(PlainPoolImplementation, alice):
+    yield PlainPoolImplementation.deploy({'from': alice})
+
+
+@pytest.fixture(scope="module")
 def implementation_rebase_btc(MetaImplementationRebaseBTC, alice):
     yield MetaImplementationRebaseBTC.deploy({'from': alice})
 
@@ -70,16 +75,23 @@ def implementation_rebase_usd(MetaImplementationRebaseUSD, alice):
 
 
 @pytest.fixture(scope="module")
-def factory(Factory, alice, fee_receiver, base_pool, implementation_usd, implementation_rebase_usd):
+def factory(Factory, alice, fee_receiver, base_pool, implementation_usd, implementation_rebase_usd, implementation_plain):
     contract = Factory.deploy({'from': alice})
     contract.add_base_pool(base_pool, fee_receiver, [implementation_usd, implementation_rebase_usd] + [ZERO_ADDRESS] * 8, {'from': alice})
+    contract.set_plain_implementations(2, [implementation_plain] + [ZERO_ADDRESS] * 9, {'from': alice})
+    yield contract
+
+
+@pytest.fixture()
+def new_factory(Factory, alice, fee_receiver, base_pool, implementation_usd):
+    contract = Factory.deploy({'from': alice})
     yield contract
 
 
 @pytest.fixture(scope="module")
-def new_factory(Factory, alice, fee_receiver, base_pool, implementation_usd):
-    contract = Factory.deploy({'from': alice})
-    yield contract
+def swap_plain(PlainPoolImplementation, alice, factory, plain_coins):
+    tx = factory.deploy_plain_pool("Test Plain", "PLN", plain_coins, 200, 4000000, 0, {'from': alice})
+    yield PlainPoolImplementation.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")
@@ -179,6 +191,11 @@ def underlying_coins(coin, is_rebase, rebase_coin):
 
 
 @pytest.fixture(scope="module")
+def plain_coins():
+    yield [ERC20(decimals=7), ERC20(decimals=9), ZERO_ADDRESS, ZERO_ADDRESS]
+
+
+@pytest.fixture(scope="module")
 def base_lp_token():
     yield MintableForkToken("0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490")
 
@@ -194,6 +211,11 @@ def coin(pytestconfig):
 @pytest.fixture(scope="module")
 def wrapped_decimals(wrapped_coins):
     yield [i.decimals() if i != ZERO_ADDRESS else 0 for i in wrapped_coins]
+
+
+@pytest.fixture(scope="module")
+def plain_decimals(plain_coins):
+    yield [i.decimals() if i != ZERO_ADDRESS else 0 for i in plain_coins]
 
 
 @pytest.fixture(scope="module")

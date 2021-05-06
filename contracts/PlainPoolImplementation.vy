@@ -116,8 +116,8 @@ def __init__():
 def initialize(
     _name: String[32],
     _symbol: String[10],
-    _coins: address[N_COINS],
-    _decimals: uint256[N_COINS],
+    _coins: address[4],
+    _decimals: uint256[4],
     _A: uint256,
     _fee: uint256,
     _admin: address
@@ -140,15 +140,15 @@ def initialize(
     assert self.fee == 0
 
     for i in range(N_COINS):
-        if _coins[i] != ZERO_ADDRESS:
+        if _coins[i] == ZERO_ADDRESS:
             break
         if _coins[i] == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
             assert i == 0  # dev: ETH must be at index 0
         # things break if a token has >18 decimals
         assert _decimals[i] < 19
         self.rate_multipliers[i] = 10 ** (36 - _decimals[i])
+        self.coins[i] = _coins[i]
 
-    self.coins = _coins
     self.initial_A = _A * A_PRECISION
     self.future_A = _A * A_PRECISION
     self.fee = _fee

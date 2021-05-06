@@ -473,7 +473,7 @@ def set_metapool_implementations(
     @param _implementations Implementation address to use when deploying metapools
     """
     assert msg.sender == self.admin  # dev: admin-only function
-    assert self.base_pool_data[_base_pool].coins[0] == ZERO_ADDRESS  # dev: pool does not exist
+    assert self.base_pool_data[_base_pool].coins[0] != ZERO_ADDRESS  # dev: base pool does not exist
 
     for i in range(10):
         new_imp: address = _implementations[i]
@@ -529,6 +529,9 @@ def deploy_metapool(
     @param _fee Trade fee, given as an integer with 1e10 precision. The
                 minimum fee is 0.04% (4000000), the maximum is 1% (100000000).
                 50% of the fee is distributed to veCRV holders.
+    @param _implementation_idx Index of the implementation to use. All possible
+                implementations for a BASE_POOL can be publicly accessed
+                via `metapool_implementations(BASE_POOL)`
     @return Address of the deployed pool
     """
     implementation: address = self.base_pool_data[_base_pool].implementations[_implementation_idx]
@@ -579,9 +582,32 @@ def deploy_plain_pool(
     _fee: uint256,
     _implementation_idx: uint256 = 0,
 ) -> address:
+    """
+    @notice Deploy a new plain pool
+    @param _name Name of the new plain pool
+    @param _symbol Symbol for the new plain pool - will be
+                   concatenated with factory symbol
+    @param _coins List of addresses of the coins being used in the pool.
+    @param _A Amplification co-efficient - a higher value here means
+              less tolerance for imbalance within the pool's assets.
+              Suggested values include:
+               * Uncollateralized algorithmic stablecoins: 5-10
+               * Non-redeemable, collateralized assets: 100
+               * Redeemable assets: 200-400
+    @param _fee Trade fee, given as an integer with 1e10 precision. The
+                minimum fee is 0.04% (4000000), the maximum is 1% (100000000).
+                50% of the fee is distributed to veCRV holders.
+    @param _implementation_idx Index of the implementation to use. All possible
+                implementations for a pool of N_COINS can be publicly accessed
+                via `plain_implementations(N_COINS)`
+    @return Address of the deployed pool
+    """
     n_coins: uint256 = 0
     decimals: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
     for coin in _coins:
+        if coin == ZERO_ADDRESS:
+            assert n_coins > 1  # dev: insufficient number of coins
+            break
         assert self.base_pool_assets[coin] == False  # dev: pool should be deployed as metapool
         assert self.registered_coins[coin] == False # dev: pool cannot contain duplicate coins
         self.registered_coins[coin] = True
@@ -593,7 +619,7 @@ def deploy_plain_pool(
         self.registered_coins[coin] = False
 
     implementation: address = self.plain_implementations[n_coins][_implementation_idx]
-    assert implementation != ZERO_ADDRESS
+    assert implementation != ZERO_ADDRESS  # dev: implementation does not exist
     pool: address = create_forwarder_to(implementation)
 
     CurvePlainPool(pool).initialize(_name, _symbol, _coins, decimals, _A, _fee, self.admin)
@@ -614,7 +640,7 @@ def deploy_plain_pool(
         ERC20(coin).approve(pool, MAX_UINT256)
         for j in range(MAX_PLAIN_COINS):
             if i < j:
-                swappable_coin: address = self.pool_data[pool].coins[j]
+                swappable_coin: address = _coins[j]
                 key: uint256 = bitwise_xor(convert(coin, uint256), convert(swappable_coin, uint256))
                 length = self.market_counts[key]
                 self.markets[key][length] = pool

@@ -19,11 +19,3 @@ def test_initial(
     ideal = 10**18 + base_pool.get_virtual_price()
     assert 0.9999 < swap.balanceOf(alice) / ideal < 1
     assert swap.balanceOf(alice) == swap.totalSupply()
-
-
-@pytest.mark.parametrize("idx", range(2))
-def test_initial_liquidity_missing_coin(alice, swap, rebase_coin, idx, wrapped_decimals):
-    amounts = [10**i for i in wrapped_decimals]
-    amounts[idx] = 0
-    with brownie.reverts():
-        swap.add_liquidity(amounts, 0, {'from': alice})

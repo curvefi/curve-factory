@@ -5,7 +5,7 @@ pytestmark = pytest.mark.usefixtures("add_initial_liquidity")
 
 
 @pytest.mark.parametrize("idx", range(2))
-def test_amount_received(chain, alice, swap, wrapped_coins, wrapped_decimals, base_pool, idx):
+def test_amount_received(chain, alice, swap, wrapped_coins, wrapped_decimals, idx):
     decimals = wrapped_decimals[idx]
     wrapped = wrapped_coins[idx]
 

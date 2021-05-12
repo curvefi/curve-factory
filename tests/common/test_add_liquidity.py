@@ -4,7 +4,7 @@ import pytest
 pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "mint_bob", "approve_bob")
 
 
-def test_add_liquidity(bob, swap, wrapped_coins, initial_amounts, base_pool):
+def test_add_liquidity(bob, swap, wrapped_coins, initial_amounts):
     swap.add_liquidity(initial_amounts, 0, {'from': bob})
 
     for coin, amount in zip(wrapped_coins, initial_amounts):
@@ -17,7 +17,7 @@ def test_add_liquidity(bob, swap, wrapped_coins, initial_amounts, base_pool):
 
 
 @pytest.mark.parametrize("idx", range(2))
-def test_add_one_coin(bob, swap, wrapped_coins, initial_amounts, idx, base_pool):
+def test_add_one_coin(bob, swap, wrapped_coins, initial_amounts, idx):
     amounts = [0, 0]
     amounts[idx] = initial_amounts[idx]
 
@@ -36,14 +36,6 @@ def test_insufficient_balance(charlie, swap, wrapped_decimals):
 
     with brownie.reverts():
         swap.add_liquidity(amounts, 0, {'from': charlie})
-
-
-def test_min_amount_too_high(bob, swap, wrapped_decimals, wrapped_coins, base_pool):
-    amounts = [10**i for i in wrapped_decimals]
-
-    ideal_amount = 10**18 + base_pool.get_virtual_price()
-    with brownie.reverts():
-        swap.add_liquidity(amounts, ideal_amount, {'from': bob})
 
 
 def test_event(bob, swap, initial_amounts, wrapped_coins):

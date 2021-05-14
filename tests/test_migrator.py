@@ -7,7 +7,7 @@ pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "mint_bob", "appro
 @pytest.fixture(scope="module")
 def swap2(MetaImplementationUSD, alice, base_pool, factory, coin):
     tx = factory.deploy_metapool(
-        base_pool, "Test Swap", "TST", coin, 200, 4000000, {"from": alice}
+        base_pool, "Test Swap", "TST", coin, 200, 4000000, 0, {"from": alice}
     )
     yield MetaImplementationUSD.at(tx.return_value)
 
@@ -19,9 +19,7 @@ def migrator(PoolMigrator, alice, swap):
     yield contract
 
 
-def test_migrate(alice, is_rebase, migrator, swap, swap2):
-    if is_rebase:
-        pytest.skip()
+def test_migrate(alice, migrator, swap, swap2):
     balance = swap.balanceOf(alice)
     migrator.migrate_to_new_pool(swap, swap2, balance, {"from": alice})
 
@@ -32,9 +30,7 @@ def test_migrate(alice, is_rebase, migrator, swap, swap2):
     assert swap2.balanceOf(migrator) == 0
 
 
-def test_migrate_partial(alice, is_rebase, migrator, swap, swap2, coin):
-    if is_rebase:
-        pytest.skip()
+def test_migrate_partial(alice, migrator, swap, swap2, coin):
     balance = swap.balanceOf(alice)
     migrator.migrate_to_new_pool(swap, swap2, balance // 4, {"from": alice})
 
@@ -45,9 +41,7 @@ def test_migrate_partial(alice, is_rebase, migrator, swap, swap2, coin):
     assert swap2.balanceOf(migrator) == 0
 
 
-def test_migrate_multiple(alice, migrator, is_rebase, swap, swap2, coin):
-    if is_rebase:
-        pytest.skip()
+def test_migrate_multiple(alice, migrator, swap, swap2, coin):
     balance = swap.balanceOf(alice)
     for i in range(4):
         migrator.migrate_to_new_pool(swap, swap2, balance // 4, {"from": alice})
@@ -59,9 +53,7 @@ def test_migrate_multiple(alice, migrator, is_rebase, swap, swap2, coin):
     assert swap2.balanceOf(migrator) == 0
 
 
-def test_migrate_bidirectional(alice, migrator, is_rebase, swap, swap2):
-    if is_rebase:
-        pytest.skip()
+def test_migrate_bidirectional(alice, migrator, swap, swap2):
     balance = swap.balanceOf(alice)
     migrator.migrate_to_new_pool(swap, swap2, balance, {"from": alice})
     swap2.approve(migrator, 2 ** 256 - 1, {"from": alice})

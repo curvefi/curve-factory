@@ -143,7 +143,6 @@ def is_forked():
 
 
 ####
-
 # def pytest_addoption(parser):
 #     parser.addoption(
 #         "--decimals",
@@ -158,50 +157,18 @@ def is_forked():
 #         default="True",
 #         help="Return value for test token",
 #     )
+#
+# @pytest.fixture(scope="module")
+# def coin(pytestconfig):
+#     yield ERC20(
+#         decimals=pytestconfig.getoption('decimals'),
+#         success=eval(pytestconfig.getoption('return_value')),
+#     )
 
 
 @pytest.fixture(autouse=True)
 def isolation_setup(fn_isolation):
     pass
-
-
-# @pytest.fixture(scope="session")
-# def fee_receiver(accounts):
-#     yield accounts[4]
-
-
-# @pytest.fixture(scope="module")
-# def implementation_usd(MetaImplementationUSD, alice):
-#     yield MetaImplementationUSD.deploy({'from': alice})
-
-
-# @pytest.fixture(scope="module")
-# def implementation_btc(MetaImplementationBTC, alice):
-#     yield MetaImplementationBTC.deploy({'from': alice})
-
-
-# @pytest.fixture(scope="module")
-# def implementation_plain(PlainPoolImplementation, alice):
-#     yield PlainPoolImplementation.deploy({'from': alice})
-
-
-# @pytest.fixture(scope="module")
-# def implementation_rebase_btc(MetaImplementationRebaseBTC, alice):
-#     yield MetaImplementationRebaseBTC.deploy({'from': alice})
-
-
-# @pytest.fixture(scope="module")
-# def implementation_rebase_usd(MetaImplementationRebaseUSD, alice):
-#     yield MetaImplementationRebaseUSD.deploy({'from': alice})
-
-
-# @pytest.fixture(scope="module")
-# def factory(Factory, alice, fee_receiver, base_pool, implementation_usd, implementation_rebase_usd, implementation_plain):
-#     contract = Factory.deploy({'from': alice})
-#     contract.add_base_pool(base_pool, fee_receiver, [implementation_usd, implementation_rebase_usd] + [ZERO_ADDRESS] * 8, {'from': alice})
-#     contract.set_plain_implementations(2, [implementation_plain] + [ZERO_ADDRESS] * 9, {'from': alice})
-#     yield contract
-
 
 @pytest.fixture()
 def new_factory(Factory, alice):
@@ -213,16 +180,6 @@ def new_factory(Factory, alice):
 def swap_plain(PlainPoolImplementation, alice, factory, plain_coins):
     tx = factory.deploy_plain_pool("Test Plain", "PLN", plain_coins, 200, 4000000, 0, {'from': alice})
     yield PlainPoolImplementation.at(tx.return_value)
-
-
-# @pytest.fixture(scope="module")
-# def swap(MetaImplementationUSD, MetaImplementationRebaseUSD, is_rebase, alice, rebase_coin, base_pool, factory, coin):
-#     if is_rebase:
-#         tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {'from': alice})
-#         yield MetaImplementationRebaseUSD.at(tx.return_value)
-#     else:
-#         tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", coin, 200, 4000000, 0, {'from': alice})
-#         yield MetaImplementationUSD.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")
@@ -261,21 +218,6 @@ def zap(DepositZapUSD, alice):
     yield DepositZapUSD.deploy({'from': alice})
 
 
-# @pytest.fixture(scope="module")
-# def base_pool():
-#     pool = Contract("0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7")
-
-#     # ensure the base pool is balanced so our tests are deterministic
-#     max_balance = max([pool.balances(0), pool.balances(1) * 10**12, pool.balances(2) * 10**12])
-#     ideal_balances = [max_balance, max_balance // 10**12, max_balance // 10**12]
-#     for i, amount in enumerate(ideal_balances):
-#         balance = pool.balances(i)
-#         if balance < amount:
-#             MintableForkToken(pool.coins(i))._mint_for_testing(pool, amount - balance)
-#     pool.donate_admin_fees({'from': pool.owner()})
-
-#     yield pool
-
 @pytest.fixture(scope="module")
 def base_pool(pool_data):
     pool = pool_data.get("base_pool", ZERO_ADDRESS)
@@ -303,48 +245,10 @@ def base_pool_btc(alice, fee_receiver, implementation_btc, factory, implementati
     yield pool
 
 
-@pytest.fixture(scope="module", params=[0, 1])
-def is_rebase(request):
-    yield request.param
-
-
-# @pytest.fixture(scope="module")
-# def wrapped_coins(is_rebase, coin, rebase_coin, base_lp_token):
-#     if is_rebase:
-#         yield [rebase_coin, base_lp_token]
-#     else:
-#         yield [coin, base_lp_token]
-
-
-# @pytest.fixture(scope="module")
-# def underlying_coins(coin, is_rebase, rebase_coin):
-#     BASE_COINS = [
-#         "0x6B175474E89094C44Da98b954EedeAC495271d0F",  # DAI
-#         "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC
-#         "0xdAC17F958D2ee523a2206206994597C13D831ec7",  # USDT
-#     ]
-#     if is_rebase:
-#         yield [rebase_coin] + [MintableForkToken(i) for i in BASE_COINS]
-#     else:
-#         yield [coin] + [MintableForkToken(i) for i in BASE_COINS]
-
-
 @pytest.fixture(scope="module")
 def plain_coins():
     yield [ERC20(decimals=7), ERC20(decimals=9), ZERO_ADDRESS, ZERO_ADDRESS]
 
-
-# @pytest.fixture(scope="module")
-# def base_lp_token():
-#     yield MintableForkToken("0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490")
-
-
-# @pytest.fixture(scope="module")
-# def coin(pytestconfig):
-#     yield ERC20(
-#         decimals=pytestconfig.getoption('decimals'),
-#         success=eval(pytestconfig.getoption('return_value')),
-#     )
 
 
 # @pytest.fixture(scope="module")

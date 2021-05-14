@@ -510,7 +510,7 @@ def deploy_metapool(
     _coin: address,
     _A: uint256,
     _fee: uint256,
-    _implementation_idx: uint256 = 0,
+    _implementation_idx: uint256,
 ) -> address:
     """
     @notice Deploy a new metapool

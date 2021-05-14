@@ -117,7 +117,7 @@ def initialize(
     _name: String[32],
     _symbol: String[10],
     _coins: address[4],
-    _decimals: uint256[4],
+    _coin_decimals: uint256[4],
     _A: uint256,
     _fee: uint256,
     _admin: address
@@ -127,7 +127,7 @@ def initialize(
     @param _name Name of the new pool
     @param _symbol Token symbol
     @param _coins List of all ERC20 conract addresses of coins
-    @param _decimals List of number of decimals in coins
+    @param _coin_decimals List of number of decimals in coins
     @param _A Amplification coefficient multiplied by n * (n - 1)
     @param _fee Fee to charge for exchanges
     @param _admin Admin address
@@ -145,8 +145,8 @@ def initialize(
         if _coins[i] == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
             assert i == 0  # dev: ETH must be at index 0
         # things break if a token has >18 decimals
-        assert _decimals[i] < 19
-        self.rate_multipliers[i] = 10 ** (36 - _decimals[i])
+        assert _coin_decimals[i] < 19
+        self.rate_multipliers[i] = 10 ** (36 - _coin_decimals[i])
         self.coins[i] = _coins[i]
 
     self.initial_A = _A * A_PRECISION

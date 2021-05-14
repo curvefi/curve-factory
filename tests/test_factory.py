@@ -38,7 +38,7 @@ def new_factory_setup(new_factory, implementation_plain, alice, base_pool, fee_r
 
 
 @pytest.mark.parametrize('sending,receiving', [(0, 1), (1, 0)])
-def test_find_pool_for_coins(factory, is_rebase, swap, swap_plain, plain_coins, wrapped_coins, sending, receiving):
+def test_find_pool_for_coins(factory, swap, swap_plain, plain_coins, wrapped_coins, sending, receiving):
     if is_rebase:
         pytest.skip()
     assert factory.find_pool_for_coins(wrapped_coins[sending], wrapped_coins[receiving]) == swap

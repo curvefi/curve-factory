@@ -38,17 +38,12 @@ def new_factory_setup(new_factory, implementation_plain, alice, base_pool, fee_r
 
 
 @pytest.mark.parametrize('sending,receiving', [(0, 1), (1, 0)])
-def test_find_pool_for_coins(factory, swap, swap_plain, plain_coins, wrapped_coins, sending, receiving):
-    if is_rebase:
-        pytest.skip()
+def test_find_pool_for_coins(factory, swap, wrapped_coins, sending, receiving):
     assert factory.find_pool_for_coins(wrapped_coins[sending], wrapped_coins[receiving]) == swap
-    assert factory.find_pool_for_coins(plain_coins[sending], plain_coins[receiving]) == swap_plain
 
 
 @pytest.mark.parametrize('idx', range(1, 4))
-def test_find_pool_for_coins_underlying(factory, is_rebase, swap, underlying_coins, idx):
-    if is_rebase:
-        pytest.skip()
+def test_find_pool_for_coins_underlying(factory, swap, underlying_coins, idx):
     assert factory.find_pool_for_coins(underlying_coins[0], underlying_coins[idx]) == swap
     assert factory.find_pool_for_coins(underlying_coins[idx], underlying_coins[0]) == swap
 
@@ -93,9 +88,7 @@ def test_get_balances(factory, swap, swap_plain):
     assert factory.get_balances(swap_plain) == [swap_plain.balances(0), swap_plain.balances(1), 0, 0]
 
 
-def test_get_underlying_balances(factory, swap, is_rebase, base_pool, base_lp_token, swap_plain):
-    if is_rebase:
-        pytest.skip()
+def test_get_underlying_balances(factory, swap, base_pool, base_lp_token, swap_plain):
     base_total_supply = base_lp_token.totalSupply()
     underlying_pct = swap.balances(1) / base_total_supply
     balances = factory.get_underlying_balances(swap)
@@ -206,10 +199,7 @@ def test_add_existing_metapools_only_admin(swap, implementation_usd, fee_receive
         new_factory.add_existing_metapools([swap] + [ZERO_ADDRESS] * 99, base_pool, implementation_usd, {"from": bob})
 
 
-def test_deploy_plain_pool(PlainPoolImplementation, is_rebase, new_factory_setup, new_factory, alice, bob):
-    if is_rebase:
-        pytest.skip()
-
+def test_deploy_plain_pool(PlainPoolImplementation, new_factory_setup, new_factory, alice, bob):
     coins = [ERC20(decimals=7), ERC20(decimals=9), ZERO_ADDRESS, ZERO_ADDRESS]
 
     tx = new_factory.deploy_plain_pool("Test Plain", "TST", coins, 12345, 50000000, 0, {'from': bob})

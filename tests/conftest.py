@@ -195,12 +195,12 @@ def isolation_setup(fn_isolation):
 #     yield MetaImplementationRebaseUSD.deploy({'from': alice})
 
 
-@pytest.fixture(scope="module")
-def factory(Factory, alice, fee_receiver, base_pool, implementation_usd, implementation_rebase_usd, implementation_plain):
-    contract = Factory.deploy({'from': alice})
-    contract.add_base_pool(base_pool, fee_receiver, [implementation_usd, implementation_rebase_usd] + [ZERO_ADDRESS] * 8, {'from': alice})
-    contract.set_plain_implementations(2, [implementation_plain] + [ZERO_ADDRESS] * 9, {'from': alice})
-    yield contract
+# @pytest.fixture(scope="module")
+# def factory(Factory, alice, fee_receiver, base_pool, implementation_usd, implementation_rebase_usd, implementation_plain):
+#     contract = Factory.deploy({'from': alice})
+#     contract.add_base_pool(base_pool, fee_receiver, [implementation_usd, implementation_rebase_usd] + [ZERO_ADDRESS] * 8, {'from': alice})
+#     contract.set_plain_implementations(2, [implementation_plain] + [ZERO_ADDRESS] * 9, {'from': alice})
+#     yield contract
 
 
 @pytest.fixture()

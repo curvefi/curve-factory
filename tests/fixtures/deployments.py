@@ -32,7 +32,7 @@ def _swap(
     meta_coin,
     underlying_decimals,
     wrapped_decimals,
-    deployer_factory,
+    factory,
     base_pool,
     name="MOCK-SWAP",
     symbol="MOK",
@@ -78,9 +78,9 @@ def _swap(
 
     tx = None
     if pool_data["type"] == "meta":
-        tx = deployer_factory.deploy_metapool(*init_args)
+        tx = factory.deploy_metapool(*init_args)
     else:
-        tx = deployer_factory.deploy_plain_pool(*init_args)
+        tx = factory.deploy_plain_pool(*init_args)
 
     implementation = implementations[base_pool.address][impl_id]
     contract = implementation.at(tx.return_value)
@@ -102,7 +102,7 @@ def swap(
     meta_coin,
     underlying_decimals,
     wrapped_decimals,
-    deployer_factory,
+    factory,
     base_pool,
 ):
     return _swap(
@@ -114,21 +114,8 @@ def swap(
         meta_coin,
         underlying_decimals,
         wrapped_decimals,
-        deployer_factory,
+        factory,
         base_pool,
         pool_data.get("name", None),
         pool_data.get("symbol", None),
-    )
-
-
-@pytest.fixture(scope="module")
-def base_swap(
-    project, charlie, _base_coins, base_pool_token, base_pool_data, is_forked
-):
-    if base_pool_data is None:
-        return
-    if is_forked:
-        return Contract(base_pool_data["swap_address"])
-    return _swap(
-        project, charlie, _base_coins, _base_coins, base_pool_data, None, None, None,
     )

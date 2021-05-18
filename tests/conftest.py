@@ -223,10 +223,10 @@ def base_pool(pool_data):
     pool = pool_data.get("base_pool", ZERO_ADDRESS)
     if pool != ZERO_ADDRESS:
         pool = Contract(pool)
-
         # ensure the base pool is balanced so our tests are deterministic
-        max_balance = max([pool.balances(0), pool.balances(1) * 10**12, pool.balances(2) * 10**12])
-        ideal_balances = [max_balance, max_balance // 10**12, max_balance // 10**12]
+        decimals = [MintableForkToken(pool.coins(i)).decimals() for i in range(3)]
+        max_balance = max([pool.balances(0) * 10**(18-decimals[0]), pool.balances(1) * 10**(18-decimals[1]), pool.balances(2) * 10**(18-decimals[2])])
+        ideal_balances = [max_balance // 10**(18-decimals[0]), max_balance // 10**(18-decimals[1]), max_balance // 10**(18-decimals[2])]
         for i, amount in enumerate(ideal_balances):
             balance = pool.balances(i)
             if balance < amount:
@@ -250,49 +250,48 @@ def plain_coins():
     yield [ERC20(decimals=7), ERC20(decimals=9), ZERO_ADDRESS, ZERO_ADDRESS]
 
 
-
-# @pytest.fixture(scope="module")
-# def wrapped_decimals(wrapped_coins):
-#     yield [i.decimals() if i != ZERO_ADDRESS else 0 for i in wrapped_coins]
-
-
 @pytest.fixture(scope="module")
 def plain_decimals(plain_coins):
     yield [i.decimals() if i != ZERO_ADDRESS else 0 for i in plain_coins]
 
 
-# @pytest.fixture(scope="module")
-# def underlying_decimals(underlying_coins):
-#     yield [i.decimals() for i in underlying_coins]
-
-
 @pytest.fixture(scope="module")
-def initial_amounts(wrapped_decimals, base_pool):
+def initial_amounts(wrapped_decimals, underlying_decimals, is_meta, base_pool):
     # 1e6 of each coin - used to make an even initial deposit in many test setups
-    amounts = [10**i * 1000000 for i in wrapped_decimals]
-    amounts[1] = amounts[1] * 10**18 // base_pool.get_virtual_price()
+    amounts = []
+    if is_meta:
+        amounts = [10**i * 1000000 for i in wrapped_decimals]
+        amounts[1] = amounts[1] * 10**18 // base_pool.get_virtual_price()
+    else:
+        # plain pool
+        amounts = [10**i * 1000000 for i in underlying_decimals]
     yield amounts
 
 
 @pytest.fixture(scope="module")
-def initial_amounts_underlying(underlying_decimals):
+def initial_amounts_underlying(underlying_decimals, is_meta):
     # 1e6 of each coin - used to make an even initial deposit in many test setups
+    amounts = []
     amounts = [10**i * 1000000 for i in underlying_decimals]
-    amounts[1:] = [i//3 for i in amounts[1:]]
+    if is_meta:
+        amounts[1:] = [i//3 for i in amounts[1:]]
     yield amounts
 
 
 # shared logic for pool and base_pool setup fixtures
 
-def _add_liquidity(acct, swap, coins, amounts):
+def _add_liquidity(acct, swap, amounts):
     swap.add_liquidity(amounts, 0, {'from': acct})
 
 
-def _mint(acct, wrapped_coins, wrapped_amounts, underlying_coins, underlying_amounts):
-    for coin, amount in zip(wrapped_coins, wrapped_amounts):
-        coin._mint_for_testing(acct, amount, {'from': acct})
+def _mint(acct, is_meta, wrapped_coins, wrapped_amounts, underlying_coins, underlying_amounts):
+    if is_meta:
+        for coin, amount in zip(wrapped_coins, wrapped_amounts):
+            coin._mint_for_testing(acct, amount, {'from': acct})
 
     for coin, amount in zip(underlying_coins, underlying_amounts):
+        if is_meta and coin == wrapped_coins[0]:
+            continue
         coin._mint_for_testing(acct, amount, {'from': acct})
 
 
@@ -304,14 +303,14 @@ def _approve(owner, spender, *coins):
 # pool setup fixtures
 
 @pytest.fixture()
-def add_initial_liquidity(alice, mint_alice, approve_alice, underlying_coins, swap, initial_amounts, wrapped_coins):
+def add_initial_liquidity(alice, is_meta, mint_alice, approve_alice, swap, initial_amounts):
     # mint (10**7 * precision) of each coin in the pool
-    _add_liquidity(alice, swap, underlying_coins, initial_amounts)
+    _add_liquidity(alice, swap, initial_amounts)
 
 
 @pytest.fixture()
-def mint_bob(bob, underlying_coins, wrapped_coins, initial_amounts, initial_amounts_underlying):
-    _mint(bob, wrapped_coins, initial_amounts, underlying_coins, initial_amounts_underlying)
+def mint_bob(bob, is_meta, underlying_coins, wrapped_coins, initial_amounts, initial_amounts_underlying):
+    _mint(bob, is_meta, wrapped_coins, initial_amounts, underlying_coins, initial_amounts_underlying)
 
 
 @pytest.fixture(scope="module")
@@ -320,8 +319,8 @@ def approve_bob(bob, swap, underlying_coins, wrapped_coins):
 
 
 @pytest.fixture()
-def mint_alice(alice, underlying_coins, wrapped_coins, initial_amounts, initial_amounts_underlying):
-    _mint(alice, wrapped_coins, initial_amounts, underlying_coins, initial_amounts_underlying)
+def mint_alice(alice, is_meta, underlying_coins, wrapped_coins, initial_amounts, initial_amounts_underlying):
+    _mint(alice, is_meta, wrapped_coins, initial_amounts, underlying_coins, initial_amounts_underlying)
 
 
 @pytest.fixture(scope="module")

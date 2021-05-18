@@ -9,7 +9,7 @@
       "name": "awBTC",
       "decimals": 8,
       "tethered": false,
-      "underlying_address": "0xFC4B8ED459e00e5400be803A9BB3954234FD50e3"
+      "underlying_address": "0x9ff58f4fFB29fA2266Ab25e75e2A8b3503311656"
     },
     {
       "name": "sbtcCRV",
@@ -23,8 +23,7 @@
       "name": "renBTC",
       "tethered": false,
       "decimals": 8,
-      "underlying_address": "0xeb4c2781e4eba804ce9a9803c67d0893436bb27d",
-      "wrapped_address": "0xeb4c2781e4eba804ce9a9803c67d0893436bb27d"
+      "underlying_address": "0xeb4c2781e4eba804ce9a9803c67d0893436bb27d"
     },
     {
       "name": "wBTC",

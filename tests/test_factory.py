@@ -8,7 +8,7 @@ from brownie_tokens import ERC20, MintableForkToken
 
 
 @pytest.fixture(autouse=True)
-def setup(swap, bob, alice, add_initial_liquidity, mint_bob, swap_plain, plain_coins, approve_bob, coin, swap_btc):
+def setup(swap, bob, alice, add_initial_liquidity, mint_bob, swap_plain, plain_coins, approve_bob, coin):
     amount = 10**coin.decimals()
     swap.exchange(0, 1, amount, 0, {'from': bob})
     swap.exchange(1, 0, 10**18, 0, {'from': bob})

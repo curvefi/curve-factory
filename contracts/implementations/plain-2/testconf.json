@@ -2,6 +2,6 @@
   "type": "plain",
   "n_coins": 2,
   "eth_pool": false,
-  "rebase": true,
+  "rebase": false,
   "coins": []
 }

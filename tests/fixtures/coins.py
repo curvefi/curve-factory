@@ -25,7 +25,6 @@ def base_lp_token(wrapped_coins):
     return wrapped_coins[1]
 
 
-
 def _wrapped(project, alice, pool_data, underlying_coins, is_forked, ATokenMock, AaveLendingPoolMock):
     coins = []
 
@@ -33,7 +32,7 @@ def _wrapped(project, alice, pool_data, underlying_coins, is_forked, ATokenMock,
         return underlying_coins
 
     if is_forked:
-        for i, coin_data in enumerate(pool_data["coins"]):
+        for coin_data in pool_data["coins"]:
             coins.append(MintableForkToken(coin_data["underlying_address"]))
     else:
         if pool_data["rebase"]:
@@ -60,7 +59,7 @@ def _underlying(alice, project, pool_data, is_forked, ATokenMock, AaveLendingPoo
                 coins.append(MintableForkToken(coin_data["underlying_address"]))
             if len(coins) == 0:
                 for i in range(pool_data["n_coins"]):
-                    coins.append(ERC20())
+                    coins.append(ERC20(18))
     else:
         if pool_data["type"] == "meta":
             if pool_data["rebase"]:
@@ -81,6 +80,7 @@ def _underlying(alice, project, pool_data, is_forked, ATokenMock, AaveLendingPoo
                     f"Underlying Coin {i}", f"UC{i}", decimals, {"from": alice}
                 )
                 coins.append(contract)
+            # deploy mock tokens
     return coins
 
 

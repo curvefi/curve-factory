@@ -58,9 +58,10 @@ def _swap(
     # possible implementations (non-rebase/rebase) per pool type.
     # With the current set up, rebase implementations are always at index 1
     impl_id = int(pool_data["rebase"])
+    base_address = base_pool.address if hasattr(base_pool, "address") else ZERO_ADDRESS
 
     args = {
-        "_base_pool": base_pool.address,
+        "_base_pool": base_address,
         "_name": name,
         "_symbol": symbol,
         "_coin": meta_coin,
@@ -82,7 +83,7 @@ def _swap(
     else:
         tx = factory.deploy_plain_pool(*init_args)
 
-    implementation = implementations[base_pool.address][impl_id]
+    implementation = implementations[base_address][impl_id]
     contract = implementation.at(tx.return_value)
 
     for coin in [i for i in wrapped if hasattr(i, "_set_pool")]:

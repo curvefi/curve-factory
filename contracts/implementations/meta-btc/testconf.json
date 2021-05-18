@@ -24,9 +24,8 @@
     {
       "name": "renBTC",
       "tethered": false,
-      "wrapped_decimals": 8,
-      "underlying_address": "0xeb4c2781e4eba804ce9a9803c67d0893436bb27d",
-      "wrapped_address": "0xeb4c2781e4eba804ce9a9803c67d0893436bb27d"
+      "decimals": 8,
+      "underlying_address": "0xeb4c2781e4eba804ce9a9803c67d0893436bb27d"
     },
     {
       "name": "wBTC",

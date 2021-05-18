@@ -25,6 +25,7 @@ def pytest_addoption(parser):
     parser.addoption("--meta", action="store_true", help="only run metapool tests")
     parser.addoption("--plain", action="store_true", help="only run plain pool tests")
     parser.addoption("--rebase", action="store_true", help="only run tests with rebase tokens")
+    parser.addoption("--pool", help="only run tests for this metapool", type=str)
     parser.addoption("--n-coins", help="only run tests for a plain pool with this many coins", type=int, choices=[2,3,4])
 
 
@@ -47,38 +48,34 @@ def pytest_generate_tests(metafunc):
     project = get_loaded_projects()[0]
     if "pool_data" in metafunc.fixturenames:
         # parametrize `pool_data`
+        metapools = ["meta-btc", "meta-btc-rebase", "meta-usd", "meta-usd-rebase"]
         test_path = Path(metafunc.definition.fspath).relative_to(project._path)
         if test_path.parts[1] in ("common", "meta", "plain"):
             if metafunc.config.getoption("meta"):
-                params = ["meta-btc", "meta-btc-rebase", "meta-usd", "meta-usd-rebase"]
-            elif metafunc.config.getoption("plain"):
-                params = ["plain-2"]
-            else:
-                params = list(_pooldata)
-
-            # parametrize based on pool type
-            if test_path.parts[1] == "meta":
+                pool = metafunc.config.getoption("pool")
                 if metafunc.config.getoption("rebase"):
                     params = ["meta-btc-rebase", "meta-usd-rebase"]
-            if test_path.parts[1] == "plain":
+                elif pool in metapools:
+                    params = [pool]
+                else:
+                    params = metapools
+
+            elif metafunc.config.getoption("plain"):
                 if metafunc.config.getoption("n_coins"):
                     n_coins = metafunc.config.getoption("n_coins")
                     assert 2 <= n_coins <= 4
                     params = ["plain-"+str(n_coins)]
+                else:
+                    params = ["plain-2"]
+            else:
+                params = list(_pooldata)
         else:
             params = ["meta-usd"]
-
 
         metafunc.parametrize("pool_data", params, indirect=True, scope="session")
 
 
 def pytest_collection_modifyitems(config, items):
-    project = get_loaded_projects()[0]
-    try:
-        is_forked = "fork" in CONFIG.active_network["id"]
-    except Exception:
-        is_forked = False
-
     for item in items.copy():
         try:
             params = item.callspec.params
@@ -134,12 +131,18 @@ def pytest_ignore_collect(path, config):
         if path_parts[0] not in ("meta", "common"):
             return True
 
+    if config.getoption("pool") and path_parts:
+        # with `--pool` ensure that `--meta` is set
+        if path_parts[0] not in ("meta", "common"):
+            return True
+
     if config.getoption("plain") and path_parts:
         # with a specific pool targeted, only run pool and common tests
         if path_parts[0] not in ("plain", "common"):
             return True
 
     if config.getoption("n_coins") and path_parts:
+        # with `--n-coins` ensure that `--plain` is set
         if path_parts[0] not in ("plain", "common"):
             return True
 

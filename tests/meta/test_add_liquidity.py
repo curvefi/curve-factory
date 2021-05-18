@@ -10,3 +10,8 @@ def test_min_amount_too_high(bob, swap, wrapped_decimals, wrapped_coins, base_po
     ideal_amount = 10**18 + base_pool.get_virtual_price()
     with brownie.reverts():
         swap.add_liquidity(amounts, ideal_amount, {'from': bob})
+
+
+def test_send_eth(bob, swap, wrapped_coins, initial_amounts):
+    with brownie.reverts():
+        swap.add_liquidity(initial_amounts, 0, {'from': bob, 'value': 1})

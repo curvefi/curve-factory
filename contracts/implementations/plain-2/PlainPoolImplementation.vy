@@ -495,7 +495,7 @@ def add_liquidity(_amounts: uint256[N_COINS], _min_mint_amount: uint256, _receiv
     self.totalSupply = total_supply
     log Transfer(ZERO_ADDRESS, _receiver, mint_amount)
 
-    log AddLiquidity(msg.sender, _amounts, fees, D1, total_supply + mint_amount)
+    log AddLiquidity(msg.sender, _amounts, fees, D1, total_supply)
 
     return mint_amount
 
@@ -686,7 +686,7 @@ def remove_liquidity(_burn_amount: uint256, _min_amounts: uint256[N_COINS], _rec
     self.totalSupply = total_supply
     log Transfer(msg.sender, ZERO_ADDRESS, _burn_amount)
 
-    log RemoveLiquidity(msg.sender, amounts, empty(uint256[N_COINS]), total_supply - _burn_amount)
+    log RemoveLiquidity(msg.sender, amounts, empty(uint256[N_COINS]), total_supply)
 
     return amounts
 
@@ -742,13 +742,13 @@ def remove_liquidity_imbalance(_amounts: uint256[N_COINS], _max_burn_amount: uin
         if _amounts[i] != 0:
             coin: address = self.coins[i]
             if coin == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-                raw_call(receiver, b"", value=_amounts[i])
+                raw_call(_receiver, b"", value=_amounts[i])
             else:
                 _response: Bytes[32] = raw_call(
                     coin,
                     concat(
                         method_id("transfer(address,uint256)"),
-                        convert(receiver, bytes32),
+                        convert(_receiver, bytes32),
                         convert(_amounts[i], bytes32),
                     ),
                     max_outsize=32,
@@ -756,7 +756,7 @@ def remove_liquidity_imbalance(_amounts: uint256[N_COINS], _max_burn_amount: uin
                 if len(_response) > 0:
                     assert convert(_response, bool)
 
-    log RemoveLiquidityImbalance(msg.sender, _amounts, fees, D1, total_supply - burn_amount)
+    log RemoveLiquidityImbalance(msg.sender, _amounts, fees, D1, total_supply)
 
     return burn_amount
 
@@ -896,7 +896,7 @@ def remove_liquidity_one_coin(_burn_amount: uint256, i: int128, _min_amount: uin
         if len(_response) > 0:
             assert convert(_response, bool)
 
-    log RemoveLiquidityOne(msg.sender, _burn_amount, dy, total_supply - _burn_amount)
+    log RemoveLiquidityOne(msg.sender, _burn_amount, dy, total_supply)
 
     return dy
 

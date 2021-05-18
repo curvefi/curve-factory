@@ -25,7 +25,7 @@ def pytest_addoption(parser):
     parser.addoption("--meta", action="store_true", help="only run metapool tests")
     parser.addoption("--plain", action="store_true", help="only run plain pool tests")
     parser.addoption("--rebase", action="store_true", help="only run tests with rebase tokens")
-    parser.addoption("--n-coins", help="only run tests for a plain pool with this many coins (2/3/4)")
+    parser.addoption("--n-coins", help="only run tests for a plain pool with this many coins", type=int, choices=[2,3,4])
 
 
 def pytest_sessionstart():
@@ -52,24 +52,58 @@ def pytest_generate_tests(metafunc):
             if metafunc.config.getoption("meta"):
                 params = ["meta-btc", "meta-btc-rebase", "meta-usd", "meta-usd-rebase"]
             elif metafunc.config.getoption("plain"):
-                params = "plain-2"
+                params = ["plain-2"]
             else:
                 params = list(_pooldata)
 
-            # parameterize based on pool type
+            # parametrize based on pool type
             if test_path.parts[1] == "meta":
                 if metafunc.config.getoption("rebase"):
                     params = ["meta-btc-rebase", "meta-usd-rebase"]
             if test_path.parts[1] == "plain":
-                if metafunc.config.getoption("n-coins"):
-                    n_coins = metafunc.config.getoption("n-coins")
+                if metafunc.config.getoption("n_coins"):
+                    n_coins = metafunc.config.getoption("n_coins")
                     assert 2 <= n_coins <= 4
                     params = ["plain-"+str(n_coins)]
         else:
             params = ["meta-usd"]
 
+
         metafunc.parametrize("pool_data", params, indirect=True, scope="session")
 
+
+def pytest_collection_modifyitems(config, items):
+    project = get_loaded_projects()[0]
+    try:
+        is_forked = "fork" in CONFIG.active_network["id"]
+    except Exception:
+        is_forked = False
+
+    for item in items.copy():
+        try:
+            params = item.callspec.params
+            data = _pooldata[params["pool_data"]]
+        except Exception:
+            continue
+
+
+        # apply `skip_rebase` marker
+        for marker in item.iter_markers(name="skip_rebase"):
+            if data["rebase"]:
+                items.remove(item)
+                break
+
+        if item not in items:
+            continue
+
+        # apply `skip_pool_type` marker
+        for marker in item.iter_markers(name="skip_pool_type"):
+            if len(set(data.get("type", [])) & set(marker.args)):
+                items.remove(item)
+                break
+
+        if item not in items:
+            continue
 
 
 def pytest_ignore_collect(path, config):
@@ -96,12 +130,16 @@ def pytest_ignore_collect(path, config):
         return True
 
     if config.getoption("meta") and path_parts:
-        # with a specific pool targeted, only run pool and zap tests
+        # with a specific pool targeted, only run pool and common tests
         if path_parts[0] not in ("meta", "common"):
             return True
 
     if config.getoption("plain") and path_parts:
-        # with a specific pool targeted, only run pool and zap tests
+        # with a specific pool targeted, only run pool and common tests
+        if path_parts[0] not in ("plain", "common"):
+            return True
+
+    if config.getoption("n_coins") and path_parts:
         if path_parts[0] not in ("plain", "common"):
             return True
 
@@ -139,31 +177,6 @@ def project():
 @pytest.fixture(scope="session")
 def is_forked():
     yield "fork" in CONFIG.active_network["id"]
-
-
-
-####
-# def pytest_addoption(parser):
-#     parser.addoption(
-#         "--decimals",
-#         action="store",
-#         default=18,
-#         type=int,
-#         help="Number of decimal places for test token",
-#     )
-#     parser.addoption(
-#         "--return_value",
-#         action="store",
-#         default="True",
-#         help="Return value for test token",
-#     )
-#
-# @pytest.fixture(scope="module")
-# def coin(pytestconfig):
-#     yield ERC20(
-#         decimals=pytestconfig.getoption('decimals'),
-#         success=eval(pytestconfig.getoption('return_value')),
-#     )
 
 
 @pytest.fixture(autouse=True)
@@ -253,6 +266,11 @@ def plain_coins():
 @pytest.fixture(scope="module")
 def plain_decimals(plain_coins):
     yield [i.decimals() if i != ZERO_ADDRESS else 0 for i in plain_coins]
+
+
+@pytest.fixture
+def set_fee_receiver(alice, fee_receiver, factory, swap):
+    factory.set_fee_receiver(swap, fee_receiver, {"from": alice})
 
 
 @pytest.fixture(scope="module")

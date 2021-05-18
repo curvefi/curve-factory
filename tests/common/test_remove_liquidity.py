@@ -5,7 +5,7 @@ pytestmark = pytest.mark.usefixtures("add_initial_liquidity")
 
 
 @pytest.mark.parametrize("min_amount", (0, 1))
-def test_remove_liquidity(alice, swap, wrapped_coins, min_amount, initial_amounts):
+def test_remove_liquidity(alice, chain, swap, wrapped_coins, min_amount, initial_amounts):
     swap.remove_liquidity(
         swap.balanceOf(alice),
         [i * min_amount for i in initial_amounts],
@@ -13,7 +13,7 @@ def test_remove_liquidity(alice, swap, wrapped_coins, min_amount, initial_amount
     )
 
     for coin, amount in zip(wrapped_coins, initial_amounts):
-        assert coin.balanceOf(alice) == amount
+        assert coin.balanceOf(alice) >= amount  # can be greater if rebase token
         assert coin.balanceOf(swap) == 0
 
     assert swap.balanceOf(alice) == 0

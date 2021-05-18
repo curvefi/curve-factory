@@ -40,12 +40,7 @@ def test_insufficient_balance(charlie, swap, wrapped_decimals):
 def test_event(bob, swap, initial_amounts, wrapped_coins):
     tx = swap.add_liquidity(initial_amounts, 0, {'from': bob})
 
-    event = tx.events["AddLiquidity"]
-    assert event["provider"] == bob
+    event = tx.events['AddLiquidity']
+    assert event['provider'] == bob
     assert event['token_amounts'] == initial_amounts
     assert event['token_supply'] == swap.totalSupply()
-
-
-def test_send_eth(bob, swap, wrapped_coins, initial_amounts):
-    with brownie.reverts():
-        swap.add_liquidity(initial_amounts, 0, {'from': bob, 'value': 1})

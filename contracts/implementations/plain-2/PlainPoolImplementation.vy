@@ -3,9 +3,7 @@
 @title StableSwap
 @author Curve.Fi
 @license Copyright (c) Curve.Fi, 2020 - all rights reserved
-@notice Minimal pool implementation with no lending
-@dev This contract is only a template, pool-specific constants
-     must be set prior to compiling
+@notice Plain pool implementation contract
 """
 
 from vyper.interfaces import ERC20
@@ -573,7 +571,7 @@ def get_dy(i: int128, j: int128, _dx: uint256) -> uint256:
 @payable
 @external
 @nonreentrant('lock')
-def exchange(i: int128, j: int128, _dx: uint256, _min_dy: uint256) -> uint256:
+def exchange(i: int128, j: int128, _dx: uint256, _min_dy: uint256, _receiver: address = msg.sender) -> uint256:
     """
     @notice Perform an exchange between two coins
     @dev Index values can be found via the `coins` public getter method
@@ -581,6 +579,7 @@ def exchange(i: int128, j: int128, _dx: uint256, _min_dy: uint256) -> uint256:
     @param j Index valie of the coin to recieve
     @param _dx Amount of `i` being exchanged
     @param _min_dy Minimum amount of `j` to receive
+    @param _receiver Address that receives `j`
     @return Actual amount of `j` received
     """
     self._update()
@@ -625,13 +624,13 @@ def exchange(i: int128, j: int128, _dx: uint256, _min_dy: uint256) -> uint256:
 
     coin = self.coins[j]
     if coin == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-        raw_call(msg.sender, b"", value=dy)
+        raw_call(_receiver, b"", value=dy)
     else:
         _response: Bytes[32] = raw_call(
             coin,
             concat(
                 method_id("transfer(address,uint256)"),
-                convert(msg.sender, bytes32),
+                convert(_receiver, bytes32),
                 convert(dy, bytes32),
             ),
             max_outsize=32,
@@ -646,12 +645,13 @@ def exchange(i: int128, j: int128, _dx: uint256, _min_dy: uint256) -> uint256:
 
 @external
 @nonreentrant('lock')
-def remove_liquidity(_burn_amount: uint256, _min_amounts: uint256[N_COINS]) -> uint256[N_COINS]:
+def remove_liquidity(_burn_amount: uint256, _min_amounts: uint256[N_COINS], _receiver: address = msg.sender) -> uint256[N_COINS]:
     """
     @notice Withdraw coins from the pool
     @dev Withdrawal amounts are based on current deposit ratios
     @param _burn_amount Quantity of LP tokens to burn in the withdrawal
     @param _min_amounts Minimum amounts of underlying coins to receive
+    @param _receiver Address that receives the withdrawn coins
     @return List of amounts of coins that were withdrawn
     """
     self._update()
@@ -667,13 +667,13 @@ def remove_liquidity(_burn_amount: uint256, _min_amounts: uint256[N_COINS]) -> u
 
         coin: address = self.coins[i]
         if coin == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-            raw_call(msg.sender, b"", value=value)
+            raw_call(_receiver, b"", value=value)
         else:
             _response: Bytes[32] = raw_call(
                 coin,
                 concat(
                     method_id("transfer(address,uint256)"),
-                    convert(msg.sender, bytes32),
+                    convert(_receiver, bytes32),
                     convert(value, bytes32),
                 ),
                 max_outsize=32,
@@ -693,11 +693,12 @@ def remove_liquidity(_burn_amount: uint256, _min_amounts: uint256[N_COINS]) -> u
 
 @external
 @nonreentrant('lock')
-def remove_liquidity_imbalance(_amounts: uint256[N_COINS], _max_burn_amount: uint256) -> uint256:
+def remove_liquidity_imbalance(_amounts: uint256[N_COINS], _max_burn_amount: uint256, _receiver: address = msg.sender) -> uint256:
     """
     @notice Withdraw coins from the pool in an imbalanced amount
     @param _amounts List of amounts of underlying coins to withdraw
     @param _max_burn_amount Maximum amount of LP token to burn in the withdrawal
+    @param _receiver Address that receives the withdrawn coins
     @return Actual amount of the LP token burned in the withdrawal
     """
     self._update()
@@ -741,13 +742,13 @@ def remove_liquidity_imbalance(_amounts: uint256[N_COINS], _max_burn_amount: uin
         if _amounts[i] != 0:
             coin: address = self.coins[i]
             if coin == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-                raw_call(msg.sender, b"", value=_amounts[i])
+                raw_call(receiver, b"", value=_amounts[i])
             else:
                 _response: Bytes[32] = raw_call(
                     coin,
                     concat(
                         method_id("transfer(address,uint256)"),
-                        convert(msg.sender, bytes32),
+                        convert(receiver, bytes32),
                         convert(_amounts[i], bytes32),
                     ),
                     max_outsize=32,
@@ -856,12 +857,13 @@ def calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _previous: bool = F
 
 @external
 @nonreentrant('lock')
-def remove_liquidity_one_coin(_burn_amount: uint256, i: int128, _min_amount: uint256) -> uint256:
+def remove_liquidity_one_coin(_burn_amount: uint256, i: int128, _min_amount: uint256, _receiver: address = msg.sender,) -> uint256:
     """
     @notice Withdraw a single coin from the pool
     @param _burn_amount Amount of LP tokens to burn in the withdrawal
     @param i Index value of the coin to withdraw
     @param _min_amount Minimum amount of coin to receive
+    @param _receiver Address that receives the withdrawn coins
     @return Amount of coin received
     """
     self._update()
@@ -880,13 +882,13 @@ def remove_liquidity_one_coin(_burn_amount: uint256, i: int128, _min_amount: uin
 
     _coin: address = self.coins[i]
     if _coin == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-        raw_call(msg.sender, b"", value=dy)
+        raw_call(_receiver, b"", value=dy)
     else:
         _response: Bytes[32] = raw_call(
             self.coins[i],
             concat(
                 method_id("transfer(address,uint256)"),
-                convert(msg.sender, bytes32),
+                convert(_receiver, bytes32),
                 convert(dy, bytes32),
             ),
             max_outsize=32,

@@ -30,3 +30,8 @@ def wrapped_decimals(pool_data, is_meta):
 @pytest.fixture(scope="module")
 def is_meta(pool_data):
     return pool_data["type"] == "meta"
+
+
+@pytest.fixture(scope="module")
+def is_rebase(pool_data):
+    return pool_data["rebase"]

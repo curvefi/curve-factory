@@ -4,11 +4,15 @@ import pytest
 pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "mint_bob", "approve_bob")
 
 
-def test_add_liquidity(bob, swap, mint_alice, underlying_coins, approve_alice, wrapped_coins, initial_amounts):
+def test_add_liquidity(bob, is_rebase, swap, mint_alice, underlying_coins, approve_alice, wrapped_coins, initial_amounts):
     swap.add_liquidity(initial_amounts, 0, {'from': bob})
     for coin, amount in zip(wrapped_coins, initial_amounts):
-        assert coin.balanceOf(bob) == 0
-        assert coin.balanceOf(swap) == amount * 2
+        if is_rebase:
+            assert coin.balanceOf(bob) >= 0
+            assert coin.balanceOf(swap) > amount * 2
+        else:
+            assert coin.balanceOf(bob) == 0
+            assert coin.balanceOf(swap) == amount * 2
 
     ideal = 2000000 * 10**18
     assert abs(swap.balanceOf(bob) - ideal) <= 1

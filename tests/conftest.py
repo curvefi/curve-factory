@@ -186,6 +186,7 @@ def is_forked():
 def isolation_setup(fn_isolation):
     pass
 
+
 @pytest.fixture()
 def new_factory(Factory, alice):
     contract = Factory.deploy({'from': alice})
@@ -235,7 +236,7 @@ def zap(DepositZapUSD, alice):
 
 
 @pytest.fixture(scope="module")
-def base_pool(pool_data):
+def base_pool(pool_data, admin, underlying_coins, is_forked):
     pool = pool_data.get("base_pool", ZERO_ADDRESS)
     if pool != ZERO_ADDRESS:
         pool = Contract(pool)
@@ -243,12 +244,24 @@ def base_pool(pool_data):
         decimals = [MintableForkToken(pool.coins(i)).decimals() for i in range(3)]
         max_balance = max([pool.balances(0) * 10**(18-decimals[0]), pool.balances(1) * 10**(18-decimals[1]), pool.balances(2) * 10**(18-decimals[2])])
         ideal_balances = [max_balance // 10**(18-decimals[0]), max_balance // 10**(18-decimals[1]), max_balance // 10**(18-decimals[2])]
+        amounts = []
         for i, amount in enumerate(ideal_balances):
             balance = pool.balances(i)
             if balance < amount:
-                MintableForkToken(pool.coins(i))._mint_for_testing(pool, amount - balance)
+                if hasattr(pool, "donate_admin_fees"):
+                    MintableForkToken(pool.coins(i))._mint_for_testing(pool, amount - balance)
+                else:
+                    amounts.append(amount - balance)
+                    MintableForkToken(pool.coins(i))._mint_for_testing(admin, amount - balance)
+            else:
+                amounts.append(0)
+
         if hasattr(pool, "donate_admin_fees"):
             pool.donate_admin_fees({'from': pool.owner()})
+        else:
+            # update balances by depositing funds
+            _approve(admin, pool, underlying_coins)
+            pool.add_liquidity(amounts, 0, {"from": admin})
 
     yield pool
 
@@ -279,13 +292,14 @@ def set_fee_receiver(alice, fee_receiver, factory, swap):
 @pytest.fixture(scope="module")
 def initial_amounts(wrapped_decimals, underlying_decimals, is_meta, base_pool):
     # 1e6 of each coin - used to make an even initial deposit in many test setups
+    initial_amount = 1000000
     amounts = []
     if is_meta:
-        amounts = [10**i * 1000000 for i in wrapped_decimals]
+        amounts = [10**i * initial_amount for i in wrapped_decimals]
         amounts[1] = amounts[1] * 10**18 // base_pool.get_virtual_price()
     else:
         # plain pool
-        amounts = [10**i * 1000000 for i in underlying_decimals]
+        amounts = [10**i * initial_amount for i in underlying_decimals]
     yield amounts
 
 

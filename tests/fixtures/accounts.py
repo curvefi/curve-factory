@@ -24,3 +24,9 @@ def dave(accounts):
 @pytest.fixture(scope="session")
 def fee_receiver(accounts):
     yield accounts[4]
+
+
+@pytest.fixture(scope="session")
+def admin(accounts):
+    yield accounts[5]
+

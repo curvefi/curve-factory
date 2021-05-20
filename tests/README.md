@@ -16,7 +16,7 @@ To run the full test suite, run:
 brownie test
 ```
 
-There are two different pool types supported by the factory:
+There are two different *pool types* supported by the factory:
 
 - Metapools
 - Plain pools
@@ -37,6 +37,31 @@ or
 ```
 brownie test --meta
 ```
+
+### Testing `meta` pools
+
+To target a specific meta pool, the name of the pool can be specified via the `--pool` flag by running:
+
+```
+brownie test --meta --pool <meta_pool_name>
+```
+
+The available pool names are the names of the directories which contain a metapool implementation.
+
+The current meta pool implementations are:
+
+- [`meta-usd`](../contracts/implementations/meta-usd)
+- [`meta-btc`](../contracts/implementations/meta-btc)
+- [`meta-usd-rebase`](../contracts/implementations/meta-usd-rebase)
+- [`meta-btc-rebase`](../contracts/implementations/meta-btc-rebase)
+
+To target, for example, only the `meta-btc` pool implementation, run:
+
+```
+brownie test --meta --pool meta-btc
+```
+
+### Testing `plain` pools
 
 A factory plain pool may contain 2-4 coins, where one token may be ETH. To specify the number of tokens a plain pool should have for testing, run:
 

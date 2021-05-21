@@ -111,8 +111,8 @@ def base_coins(alice, pool_data, is_forked, base_pool_data):
         for coin_data in pool_data["base_coins"]:
             coins.append(MintableForkToken(coin_data["underlying_address"]))
     else:
-        for coin_data in pool_data["base_coins"]:
-            coins.append(ERC20(pool_data["decimals"]))
+        for i, coin_data in enumerate(pool_data["base_coins"]):
+            coins.append(ERC20Mock.deploy(f"Underlying Coin {i}", f"UC{i}", coin_data["decimals"], {"from": alice}))
     return coins
 
 

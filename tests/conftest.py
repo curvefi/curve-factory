@@ -257,11 +257,25 @@ def base_pool(pool_data, admin, underlying_coins, is_forked):
                 amounts.append(0)
 
         if hasattr(pool, "donate_admin_fees"):
-            pool.donate_admin_fees({'from': pool.owner()})
+            #pool.donate_admin_fees({'from': pool.owner()})
+            pass
         else:
             # update balances by depositing funds
-            _approve(admin, pool, underlying_coins)
+            _approve(admin, pool, underlying_coins[1:])
             pool.add_liquidity(amounts, 0, {"from": admin})
+
+        # mint extra amount for minter. We do this here so that later we can "mint" base
+        # pool LP tokens simply by transfering them from minter to mintee without affecting
+        # the virtual price of the metapool.
+        virtual_price = pool.get_virtual_price()
+        amount = 2000000 * virtual_price // 1e18
+        amounts = []
+        for base_coin in underlying_coins[1:]:
+            mint_amount = amount * 1.02 * 10 ** base_coin.decimals() // 3
+            amounts.append(mint_amount)
+            base_coin._mint_for_testing(admin, mint_amount, {"from": admin})
+        _approve(admin, pool, underlying_coins[1:])
+        pool.add_liquidity(amounts, 0, {"from": admin})
 
     yield pool
 
@@ -306,7 +320,6 @@ def initial_amounts(wrapped_decimals, underlying_decimals, is_meta, base_pool):
 @pytest.fixture(scope="module")
 def initial_amounts_underlying(underlying_decimals, is_meta):
     # 1e6 of each coin - used to make an even initial deposit in many test setups
-    amounts = []
     amounts = [10**i * 1000000 for i in underlying_decimals]
     if is_meta:
         amounts[1:] = [i//3 for i in amounts[1:]]
@@ -319,10 +332,13 @@ def _add_liquidity(acct, swap, amounts):
     swap.add_liquidity(amounts, 0, {'from': acct})
 
 
-def _mint(acct, is_meta, wrapped_coins, wrapped_amounts, underlying_coins, underlying_amounts):
+def _mint(acct, minter, is_meta, wrapped_coins, wrapped_amounts, underlying_coins, underlying_amounts, base_pool):
     if is_meta:
         for coin, amount in zip(wrapped_coins, wrapped_amounts):
-            coin._mint_for_testing(acct, amount, {'from': acct})
+            if coin == wrapped_coins[1]:
+                coin.transfer(acct, amount, {'from': minter})
+            else:
+                coin._mint_for_testing(acct, amount, {'from': acct})
 
     for coin, amount in zip(underlying_coins, underlying_amounts):
         if is_meta and coin == wrapped_coins[0]:
@@ -332,20 +348,20 @@ def _mint(acct, is_meta, wrapped_coins, wrapped_amounts, underlying_coins, under
 
 def _approve(owner, spender, *coins):
     for coin in set(x for i in coins for x in i):
-        coin.approve(spender, 2**256-1, {'from': owner})
-
+        if coin.allowance(owner, spender) == 0:
+            coin.approve(spender, 2**256-1, {'from': owner})
 
 # pool setup fixtures
 
 @pytest.fixture()
-def add_initial_liquidity(alice, is_meta, mint_alice, approve_alice, swap, initial_amounts):
+def add_initial_liquidity(alice, is_meta, mint_alice, wrapped_coins, approve_alice, swap, initial_amounts):
     # mint (10**7 * precision) of each coin in the pool
     _add_liquidity(alice, swap, initial_amounts)
 
 
 @pytest.fixture()
-def mint_bob(bob, is_meta, underlying_coins, wrapped_coins, initial_amounts, initial_amounts_underlying):
-    _mint(bob, is_meta, wrapped_coins, initial_amounts, underlying_coins, initial_amounts_underlying)
+def mint_bob(bob, admin, is_meta, underlying_coins, wrapped_coins, initial_amounts, initial_amounts_underlying, base_pool):
+    _mint(bob, admin, is_meta, wrapped_coins, initial_amounts, underlying_coins, initial_amounts_underlying, base_pool)
 
 
 @pytest.fixture(scope="module")
@@ -354,8 +370,8 @@ def approve_bob(bob, swap, underlying_coins, wrapped_coins):
 
 
 @pytest.fixture()
-def mint_alice(alice, is_meta, underlying_coins, wrapped_coins, initial_amounts, initial_amounts_underlying):
-    _mint(alice, is_meta, wrapped_coins, initial_amounts, underlying_coins, initial_amounts_underlying)
+def mint_alice(alice, admin, is_meta, underlying_coins, wrapped_coins, initial_amounts, initial_amounts_underlying, base_pool):
+    _mint(alice, admin, is_meta, wrapped_coins, initial_amounts, underlying_coins, initial_amounts_underlying, base_pool)
 
 
 @pytest.fixture(scope="module")
@@ -373,8 +389,6 @@ def approve_zap(alice, bob, zap, swap, underlying_coins, initial_amounts_underly
 
     swap.approve(zap, 2**256-1, {'from': alice})
     swap.approve(zap, 2**256-1, {'from': bob})
-
-
 
 
 ### Added for rebase tokens

@@ -117,10 +117,6 @@ plain_implementations: public(HashMap[uint256, address[10]])  # number of coins 
 markets: HashMap[uint256, address[4294967296]]
 market_counts: HashMap[uint256, uint256]
 
-# mapping of coin address -> seen
-# used to ensure plain pools do not contain duplicate coins
-registered_coins: HashMap[address, bool]
-
 # base pool/plain pool -> address to transfer admin fees to
 fee_receiver: public(HashMap[address, address])
 
@@ -604,19 +600,21 @@ def deploy_plain_pool(
     """
     n_coins: uint256 = 0
     decimals: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
-    for coin in _coins:
+
+    for i in range(MAX_PLAIN_COINS):
+        coin: address = _coins[i]
         if coin == ZERO_ADDRESS:
-            assert n_coins > 1  # dev: insufficient number of coins
+            assert i > 1  # dev: insufficient number of coins
+            n_coins = i
             break
         assert self.base_pool_assets[coin] == False  # dev: pool should be deployed as metapool
-        assert self.registered_coins[coin] == False # dev: pool cannot contain duplicate coins
-        self.registered_coins[coin] = True
-        decimals[n_coins] = ERC20(coin).decimals()
-        n_coins += 1
-
-    # reset seen coins for next pool
-    for coin in _coins:
-        self.registered_coins[coin] = False
+        decimals[i] = ERC20(coin).decimals()
+        for x in range(i, i+MAX_PLAIN_COINS):
+            if x+1 == MAX_PLAIN_COINS:
+                break
+            if _coins[x+1] == ZERO_ADDRESS:
+                break
+            assert coin != _coins[x+1]  # dev: pool cannot contain duplicate coins
 
     implementation: address = self.plain_implementations[n_coins][_implementation_idx]
     assert implementation != ZERO_ADDRESS  # dev: implementation does not exist

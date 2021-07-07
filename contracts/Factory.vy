@@ -339,10 +339,9 @@ def get_admin_balances(_pool: address) -> uint256[MAX_PLAIN_COINS]:
     n_coins: uint256 = self.pool_data[_pool].n_coins
     admin_balances: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
     for i in range(MAX_PLAIN_COINS):
-        if i < n_coins:
-            admin_balances[i] = CurvePool(_pool).admin_balances(i)
-        else:
-            admin_balances[i] = 0
+        if i == n_coins:
+            break
+        admin_balances[i] = CurvePool(_pool).admin_balances(i)
     return admin_balances
 
 

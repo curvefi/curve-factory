@@ -1,6 +1,14 @@
-on: [push, pull_request]
+name: migrator
 
-name: main workflow
+on:
+  pull_request:
+    paths:
+    - 'tests/test_mitrator.py'
+    - 'contracts/PoolMigrator.vy'
+  push:
+    paths:
+    - 'tests/test_migrator.py'
+    - 'contracts/PoolMigrator.vy'
 
 env:
   ETHERSCAN_TOKEN: 9MKURTHE8FNA9NRUUJBHMUEVY6IQ5K1EGY
@@ -12,11 +20,6 @@ jobs:
 
   unitary:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        decimals: [18, 6]
-        return_value: ["True", "None"]
 
     steps:
     - uses: actions/checkout@v2
@@ -44,4 +47,4 @@ jobs:
       run: pip install -r requirements.txt
 
     - name: Run Tests
-      run: brownie test --decimals ${{ matrix.decimals }} --return_value ${{ matrix.return_value }}
+      run: brownie test tests/test_migrator.py

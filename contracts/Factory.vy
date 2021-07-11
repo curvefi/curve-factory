@@ -76,6 +76,10 @@ interface CurveFactoryMetapool:
     def coins(i :uint256) -> address: view
     def decimals() -> uint256: view
 
+interface OldFactory:
+    def get_coins(_pool: address) -> address[2]: view
+
+
 event BasePoolAdded:
     base_pool: address
 
@@ -92,10 +96,12 @@ event MetaPoolDeployed:
     fee: uint256
     deployer: address
 
+
 N_POOLS: constant(int128) = 100   # number of pre-existing factory pools to add
 MAX_COINS: constant(int128) = 8
 MAX_PLAIN_COINS: constant(int128) = 4  # max coins in a plain pool
 ADDRESS_PROVIDER: constant(address) = 0x0000000022D53366457F9d5E68Ec105046FC4383
+OLD_FACTORY: constant(address) = 0x0959158b6040D32d04c301A72CBFD6b39E21c9AE
 
 admin: public(address)
 future_admin: public(address)
@@ -108,8 +114,13 @@ base_pool_list: public(address[4294967296])   # master list of pools
 base_pool_count: public(uint256)         # actual length of pool_list
 base_pool_data: HashMap[address, BasePoolArray]
 
-base_pool_assets: public(HashMap[address, bool])  # asset -> is used in a metapool?
-plain_implementations: public(HashMap[uint256, address[10]])  # number of coins -> implementation addresses
+# asset -> is used in a metapool?
+base_pool_assets: public(HashMap[address, bool])
+
+# number of coins -> implementation addresses
+# for "plain pools" (as opposed to metapools), implementation contracts
+# are organized according to the number of coins in the pool
+plain_implementations: public(HashMap[uint256, address[10]])
 
 # mapping of coins -> pools for trading
 # a mapping key is generated for each pair of addresses via
@@ -119,6 +130,7 @@ market_counts: HashMap[uint256, uint256]
 
 # base pool/plain pool -> address to transfer admin fees to
 fee_receiver: public(HashMap[address, address])
+
 
 @external
 def __init__():
@@ -398,14 +410,25 @@ def get_coin_indices(
 
 @view
 @external
-def metapool_implementations(_base_pool: address) -> address[10]:
-    return self.base_pool_data[_base_pool].implementations
+def get_implementation_address(_pool: address) -> address:
+    """
+    @notice Get the address of the implementation contract used for a factory pool
+    @param _pool Pool address
+    @return Implementation contract address
+    """
+    return self.pool_data[_pool].implementation
 
 
 @view
 @external
-def pool_implementation(_pool: address) -> address:
-    return self.pool_data[_pool].implementation
+def metapool_implementations(_base_pool: address) -> address[10]:
+    """
+    @notice Get a list of implementation contracts for metapools targetting the given base pool
+    @dev A base pool is the pool for the LP token contained within the metapool
+    @param _base_pool Address of the base pool
+    @return List of implementation contract addresses
+    """
+    return self.base_pool_data[_base_pool].implementations
 
 
 @external
@@ -415,7 +438,7 @@ def add_base_pool(
     _implementations: address[10],
 ):
     """
-    @notice Add a pool to the registry
+    @notice Add a base pool to the registry, which may be used in factory metapools
     @dev Only callable by admin
     @param _base_pool Pool address to add
     @param _fee_receiver Admin fee receiver address for metapools using this base pool
@@ -647,62 +670,6 @@ def deploy_plain_pool(
     return pool
 
 
-@external
-def add_existing_metapools(_pools: address[N_POOLS], _base_pool: address, _implementation: address) -> bool:
-    """
-    @notice Add existing factory pools to this factory
-    @dev Base pools that are used by the pools to be added must
-        be added separately with `add_base_pool`. All pools given
-        in `_pools` must have the same `_base_pool` and `implementation`.
-        Note that a pool address already registered cannot be readded.
-    @param _pools Addresses of existing pools to add
-    @param _base_pool Address of the base pool for `_pools`
-    @param _implementation Address of the implementation for the pools
-    """
-    assert msg.sender == self.admin  # dev: admin-only function
-    assert self.base_pool_data[_base_pool].coins[0] != ZERO_ADDRESS # dev: base pool does not exist
-    assert _implementation != ZERO_ADDRESS
-
-    registry: address = AddressProvider(ADDRESS_PROVIDER).get_registry()
-    base_lp_token: address = Registry(registry).get_lp_token(_base_pool)
-    base_pool_coins: address[MAX_COINS] = self.base_pool_data[_base_pool].coins
-    length: uint256 = self.pool_count
-    for pool in _pools:
-        if pool == ZERO_ADDRESS:
-            break
-        assert self.pool_data[pool].coins[0] == ZERO_ADDRESS  # dev: pool already exists
-
-        # add pool to pool list
-        self.pool_list[length] = pool
-        length += 1
-
-        # update pool data
-        meta_decimals: uint256 = CurveFactoryMetapool(pool).decimals()
-        self.pool_data[pool].decimals = [meta_decimals, 0, 0, 0]
-        self.pool_data[pool].base_pool = _base_pool
-        meta_coin: address = CurveFactoryMetapool(pool).coins(0)
-        self.pool_data[pool].coins[0] = meta_coin
-        self.pool_data[pool].coins[1] = base_lp_token
-        self.pool_data[pool].implementation = _implementation
-
-        is_finished: bool = False
-        for i in range(MAX_COINS):
-            swappable_coin: address = base_pool_coins[i]
-            if swappable_coin == ZERO_ADDRESS:
-                is_finished = True
-                swappable_coin = base_lp_token
-
-            key: uint256 = bitwise_xor(convert(meta_coin, uint256), convert(swappable_coin, uint256))
-            market_idx: uint256 = self.market_counts[key]
-            self.markets[key][market_idx] = pool
-            self.market_counts[key] = market_idx + 1
-            if is_finished:
-                break
-
-    self.pool_count = length
-    return True
-
-
 @pure
 @external
 def get_twap_balances(_first_balances: uint256[MAX_COINS], _last_balances: uint256[MAX_COINS], _time_elapsed: uint256) -> uint256[MAX_COINS]:
@@ -773,4 +740,70 @@ def convert_metapool_fees() -> bool:
     receiver: address = self.fee_receiver[self.pool_data[msg.sender].base_pool]
 
     CurvePool(msg.sender).exchange(0, 1, amount, 0, receiver)
+    return True
+
+
+@external
+def add_existing_metapools(_pools: address[N_POOLS]) -> bool:
+    """
+    @notice Add existing metapools from the old factory
+    @dev Base pools that are used by the pools to be added must
+        be added separately with `add_base_pool`.
+    @param _pools Addresses of existing pools to add
+    """
+
+    length: uint256 = self.pool_count
+    for pool in _pools:
+        if pool == ZERO_ADDRESS:
+            break
+
+        assert self.pool_data[pool].coins[0] == ZERO_ADDRESS  # dev: pool already exists
+
+        coins: address[2] = OldFactory(OLD_FACTORY).get_coins(pool)
+        assert coins[0] != ZERO_ADDRESS # dev: pool not in old factory
+
+        # add pool to pool list
+        self.pool_list[length] = pool
+        length += 1
+
+        base_pool: address = ZERO_ADDRESS
+        implementation: address = ZERO_ADDRESS
+
+        if coins[1] == 0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490:
+            # 3pool
+            base_pool = 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7
+            implementation = 0x5F890841f657d90E081bAbdB532A05996Af79Fe6
+        elif coins[1] == 0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3:
+            # sbtc
+            base_pool = 0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714
+            implementation = 0x2f956eEe002B0dEbD468CF2E0490d1aEc65e027F
+        else:
+            raise
+
+        # update pool data
+        self.pool_data[pool].decimals[0] = ERC20(coins[0]).decimals()
+        self.pool_data[pool].base_pool = base_pool
+        meta_coin: address = CurveFactoryMetapool(pool).coins(0)
+        self.pool_data[pool].coins[0] = coins[0]
+        self.pool_data[pool].coins[1] = coins[1]
+        self.pool_data[pool].implementation = implementation
+
+        base_pool_coins: address[MAX_COINS] = self.base_pool_data[base_pool].coins
+        assert base_pool_coins[0] != ZERO_ADDRESS # dev: unknown base pool
+
+        is_finished: bool = False
+        for i in range(MAX_COINS):
+            swappable_coin: address = base_pool_coins[i]
+            if swappable_coin == ZERO_ADDRESS:
+                is_finished = True
+                swappable_coin = coins[1]
+
+            key: uint256 = bitwise_xor(convert(meta_coin, uint256), convert(swappable_coin, uint256))
+            market_idx: uint256 = self.market_counts[key]
+            self.markets[key][market_idx] = pool
+            self.market_counts[key] = market_idx + 1
+            if is_finished:
+                break
+
+    self.pool_count = length
     return True

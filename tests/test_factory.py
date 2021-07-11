@@ -3,8 +3,7 @@ import itertools
 import pytest
 
 from brownie import ZERO_ADDRESS, Contract
-from brownie_tokens import ERC20, MintableForkToken
-
+from brownie_tokens import ERC20
 
 
 @pytest.fixture(autouse=True)
@@ -179,31 +178,27 @@ def test_deploy_metapool(MetaImplementationUSD, new_factory, new_factory_setup, 
     assert new_factory.get_decimals(swap) == [7, 18, 0, 0]
 
 
-def test_add_existing_metapools(factory, swap, swap_btc, swap_rebase, new_factory, fee_receiver, implementation_btc, implementation_usd, base_pool, base_pool_btc, alice):
+def test_add_existing_metapools(factory, new_factory, fee_receiver, implementation_usd, base_pool, alice):
     assert new_factory.pool_count() == 0
     # add existing USD pools to new factory
     new_factory.add_base_pool(base_pool, fee_receiver, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice})
-    new_factory.add_existing_metapools([swap] + [ZERO_ADDRESS] * 99, base_pool, implementation_usd)
-    assert new_factory.pool_count() == 1
-    assert new_factory.pool_list(0) == swap
-
-    # add existing BTC pools to new factory
-    pool = Contract("0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714")
-    new_factory.add_base_pool(pool, fee_receiver, [implementation_btc] + [ZERO_ADDRESS] * 9, {'from': alice})
-    new_factory.add_existing_metapools([swap_btc] + [ZERO_ADDRESS] * 99, pool, implementation_btc)
+    new_factory.add_existing_metapools(["0x5a6A4D54456819380173272A5E8E9B9904BdF41B", "0x43b4FdFD4Ff969587185cDB6f0BD875c5Fc83f8c"] + [ZERO_ADDRESS] * 98)
     assert new_factory.pool_count() == 2
-    assert new_factory.pool_list(1) == swap_btc
+    assert new_factory.pool_list(0) == "0x5a6A4D54456819380173272A5E8E9B9904BdF41B"
+    assert new_factory.pool_list(1) == "0x43b4FdFD4Ff969587185cDB6f0BD875c5Fc83f8c"
+    assert new_factory.get_implementation_address("0x5a6A4D54456819380173272A5E8E9B9904BdF41B") == "0x5F890841f657d90E081bAbdB532A05996Af79Fe6"
 
 
-def test_add_existing_metapools_no_base_pool(swap, new_factory, base_pool, implementation_usd):
-    with brownie.reverts("dev: base pool does not exist"):
-        new_factory.add_existing_metapools([swap] + [ZERO_ADDRESS] * 99, base_pool, implementation_usd)
+def test_add_existing_metapools_unknown_pool(swap, new_factory):
+    with brownie.reverts("dev: pool not in old factory"):
+        new_factory.add_existing_metapools([swap] + [ZERO_ADDRESS] * 99)
 
 
-def test_add_existing_metapools_only_admin(swap, implementation_usd, fee_receiver, new_factory, base_pool, alice, bob):
+def test_add_existing_metapools_unknown_pool(new_factory, base_pool, implementation_usd, fee_receiver, alice):
     new_factory.add_base_pool(base_pool, fee_receiver, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice})
-    with brownie.reverts("dev: admin-only function"):
-        new_factory.add_existing_metapools([swap] + [ZERO_ADDRESS] * 99, base_pool, implementation_usd, {"from": bob})
+    new_factory.add_existing_metapools(["0x5a6A4D54456819380173272A5E8E9B9904BdF41B"] + [ZERO_ADDRESS] * 99)
+    with brownie.reverts("dev: pool already exists"):
+        new_factory.add_existing_metapools(["0x5a6A4D54456819380173272A5E8E9B9904BdF41B"] + [ZERO_ADDRESS] * 99)
 
 
 def test_deploy_plain_pool(PlainPoolImplementation, is_rebase, new_factory_setup, new_factory, alice, bob):

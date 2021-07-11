@@ -5,11 +5,11 @@ pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "mint_bob", "appro
 
 
 @pytest.fixture(scope="module")
-def swap2(MetaImplementationUSD, alice, base_pool, factory, coin):
+def swap2(MetaUSD, alice, base_pool, factory, coin):
     tx = factory.deploy_metapool(
         base_pool, "Test Swap", "TST", coin, 200, 4000000, {"from": alice}
     )
-    yield MetaImplementationUSD.at(tx.return_value)
+    yield MetaUSD.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")

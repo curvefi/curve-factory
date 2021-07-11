@@ -5,7 +5,7 @@ from brownie import (
     MetaImplementationBTC,
     MetaImplementationUSD,
     OwnerProxy,
-    accounts
+    accounts,
 )
 from brownie.network.gas.strategies import GasNowScalingStrategy
 
@@ -27,33 +27,24 @@ FEE_RECEIVER_BTC = "0xf9fc73496484290142ee856639f69e04465985cd"
 
 
 def main(deployer=DEPLOYER):
-    factory = Factory.deploy({'from': deployer})
+    factory = Factory.deploy({"from": deployer})
 
-    implementation_usd = MetaImplementationUSD.deploy({'from': deployer, 'gas_price': gas_price})
+    implementation_usd = MetaImplementationUSD.deploy({"from": deployer, "gas_price": gas_price})
     factory.add_base_pool(
-        BASE_3POOL,
-        implementation_usd,
-        FEE_RECEIVER_USD,
-        {'from': deployer, 'gas_price': gas_price}
+        BASE_3POOL, implementation_usd, FEE_RECEIVER_USD, {"from": deployer, "gas_price": gas_price}
     )
 
-    implementation_btc = MetaImplementationBTC.deploy({'from': deployer, 'gas_price': gas_price})
+    implementation_btc = MetaImplementationBTC.deploy({"from": deployer, "gas_price": gas_price})
     factory.add_base_pool(
-        BASE_SBTC,
-        implementation_btc,
-        FEE_RECEIVER_BTC,
-        {'from': deployer, 'gas_price': gas_price}
+        BASE_SBTC, implementation_btc, FEE_RECEIVER_BTC, {"from": deployer, "gas_price": gas_price}
     )
 
     proxy = OwnerProxy.deploy(
-        OWNER_ADMIN,
-        PARAM_ADMIN,
-        EMERGENCY_ADMIN,
-        {'from': deployer, 'gas_price': gas_price}
+        OWNER_ADMIN, PARAM_ADMIN, EMERGENCY_ADMIN, {"from": deployer, "gas_price": gas_price}
     )
 
-    factory.commit_transfer_ownership(proxy, {'from': deployer, 'gas_price': gas_price})
-    proxy.accept_transfer_ownership(factory, {'from': deployer, 'gas_price': gas_price})
+    factory.commit_transfer_ownership(proxy, {"from": deployer, "gas_price": gas_price})
+    proxy.accept_transfer_ownership(factory, {"from": deployer, "gas_price": gas_price})
 
-    DepositZapUSD.deploy({'from': deployer, 'gas_price': gas_price})
-    DepositZapBTC.deploy({'from': deployer, 'gas_price': gas_price})
+    DepositZapUSD.deploy({"from": deployer, "gas_price": gas_price})
+    DepositZapBTC.deploy({"from": deployer, "gas_price": gas_price})

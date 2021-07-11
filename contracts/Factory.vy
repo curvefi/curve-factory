@@ -114,8 +114,13 @@ base_pool_list: public(address[4294967296])   # master list of pools
 base_pool_count: public(uint256)         # actual length of pool_list
 base_pool_data: HashMap[address, BasePoolArray]
 
-base_pool_assets: public(HashMap[address, bool])  # asset -> is used in a metapool?
-plain_implementations: public(HashMap[uint256, address[10]])  # number of coins -> implementation addresses
+# asset -> is used in a metapool?
+base_pool_assets: public(HashMap[address, bool])
+
+# number of coins -> implementation addresses
+# for "plain pools" (as opposed to metapools), implementation contracts
+# are organized according to the number of coins in the pool
+plain_implementations: public(HashMap[uint256, address[10]])
 
 # mapping of coins -> pools for trading
 # a mapping key is generated for each pair of addresses via
@@ -405,14 +410,25 @@ def get_coin_indices(
 
 @view
 @external
-def metapool_implementations(_base_pool: address) -> address[10]:
-    return self.base_pool_data[_base_pool].implementations
+def get_implementation_address(_pool: address) -> address:
+    """
+    @notice Get the address of the implementation contract used for a factory pool
+    @param _pool Pool address
+    @return Implementation contract address
+    """
+    return self.pool_data[_pool].implementation
 
 
 @view
 @external
-def pool_implementation(_pool: address) -> address:
-    return self.pool_data[_pool].implementation
+def metapool_implementations(_base_pool: address) -> address[10]:
+    """
+    @notice Get a list of implementation contracts for metapools targetting the given base pool
+    @dev A base pool is the pool for the LP token contained within the metapool
+    @param _base_pool Address of the base pool
+    @return List of implementation contract addresses
+    """
+    return self.base_pool_data[_base_pool].implementations
 
 
 @external
@@ -422,7 +438,7 @@ def add_base_pool(
     _implementations: address[10],
 ):
     """
-    @notice Add a pool to the registry
+    @notice Add a base pool to the registry, which may be used in factory metapools
     @dev Only callable by admin
     @param _base_pool Pool address to add
     @param _fee_receiver Admin fee receiver address for metapools using this base pool

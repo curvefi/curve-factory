@@ -1,4 +1,4 @@
-# @version 0.2.8
+# @version 0.2.12
 """
 @title Curve StableSwap Owner Proxy
 @author Curve Finance
@@ -15,6 +15,14 @@ interface Factory:
         _base_pool: address,
         _metapool_implementation: address,
         _fee_receiver: address,
+    ): nonpayable
+    def set_metapool_implementations(
+        _base_pool: address,
+    _implementations: address[10],
+    ): nonpayable
+    def set_plain_implementations(
+        _n_coins: uint256,
+        _implementations: address[10],
     ): nonpayable
     def set_fee_receiver(_base_pool: address, _fee_receiver: address): nonpayable
     def commit_transfer_ownership(addr: address): nonpayable
@@ -116,13 +124,40 @@ def add_base_pool(
     _metapool_implementation: address,
     _fee_receiver: address
 ):
-    assert msg.sender == self.parameter_admin
+    assert msg.sender == self.ownership_admin
 
     Factory(_target).add_base_pool(_base_pool, _metapool_implementation, _fee_receiver)
 
 
 @external
+def set_metapool_implementations(
+    _target: address,
+    _base_pool: address,
+    _implementations: address[10],
+):
+    """
+    @notice Set implementation contracts for a metapool
+    @dev Only callable by admin
+    @param _base_pool Pool address to add
+    @param _implementations Implementation address to use when deploying metapools
+    """
+    assert msg.sender == self.ownership_admin, "Access denied"
+    Factory(_target).set_metapool_implementations(_base_pool, _implementations)
+
+
+@external
+def set_plain_implementations(
+    _target: address,
+    _n_coins: uint256,
+    _implementations: address[10],
+):
+    assert msg.sender == self.ownership_admin, "Access denied"
+    Factory(_target).set_plain_implementations(_n_coins, _implementations)
+
+
+@external
 def set_fee_receiver(_target: address, _base_pool: address, _fee_receiver: address):
+    assert msg.sender == self.ownership_admin, "Access denied"
     Factory(_target).set_fee_receiver(_base_pool, _fee_receiver)
 
 
@@ -133,7 +168,7 @@ def commit_transfer_ownership(_target: address, _new_admin: address):
     @param _target `Factory` deployment address
     @param _new_admin New admin address
     """
-    assert msg.sender == self.parameter_admin  # dev: admin only
+    assert msg.sender == self.ownership_admin  # dev: admin only
 
     Factory(_target).commit_transfer_ownership(_new_admin)
 

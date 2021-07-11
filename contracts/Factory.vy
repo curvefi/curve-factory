@@ -97,7 +97,6 @@ event MetaPoolDeployed:
     deployer: address
 
 
-N_POOLS: constant(int128) = 100   # number of pre-existing factory pools to add
 MAX_COINS: constant(int128) = 8
 MAX_PLAIN_COINS: constant(int128) = 4  # max coins in a plain pool
 ADDRESS_PROVIDER: constant(address) = 0x0000000022D53366457F9d5E68Ec105046FC4383
@@ -137,6 +136,20 @@ def __init__():
     self.admin = msg.sender
 
 
+# <--- Factory Getters --->
+
+@view
+@external
+def metapool_implementations(_base_pool: address) -> address[10]:
+    """
+    @notice Get a list of implementation contracts for metapools targetting the given base pool
+    @dev A base pool is the pool for the LP token contained within the metapool
+    @param _base_pool Address of the base pool
+    @return List of implementation contract addresses
+    """
+    return self.base_pool_data[_base_pool].implementations
+
+
 @view
 @external
 def find_pool_for_coins(_from: address, _to: address, i: uint256 = 0) -> address:
@@ -152,6 +165,8 @@ def find_pool_for_coins(_from: address, _to: address, i: uint256 = 0) -> address
     return self.markets[key][i]
 
 
+# <--- Pool Getters --->
+
 @view
 @external
 def get_base_pool(_pool: address) -> address:
@@ -165,18 +180,6 @@ def get_base_pool(_pool: address) -> address:
 
 @view
 @external
-def get_meta_n_coins(_pool: address) -> (uint256, uint256):
-    """
-    @notice Get the number of coins in a pool
-    @param _pool Pool address
-    @return Number of wrapped coins, number of underlying coins
-    """
-    base_pool: address = self.pool_data[_pool].base_pool
-    return 2, self.base_pool_data[base_pool].n_coins + 1
-
-
-@view
-@external
 def get_n_coins(_pool: address) -> (uint256):
     """
     @notice Get the number of coins in a pool
@@ -184,6 +187,18 @@ def get_n_coins(_pool: address) -> (uint256):
     @return Number of coins
     """
     return self.pool_data[_pool].n_coins
+
+
+@view
+@external
+def get_meta_n_coins(_pool: address) -> (uint256, uint256):
+    """
+    @notice Get the number of coins in a metapool
+    @param _pool Pool address
+    @return Number of wrapped coins, number of underlying coins
+    """
+    base_pool: address = self.pool_data[_pool].base_pool
+    return 2, self.base_pool_data[base_pool].n_coins + 1
 
 
 @view
@@ -202,6 +217,7 @@ def get_coins(_pool: address) -> address[MAX_PLAIN_COINS]:
 def get_underlying_coins(_pool: address) -> address[MAX_COINS]:
     """
     @notice Get the underlying coins within a pool
+    @dev Reverts if a pool does not exist or is not a metapool
     @param _pool Pool address
     @return List of coin addresses
     """
@@ -318,6 +334,19 @@ def get_underlying_balances(_pool: address) -> uint256[MAX_COINS]:
     return underlying_balances
 
 
+@pure
+@external
+def get_twap_balances(
+    _first_balances: uint256[MAX_COINS],
+    _last_balances: uint256[MAX_COINS],
+    _time_elapsed: uint256
+) -> uint256[MAX_COINS]:
+    balances: uint256[MAX_COINS] = empty(uint256[MAX_COINS])
+    for i in range(MAX_COINS):
+        balances[i] = (_last_balances[i] - _first_balances[i]) / _time_elapsed
+    return balances
+
+
 @view
 @external
 def get_A(_pool: address) -> uint256:
@@ -366,6 +395,7 @@ def get_coin_indices(
 ) -> (int128, int128, bool):
     """
     @notice Convert coin addresses to indices for use with pool methods
+    @param _pool Pool address
     @param _from Coin address to be used as `i` within a pool
     @param _to Coin address to be used as `j` within a pool
     @return int128 `i`, int128 `j`, boolean indicating if `i` and `j` are underlying coins
@@ -421,15 +451,170 @@ def get_implementation_address(_pool: address) -> address:
 
 @view
 @external
-def metapool_implementations(_base_pool: address) -> address[10]:
+def is_meta(_pool: address) -> bool:
     """
-    @notice Get a list of implementation contracts for metapools targetting the given base pool
-    @dev A base pool is the pool for the LP token contained within the metapool
-    @param _base_pool Address of the base pool
-    @return List of implementation contract addresses
+    @notice Verify `_pool` is a metapool
+    @param _pool Pool address
+    @return True if `_pool` is a metapool
     """
-    return self.base_pool_data[_base_pool].implementations
+    return self.pool_data[_pool].base_pool != ZERO_ADDRESS
 
+
+# <--- Pool Deployers --->
+
+
+@external
+def deploy_plain_pool(
+    _name: String[32],
+    _symbol: String[10],
+    _coins: address[MAX_PLAIN_COINS],
+    _A: uint256,
+    _fee: uint256,
+    _implementation_idx: uint256 = 0,
+) -> address:
+    """
+    @notice Deploy a new plain pool
+    @param _name Name of the new plain pool
+    @param _symbol Symbol for the new plain pool - will be
+                   concatenated with factory symbol
+    @param _coins List of addresses of the coins being used in the pool.
+    @param _A Amplification co-efficient - a lower value here means
+              less tolerance for imbalance within the pool's assets.
+              Suggested values include:
+               * Uncollateralized algorithmic stablecoins: 5-10
+               * Non-redeemable, collateralized assets: 100
+               * Redeemable assets: 200-400
+    @param _fee Trade fee, given as an integer with 1e10 precision. The
+                minimum fee is 0.04% (4000000), the maximum is 1% (100000000).
+                50% of the fee is distributed to veCRV holders.
+    @param _implementation_idx Index of the implementation to use. All possible
+                implementations for a pool of N_COINS can be publicly accessed
+                via `plain_implementations(N_COINS)`
+    @return Address of the deployed pool
+    """
+    n_coins: uint256 = 0
+    decimals: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
+
+    for i in range(MAX_PLAIN_COINS):
+        coin: address = _coins[i]
+        if coin == ZERO_ADDRESS:
+            assert i > 1, "Insufficient coins"
+            n_coins = i
+            break
+        assert self.base_pool_assets[coin] == False, "Invalid asset, deploy a metapool"
+        decimals[i] = ERC20(coin).decimals()
+        for x in range(i, i+MAX_PLAIN_COINS):
+            if x+1 == MAX_PLAIN_COINS:
+                break
+            if _coins[x+1] == ZERO_ADDRESS:
+                break
+            assert coin != _coins[x+1], "Duplicate coins"
+
+    implementation: address = self.plain_implementations[n_coins][_implementation_idx]
+    assert implementation != ZERO_ADDRESS, "Invalid implementation index"
+    pool: address = create_forwarder_to(implementation)
+
+    CurvePlainPool(pool).initialize(_name, _symbol, _coins, decimals, _A, _fee, self.admin)
+
+    length: uint256 = self.pool_count
+    self.pool_list[length] = pool
+    self.pool_count = length + 1
+    self.pool_data[pool].decimals = decimals
+    self.pool_data[pool].n_coins = n_coins
+    self.pool_data[pool].base_pool = ZERO_ADDRESS
+    self.pool_data[pool].implementation = implementation
+
+    for i in range(MAX_PLAIN_COINS):
+        coin: address = _coins[i]
+        if coin == ZERO_ADDRESS:
+            break
+        self.pool_data[pool].coins[i] = coin
+        ERC20(coin).approve(pool, MAX_UINT256)
+        for j in range(MAX_PLAIN_COINS):
+            if i < j:
+                swappable_coin: address = _coins[j]
+                key: uint256 = bitwise_xor(convert(coin, uint256), convert(swappable_coin, uint256))
+                length = self.market_counts[key]
+                self.markets[key][length] = pool
+                self.market_counts[key] = length + 1
+
+    log PlainPoolDeployed(_coins, _A, _fee, msg.sender)
+    return pool
+
+
+@external
+def deploy_metapool(
+    _base_pool: address,
+    _name: String[32],
+    _symbol: String[10],
+    _coin: address,
+    _A: uint256,
+    _fee: uint256,
+    _implementation_idx: uint256 = 0,
+) -> address:
+    """
+    @notice Deploy a new metapool
+    @param _base_pool Address of the base pool to use
+                      within the metapool
+    @param _name Name of the new metapool
+    @param _symbol Symbol for the new metapool - will be
+                   concatenated with the base pool symbol
+    @param _coin Address of the coin being used in the metapool
+    @param _A Amplification co-efficient - a higher value here means
+              less tolerance for imbalance within the pool's assets.
+              Suggested values include:
+               * Uncollateralized algorithmic stablecoins: 5-10
+               * Non-redeemable, collateralized assets: 100
+               * Redeemable assets: 200-400
+    @param _fee Trade fee, given as an integer with 1e10 precision. The
+                minimum fee is 0.04% (4000000), the maximum is 1% (100000000).
+                50% of the fee is distributed to veCRV holders.
+    @param _implementation_idx Index of the implementation to use. All possible
+                implementations for a BASE_POOL can be publicly accessed
+                via `metapool_implementations(BASE_POOL)`
+    @return Address of the deployed pool
+    """
+    implementation: address = self.base_pool_data[_base_pool].implementations[_implementation_idx]
+    assert implementation != ZERO_ADDRESS, "Invalid implementation index"
+    pool: address = create_forwarder_to(implementation)
+
+    decimals: uint256 = ERC20(_coin).decimals()
+    CurvePool(pool).initialize(_name, _symbol, _coin, decimals, _A, _fee, self.admin)
+    ERC20(_coin).approve(pool, MAX_UINT256)
+
+    # add pool to pool_list
+    length: uint256 = self.pool_count
+    self.pool_list[length] = pool
+    self.pool_count = length + 1
+
+    base_lp_token: address = self.base_pool_data[_base_pool].lp_token
+
+    self.pool_data[pool].decimals = [decimals, 0, 0, 0]
+    self.pool_data[pool].n_coins = 2
+    self.pool_data[pool].base_pool = _base_pool
+    self.pool_data[pool].coins[0] = _coin
+    self.pool_data[pool].coins[1] = self.base_pool_data[_base_pool].lp_token
+    self.pool_data[pool].implementation = implementation
+
+    is_finished: bool = False
+    for i in range(MAX_COINS):
+        swappable_coin: address = self.base_pool_data[_base_pool].coins[i]
+        if swappable_coin == ZERO_ADDRESS:
+            is_finished = True
+            swappable_coin = base_lp_token
+
+        key: uint256 = bitwise_xor(convert(_coin, uint256), convert(swappable_coin, uint256))
+        length = self.market_counts[key]
+        self.markets[key][length] = pool
+        self.market_counts[key] = length + 1
+        if is_finished:
+            break
+
+    log MetaPoolDeployed(_coin, _base_pool, _A, _fee, msg.sender)
+    return pool
+
+
+# <--- Admin / Guarded Functionality --->
 
 @external
 def add_base_pool(
@@ -521,176 +706,6 @@ def set_plain_implementations(
 
 
 @external
-def deploy_metapool(
-    _base_pool: address,
-    _name: String[32],
-    _symbol: String[10],
-    _coin: address,
-    _A: uint256,
-    _fee: uint256,
-    _implementation_idx: uint256 = 0,
-) -> address:
-    """
-    @notice Deploy a new metapool
-    @param _base_pool Address of the base pool to use
-                      within the metapool
-    @param _name Name of the new metapool
-    @param _symbol Symbol for the new metapool - will be
-                   concatenated with the base pool symbol
-    @param _coin Address of the coin being used in the metapool
-    @param _A Amplification co-efficient - a higher value here means
-              less tolerance for imbalance within the pool's assets.
-              Suggested values include:
-               * Uncollateralized algorithmic stablecoins: 5-10
-               * Non-redeemable, collateralized assets: 100
-               * Redeemable assets: 200-400
-    @param _fee Trade fee, given as an integer with 1e10 precision. The
-                minimum fee is 0.04% (4000000), the maximum is 1% (100000000).
-                50% of the fee is distributed to veCRV holders.
-    @param _implementation_idx Index of the implementation to use. All possible
-                implementations for a BASE_POOL can be publicly accessed
-                via `metapool_implementations(BASE_POOL)`
-    @return Address of the deployed pool
-    """
-    implementation: address = self.base_pool_data[_base_pool].implementations[_implementation_idx]
-    assert implementation != ZERO_ADDRESS
-    pool: address = create_forwarder_to(implementation)
-
-    decimals: uint256 = ERC20(_coin).decimals()
-    CurvePool(pool).initialize(_name, _symbol, _coin, decimals, _A, _fee, self.admin)
-    ERC20(_coin).approve(pool, MAX_UINT256)
-
-    # add pool to pool_list
-    length: uint256 = self.pool_count
-    self.pool_list[length] = pool
-    self.pool_count = length + 1
-
-    base_lp_token: address = self.base_pool_data[_base_pool].lp_token
-
-    self.pool_data[pool].decimals = [decimals, 0, 0, 0]
-    self.pool_data[pool].n_coins = 2
-    self.pool_data[pool].base_pool = _base_pool
-    self.pool_data[pool].coins[0] = _coin
-    self.pool_data[pool].coins[1] = self.base_pool_data[_base_pool].lp_token
-    self.pool_data[pool].implementation = implementation
-
-    is_finished: bool = False
-    for i in range(MAX_COINS):
-        swappable_coin: address = self.base_pool_data[_base_pool].coins[i]
-        if swappable_coin == ZERO_ADDRESS:
-            is_finished = True
-            swappable_coin = base_lp_token
-
-        key: uint256 = bitwise_xor(convert(_coin, uint256), convert(swappable_coin, uint256))
-        length = self.market_counts[key]
-        self.markets[key][length] = pool
-        self.market_counts[key] = length + 1
-        if is_finished:
-            break
-
-    log MetaPoolDeployed(_coin, _base_pool, _A, _fee, msg.sender)
-    return pool
-
-@external
-def deploy_plain_pool(
-    _name: String[32],
-    _symbol: String[10],
-    _coins: address[MAX_PLAIN_COINS],
-    _A: uint256,
-    _fee: uint256,
-    _implementation_idx: uint256 = 0,
-) -> address:
-    """
-    @notice Deploy a new plain pool
-    @param _name Name of the new plain pool
-    @param _symbol Symbol for the new plain pool - will be
-                   concatenated with factory symbol
-    @param _coins List of addresses of the coins being used in the pool.
-    @param _A Amplification co-efficient - a higher value here means
-              less tolerance for imbalance within the pool's assets.
-              Suggested values include:
-               * Uncollateralized algorithmic stablecoins: 5-10
-               * Non-redeemable, collateralized assets: 100
-               * Redeemable assets: 200-400
-    @param _fee Trade fee, given as an integer with 1e10 precision. The
-                minimum fee is 0.04% (4000000), the maximum is 1% (100000000).
-                50% of the fee is distributed to veCRV holders.
-    @param _implementation_idx Index of the implementation to use. All possible
-                implementations for a pool of N_COINS can be publicly accessed
-                via `plain_implementations(N_COINS)`
-    @return Address of the deployed pool
-    """
-    n_coins: uint256 = 0
-    decimals: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
-
-    for i in range(MAX_PLAIN_COINS):
-        coin: address = _coins[i]
-        if coin == ZERO_ADDRESS:
-            assert i > 1  # dev: insufficient number of coins
-            n_coins = i
-            break
-        assert self.base_pool_assets[coin] == False  # dev: pool should be deployed as metapool
-        decimals[i] = ERC20(coin).decimals()
-        for x in range(i, i+MAX_PLAIN_COINS):
-            if x+1 == MAX_PLAIN_COINS:
-                break
-            if _coins[x+1] == ZERO_ADDRESS:
-                break
-            assert coin != _coins[x+1]  # dev: pool cannot contain duplicate coins
-
-    implementation: address = self.plain_implementations[n_coins][_implementation_idx]
-    assert implementation != ZERO_ADDRESS  # dev: implementation does not exist
-    pool: address = create_forwarder_to(implementation)
-
-    CurvePlainPool(pool).initialize(_name, _symbol, _coins, decimals, _A, _fee, self.admin)
-
-    length: uint256 = self.pool_count
-    self.pool_list[length] = pool
-    self.pool_count = length + 1
-    self.pool_data[pool].decimals = decimals
-    self.pool_data[pool].n_coins = n_coins
-    self.pool_data[pool].base_pool = ZERO_ADDRESS
-    self.pool_data[pool].implementation = implementation
-
-    for i in range(MAX_PLAIN_COINS):
-        coin: address = _coins[i]
-        if coin == ZERO_ADDRESS:
-            break
-        self.pool_data[pool].coins[i] = coin
-        ERC20(coin).approve(pool, MAX_UINT256)
-        for j in range(MAX_PLAIN_COINS):
-            if i < j:
-                swappable_coin: address = _coins[j]
-                key: uint256 = bitwise_xor(convert(coin, uint256), convert(swappable_coin, uint256))
-                length = self.market_counts[key]
-                self.markets[key][length] = pool
-                self.market_counts[key] = length + 1
-
-    log PlainPoolDeployed(_coins, _A, _fee, msg.sender)
-    return pool
-
-
-@pure
-@external
-def get_twap_balances(_first_balances: uint256[MAX_COINS], _last_balances: uint256[MAX_COINS], _time_elapsed: uint256) -> uint256[MAX_COINS]:
-    balances: uint256[MAX_COINS] = empty(uint256[MAX_COINS])
-    for i in range(MAX_COINS):
-        balances[i] = (_last_balances[i] - _first_balances[i]) / _time_elapsed
-    return balances
-
-
-@view
-@external
-def is_meta(_pool: address) -> bool:
-    """
-    @notice Verify `_pool` is a metapool
-    @param _pool Pool address
-    @return True if `_pool` is a metapool
-    """
-    return self.pool_data[_pool].base_pool != ZERO_ADDRESS
-
-
-@external
 def commit_transfer_ownership(_addr: address):
     """
     @notice Transfer ownership of this contract to `addr`
@@ -743,12 +758,14 @@ def convert_metapool_fees() -> bool:
     return True
 
 
+# <--- Pool Migration --->
+
 @external
-def add_existing_metapools(_pools: address[N_POOLS]) -> bool:
+def add_existing_metapools(_pools: address[10]) -> bool:
     """
     @notice Add existing metapools from the old factory
     @dev Base pools that are used by the pools to be added must
-        be added separately with `add_base_pool`.
+         be added separately with `add_base_pool`.
     @param _pools Addresses of existing pools to add
     """
 

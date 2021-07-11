@@ -498,20 +498,20 @@ def deploy_plain_pool(
     for i in range(MAX_PLAIN_COINS):
         coin: address = _coins[i]
         if coin == ZERO_ADDRESS:
-            assert i > 1  # dev: insufficient number of coins
+            assert i > 1, "Insufficient coins"
             n_coins = i
             break
-        assert self.base_pool_assets[coin] == False  # dev: pool should be deployed as metapool
+        assert self.base_pool_assets[coin] == False, "Invalid asset, deploy a metapool"
         decimals[i] = ERC20(coin).decimals()
         for x in range(i, i+MAX_PLAIN_COINS):
             if x+1 == MAX_PLAIN_COINS:
                 break
             if _coins[x+1] == ZERO_ADDRESS:
                 break
-            assert coin != _coins[x+1]  # dev: pool cannot contain duplicate coins
+            assert coin != _coins[x+1], "Duplicate coins"
 
     implementation: address = self.plain_implementations[n_coins][_implementation_idx]
-    assert implementation != ZERO_ADDRESS  # dev: implementation does not exist
+    assert implementation != ZERO_ADDRESS, "Invalid implementation index"
     pool: address = create_forwarder_to(implementation)
 
     CurvePlainPool(pool).initialize(_name, _symbol, _coins, decimals, _A, _fee, self.admin)
@@ -575,7 +575,7 @@ def deploy_metapool(
     @return Address of the deployed pool
     """
     implementation: address = self.base_pool_data[_base_pool].implementations[_implementation_idx]
-    assert implementation != ZERO_ADDRESS
+    assert implementation != ZERO_ADDRESS, "Invalid implementation index"
     pool: address = create_forwarder_to(implementation)
 
     decimals: uint256 = ERC20(_coin).decimals()

@@ -50,28 +50,28 @@ def fee_receiver(accounts):
 
 
 @pytest.fixture(scope="module")
-def implementation_usd(MetaImplementationUSD, alice):
-    yield MetaImplementationUSD.deploy({'from': alice})
+def implementation_usd(MetaUSD, alice):
+    yield MetaUSD.deploy({'from': alice})
 
 
 @pytest.fixture(scope="module")
-def implementation_btc(MetaImplementationBTC, alice):
-    yield MetaImplementationBTC.deploy({'from': alice})
+def implementation_btc(MetaBTC, alice):
+    yield MetaBTC.deploy({'from': alice})
 
 
 @pytest.fixture(scope="module")
-def implementation_plain(PlainPoolImplementation, alice):
-    yield PlainPoolImplementation.deploy({'from': alice})
+def implementation_plain(Plain2Basic, alice):
+    yield Plain2Basic.deploy({'from': alice})
 
 
 @pytest.fixture(scope="module")
-def implementation_rebase_btc(MetaImplementationRebaseBTC, alice):
-    yield MetaImplementationRebaseBTC.deploy({'from': alice})
+def implementation_rebase_btc(MetaBTCRebase, alice):
+    yield MetaBTCRebase.deploy({'from': alice})
 
 
 @pytest.fixture(scope="module")
-def implementation_rebase_usd(MetaImplementationRebaseUSD, alice):
-    yield MetaImplementationRebaseUSD.deploy({'from': alice})
+def implementation_rebase_usd(MetaUSDRebase, alice):
+    yield MetaUSDRebase.deploy({'from': alice})
 
 
 @pytest.fixture(scope="module")
@@ -89,25 +89,25 @@ def new_factory(Factory, alice, fee_receiver, base_pool, implementation_usd):
 
 
 @pytest.fixture(scope="module")
-def swap_plain(PlainPoolImplementation, alice, factory, plain_coins):
+def swap_plain(Plain2Basic, alice, factory, plain_coins):
     tx = factory.deploy_plain_pool("Test Plain", "PLN", plain_coins, 200, 4000000, 0, {'from': alice})
-    yield PlainPoolImplementation.at(tx.return_value)
+    yield Plain2Basic.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")
-def swap(MetaImplementationUSD, MetaImplementationRebaseUSD, is_rebase, alice, rebase_coin, base_pool, factory, coin):
+def swap(MetaUSD, MetaUSDRebase, is_rebase, alice, rebase_coin, base_pool, factory, coin):
     if is_rebase:
         tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {'from': alice})
-        yield MetaImplementationRebaseUSD.at(tx.return_value)
+        yield MetaUSDRebase.at(tx.return_value)
     else:
         tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", coin, 200, 4000000, 0, {'from': alice})
-        yield MetaImplementationUSD.at(tx.return_value)
+        yield MetaUSD.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")
-def swap_btc(MetaImplementationBTC, alice, base_pool_btc, factory, coin):
+def swap_btc(MetaBTC, alice, base_pool_btc, factory, coin):
     tx = factory.deploy_metapool(base_pool_btc, "Test Swap BTC", "TSTB", coin, 200, 4000000, 0, {'from': alice})
-    yield MetaImplementationBTC.at(tx.return_value)
+    yield MetaBTC.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")
@@ -122,17 +122,16 @@ def rebase_coin(alice, ATokenMock, AaveLendingPoolMock, ERC20Mock):
                             {"from": alice})
 
 
+@pytest.fixture(scope="module")
+def swap_rebase(MetaUSDRebase, alice, base_pool, factory, rebase_coin):
+    tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {'from': alice})
+    yield MetaUSDRebase.at(tx.return_value)
+
 
 @pytest.fixture(scope="module")
-def swap_rebase(MetaImplementationRebaseUSD, alice, base_pool, factory, rebase_coin):
+def swap_rebase_btc(MetaBTCRebase, alice, base_pool, factory, rebase_coin):
     tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {'from': alice})
-    yield MetaImplementationRebaseUSD.at(tx.return_value)
-
-
-@pytest.fixture(scope="module")
-def swap_rebase_btc(MetaImplementationRebaseBTC, alice, base_pool, factory, rebase_coin):
-    tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {'from': alice})
-    yield MetaImplementationRebaseBTC.at(tx.return_value)
+    yield MetaBTCRebase.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")

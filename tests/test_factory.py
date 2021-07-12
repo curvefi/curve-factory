@@ -161,12 +161,12 @@ def test_add_base_pool_only_admin(factory, base_pool, bob, fee_receiver, impleme
         factory.add_base_pool("0xA5407eAE9Ba41422680e2e00537571bcC53efBfD", fee_receiver, [implementation_usd] + [ZERO_ADDRESS] * 9, {'from': bob})
 
 
-def test_deploy_metapool(MetaImplementationUSD, new_factory, new_factory_setup, base_pool, alice, bob):
+def test_deploy_metapool(MetaUSD, new_factory, new_factory_setup, base_pool, alice, bob):
     coin = ERC20(decimals=7)
 
     tx = new_factory.deploy_metapool(base_pool, "Name", "SYM", coin, 12345, 50000000, 0, {'from': bob})
     assert tx.return_value == tx.new_contracts[0]
-    swap = MetaImplementationUSD.at(tx.return_value)
+    swap = MetaUSD.at(tx.return_value)
 
     assert swap.coins(0) == coin
     assert swap.A() == 12345
@@ -201,7 +201,7 @@ def test_add_existing_metapools_duplicate_pool(new_factory, base_pool, implement
         new_factory.add_existing_metapools(["0x5a6A4D54456819380173272A5E8E9B9904BdF41B"] + [ZERO_ADDRESS] * 9)
 
 
-def test_deploy_plain_pool(PlainPoolImplementation, is_rebase, new_factory_setup, new_factory, alice, bob):
+def test_deploy_plain_pool(Plain2Basic, is_rebase, new_factory_setup, new_factory, alice, bob):
     if is_rebase:
         pytest.skip()
 
@@ -209,7 +209,7 @@ def test_deploy_plain_pool(PlainPoolImplementation, is_rebase, new_factory_setup
 
     tx = new_factory.deploy_plain_pool("Test Plain", "TST", coins, 12345, 50000000, 0, {'from': bob})
     assert tx.return_value == tx.new_contracts[0]
-    swap = PlainPoolImplementation.at(tx.return_value)
+    swap = Plain2Basic.at(tx.return_value)
 
     assert swap.coins(0) == coins[0]
     assert swap.coins(1) == coins[1]
@@ -223,7 +223,7 @@ def test_deploy_plain_pool(PlainPoolImplementation, is_rebase, new_factory_setup
     assert new_factory.get_decimals(swap) == [7, 9, 0, 0]
 
 
-def test_pool_count(new_factory, new_factory_setup, bob, base_pool, PlainPoolImplementation):
+def test_pool_count(new_factory, new_factory_setup, bob, base_pool):
 
     coins = [ERC20(decimals=7), ERC20(decimals=9), ZERO_ADDRESS, ZERO_ADDRESS]
 

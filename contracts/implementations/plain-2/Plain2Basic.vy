@@ -117,46 +117,41 @@ def initialize(
     _name: String[32],
     _symbol: String[10],
     _coins: address[4],
-    _decimals: uint256[4],
+    _rate_multipliers: uint256[4],
     _A: uint256,
     _fee: uint256,
-    _admin: address
 ):
     """
     @notice Contract constructor
     @param _name Name of the new pool
     @param _symbol Token symbol
     @param _coins List of all ERC20 conract addresses of coins
-    @param _decimals List of number of decimals in coins
+    @param _rate_multipliers List of number of decimals in coins
     @param _A Amplification coefficient multiplied by n * (n - 1)
     @param _fee Fee to charge for exchanges
-    @param _admin Admin address
     """
-
-    # fee must be between 0.04% and 1%
-    assert _fee >= 4000000
-    assert _fee <= 100000000
     # check if fee was already set to prevent initializing contract twice
     assert self.fee == 0
 
     for i in range(N_COINS):
-        if _coins[i] == ZERO_ADDRESS:
+        coin: address = _coins[i]
+        if coin == ZERO_ADDRESS:
             break
-        if _coins[i] == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-            assert i == 0  # dev: ETH must be at index 0
-        # things break if a token has >18 decimals
-        assert _decimals[i] < 19
-        self.rate_multipliers[i] = 10 ** (36 - _decimals[i])
-        self.coins[i] = _coins[i]
+        self.coins[i] = coin
+        self.rate_multipliers[i] = _rate_multipliers[i]
 
-    self.initial_A = _A * A_PRECISION
-    self.future_A = _A * A_PRECISION
+    A: uint256 = _A * A_PRECISION
+    self.initial_A = A
+    self.future_A = A
     self.fee = _fee
-    self.admin = _admin
     self.factory = msg.sender
 
     self.name = concat("Curve.fi Factory Plain Pool: ", _name)
     self.symbol = concat(_symbol, "-f")
+
+    # fire a transfer event so block explorers identify the contract as an ERC20
+    log Transfer(ZERO_ADDRESS, self, 0)
+
 
 ### ERC20 Functionality ###
 

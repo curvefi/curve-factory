@@ -146,36 +146,28 @@ def initialize(
     _name: String[32],
     _symbol: String[10],
     _coin: address,
-    _decimals: uint256,
+    _rate_multiplier: uint256,
     _A: uint256,
-    _fee: uint256,
-    _admin: address,
+    _fee: uint256
 ):
     """
     @notice Contract initializer
     @param _name Name of the new pool
     @param _symbol Token symbol
     @param _coin Addresses of ERC20 conracts of coins
-    @param _decimals Number of decimals in `_coin`
-    @param _A Amplification coefficient multiplied by n * (n - 1)
+    @param _rate_multiplier Rate multiplier for `_coin` (10 ** (36 - decimals))
+    @param _A Amplification coefficient multiplied by n ** (n - 1)
     @param _fee Fee to charge for exchanges
-    @param _admin Admin address
     """
-    # things break if a token has >18 decimals
-    assert _decimals < 19
-    # fee must be between 0.04% and 1%
-    assert _fee >= 4000000
-    assert _fee <= 100000000
     # check if fee was already set to prevent initializing contract twice
     assert self.fee == 0
 
     A: uint256 = _A * A_PRECISION
     self.coins = [_coin, 0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3]
-    self.rate_multiplier = 10 ** (36 - _decimals)
+    self.rate_multiplier = _rate_multiplier
     self.initial_A = A
     self.future_A = A
     self.fee = _fee
-    self.admin = _admin
     self.factory = msg.sender
 
     self.name = concat("Curve.fi Factory BTC Metapool: ", _name)

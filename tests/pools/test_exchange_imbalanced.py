@@ -1,5 +1,4 @@
 import pytest
-from pytest import approx
 
 pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "approve_bob")
 
@@ -21,11 +20,7 @@ def test_min_dy(bob, swap, wrapped_coins, sending, receiving, wrapped_decimals):
     wrapped_coins[sending]._mint_for_testing(bob, scaler[sending], {"from": bob})
 
     # we need to scale these appropriately for tokens with different decimal values
-    min_dy_sending = (
-        swap.get_dy(sending, receiving, scaler[sending]) / scaler[receiving]
-    )
-    min_dy_receiving = (
-        swap.get_dy(receiving, sending, scaler[receiving]) / scaler[sending]
-    )
+    min_dy_sending = swap.get_dy(sending, receiving, scaler[sending]) / scaler[receiving]
+    min_dy_receiving = swap.get_dy(receiving, sending, scaler[receiving]) / scaler[sending]
 
     assert min_dy_sending > min_dy_receiving

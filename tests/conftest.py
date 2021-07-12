@@ -1,5 +1,5 @@
 import pytest
-from brownie import Contract, ZERO_ADDRESS
+from brownie import ZERO_ADDRESS, Contract
 from brownie_tokens import ERC20, MintableForkToken
 
 
@@ -51,62 +51,85 @@ def fee_receiver(accounts):
 
 @pytest.fixture(scope="module")
 def implementation_usd(MetaUSD, alice):
-    yield MetaUSD.deploy({'from': alice})
+    yield MetaUSD.deploy({"from": alice})
 
 
 @pytest.fixture(scope="module")
 def implementation_btc(MetaBTC, alice):
-    yield MetaBTC.deploy({'from': alice})
+    yield MetaBTC.deploy({"from": alice})
 
 
 @pytest.fixture(scope="module")
 def implementation_plain(Plain2Basic, alice):
-    yield Plain2Basic.deploy({'from': alice})
+    yield Plain2Basic.deploy({"from": alice})
 
 
 @pytest.fixture(scope="module")
 def implementation_rebase_btc(MetaBTCRebase, alice):
-    yield MetaBTCRebase.deploy({'from': alice})
+    yield MetaBTCRebase.deploy({"from": alice})
 
 
 @pytest.fixture(scope="module")
 def implementation_rebase_usd(MetaUSDRebase, alice):
-    yield MetaUSDRebase.deploy({'from': alice})
+    yield MetaUSDRebase.deploy({"from": alice})
 
 
 @pytest.fixture(scope="module")
-def factory(Factory, alice, fee_receiver, base_pool, implementation_usd, implementation_rebase_usd, implementation_plain):
-    contract = Factory.deploy({'from': alice})
-    contract.add_base_pool(base_pool, fee_receiver, [implementation_usd, implementation_rebase_usd] + [ZERO_ADDRESS] * 8, {'from': alice})
-    contract.set_plain_implementations(2, [implementation_plain] + [ZERO_ADDRESS] * 9, {'from': alice})
+def factory(
+    Factory,
+    alice,
+    fee_receiver,
+    base_pool,
+    implementation_usd,
+    implementation_rebase_usd,
+    implementation_plain,
+):
+    contract = Factory.deploy({"from": alice})
+    contract.add_base_pool(
+        base_pool,
+        fee_receiver,
+        [implementation_usd, implementation_rebase_usd] + [ZERO_ADDRESS] * 8,
+        {"from": alice},
+    )
+    contract.set_plain_implementations(
+        2, [implementation_plain] + [ZERO_ADDRESS] * 9, {"from": alice}
+    )
     yield contract
 
 
 @pytest.fixture()
 def new_factory(Factory, alice, fee_receiver, base_pool, implementation_usd):
-    contract = Factory.deploy({'from': alice})
+    contract = Factory.deploy({"from": alice})
     yield contract
 
 
 @pytest.fixture(scope="module")
 def swap_plain(Plain2Basic, alice, factory, plain_coins):
-    tx = factory.deploy_plain_pool("Test Plain", "PLN", plain_coins, 200, 4000000, 0, {'from': alice})
+    tx = factory.deploy_plain_pool(
+        "Test Plain", "PLN", plain_coins, 200, 4000000, 0, {"from": alice}
+    )
     yield Plain2Basic.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")
 def swap(MetaUSD, MetaUSDRebase, is_rebase, alice, rebase_coin, base_pool, factory, coin):
     if is_rebase:
-        tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {'from': alice})
+        tx = factory.deploy_metapool(
+            base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {"from": alice}
+        )
         yield MetaUSDRebase.at(tx.return_value)
     else:
-        tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", coin, 200, 4000000, 0, {'from': alice})
+        tx = factory.deploy_metapool(
+            base_pool, "Test Swap", "TST", coin, 200, 4000000, 0, {"from": alice}
+        )
         yield MetaUSD.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")
 def swap_btc(MetaBTC, alice, base_pool_btc, factory, coin):
-    tx = factory.deploy_metapool(base_pool_btc, "Test Swap BTC", "TSTB", coin, 200, 4000000, 0, {'from': alice})
+    tx = factory.deploy_metapool(
+        base_pool_btc, "Test Swap BTC", "TSTB", coin, 200, 4000000, 0, {"from": alice}
+    )
     yield MetaBTC.at(tx.return_value)
 
 
@@ -114,29 +137,30 @@ def swap_btc(MetaBTC, alice, base_pool_btc, factory, coin):
 def rebase_coin(alice, ATokenMock, AaveLendingPoolMock, ERC20Mock):
     aave_lending_pool_mock = AaveLendingPoolMock.deploy({"from": alice})
     erc20_mock = ERC20Mock.deploy("ERC20MOCK", "ERC", 18, {"from": alice})
-    yield ATokenMock.deploy("Rebase Mock",
-                            "MOK",
-                            18,
-                            erc20_mock,
-                            aave_lending_pool_mock,
-                            {"from": alice})
+    yield ATokenMock.deploy(
+        "Rebase Mock", "MOK", 18, erc20_mock, aave_lending_pool_mock, {"from": alice}
+    )
 
 
 @pytest.fixture(scope="module")
 def swap_rebase(MetaUSDRebase, alice, base_pool, factory, rebase_coin):
-    tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {'from': alice})
+    tx = factory.deploy_metapool(
+        base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {"from": alice}
+    )
     yield MetaUSDRebase.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")
 def swap_rebase_btc(MetaBTCRebase, alice, base_pool, factory, rebase_coin):
-    tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {'from': alice})
+    tx = factory.deploy_metapool(
+        base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {"from": alice}
+    )
     yield MetaBTCRebase.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")
 def zap(DepositZapUSD, alice):
-    yield DepositZapUSD.deploy({'from': alice})
+    yield DepositZapUSD.deploy({"from": alice})
 
 
 @pytest.fixture(scope="module")
@@ -144,13 +168,13 @@ def base_pool():
     pool = Contract("0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7")
 
     # ensure the base pool is balanced so our tests are deterministic
-    max_balance = max([pool.balances(0), pool.balances(1) * 10**12, pool.balances(2) * 10**12])
-    ideal_balances = [max_balance, max_balance // 10**12, max_balance // 10**12]
+    max_balance = max([pool.balances(0), pool.balances(1) * 10 ** 12, pool.balances(2) * 10 ** 12])
+    ideal_balances = [max_balance, max_balance // 10 ** 12, max_balance // 10 ** 12]
     for i, amount in enumerate(ideal_balances):
         balance = pool.balances(i)
         if balance < amount:
             MintableForkToken(pool.coins(i))._mint_for_testing(pool, amount - balance)
-    pool.donate_admin_fees({'from': pool.owner()})
+    pool.donate_admin_fees({"from": pool.owner()})
 
     yield pool
 
@@ -158,7 +182,12 @@ def base_pool():
 @pytest.fixture(scope="module")
 def base_pool_btc(alice, fee_receiver, implementation_btc, factory, implementation_rebase_btc):
     pool = Contract("0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714")
-    factory.add_base_pool(pool, fee_receiver, [implementation_btc, implementation_rebase_btc] + [ZERO_ADDRESS] * 8, {'from': alice})
+    factory.add_base_pool(
+        pool,
+        fee_receiver,
+        [implementation_btc, implementation_rebase_btc] + [ZERO_ADDRESS] * 8,
+        {"from": alice},
+    )
 
     yield pool
 
@@ -202,8 +231,8 @@ def base_lp_token():
 @pytest.fixture(scope="module")
 def coin(pytestconfig):
     yield ERC20(
-        decimals=pytestconfig.getoption('decimals'),
-        success=eval(pytestconfig.getoption('return_value')),
+        decimals=pytestconfig.getoption("decimals"),
+        success=eval(pytestconfig.getoption("return_value")),
     )
 
 
@@ -225,16 +254,16 @@ def underlying_decimals(underlying_coins):
 @pytest.fixture(scope="module")
 def initial_amounts(wrapped_decimals, base_pool):
     # 1e6 of each coin - used to make an even initial deposit in many test setups
-    amounts = [10**i * 1000000 for i in wrapped_decimals]
-    amounts[1] = amounts[1] * 10**18 // base_pool.get_virtual_price()
+    amounts = [10 ** i * 1000000 for i in wrapped_decimals]
+    amounts[1] = amounts[1] * 10 ** 18 // base_pool.get_virtual_price()
     yield amounts
 
 
 @pytest.fixture(scope="module")
 def initial_amounts_underlying(underlying_decimals):
     # 1e6 of each coin - used to make an even initial deposit in many test setups
-    amounts = [10**i * 1000000 for i in underlying_decimals]
-    amounts[1:] = [i//3 for i in amounts[1:]]
+    amounts = [10 ** i * 1000000 for i in underlying_decimals]
+    amounts[1:] = [i // 3 for i in amounts[1:]]
     yield amounts
 
 
@@ -242,26 +271,29 @@ def initial_amounts_underlying(underlying_decimals):
 
 
 def _add_liquidity(acct, swap, coins, amounts):
-    swap.add_liquidity(amounts, 0, {'from': acct})
+    swap.add_liquidity(amounts, 0, {"from": acct})
 
 
 def _mint(acct, wrapped_coins, wrapped_amounts, underlying_coins, underlying_amounts):
     for coin, amount in zip(wrapped_coins, wrapped_amounts):
-        coin._mint_for_testing(acct, amount, {'from': acct})
+        coin._mint_for_testing(acct, amount, {"from": acct})
 
     for coin, amount in zip(underlying_coins[1:], underlying_amounts[1:]):
-        coin._mint_for_testing(acct, amount, {'from': acct})
+        coin._mint_for_testing(acct, amount, {"from": acct})
 
 
 def _approve(owner, spender, *coins):
     for coin in set(x for i in coins for x in i):
-        coin.approve(spender, 2**256-1, {'from': owner})
+        coin.approve(spender, 2 ** 256 - 1, {"from": owner})
 
 
 # pool setup fixtures
 
+
 @pytest.fixture()
-def add_initial_liquidity(alice, mint_alice, approve_alice, underlying_coins, swap, initial_amounts):
+def add_initial_liquidity(
+    alice, mint_alice, approve_alice, underlying_coins, swap, initial_amounts
+):
     # mint (10**7 * precision) of each coin in the pool
     _add_liquidity(alice, swap, underlying_coins, initial_amounts)
 
@@ -291,16 +323,15 @@ def approve_zap(alice, bob, zap, swap, underlying_coins, initial_amounts_underly
     for underlying, amount in zip(underlying_coins, initial_amounts_underlying):
         if underlying == "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE":
             continue
-        underlying.approve(zap, 2**256-1, {'from': alice})
-        underlying.approve(zap, 2**256-1, {'from': bob})
+        underlying.approve(zap, 2 ** 256 - 1, {"from": alice})
+        underlying.approve(zap, 2 ** 256 - 1, {"from": bob})
 
-    swap.approve(zap, 2**256-1, {'from': alice})
-    swap.approve(zap, 2**256-1, {'from': bob})
-
-
+    swap.approve(zap, 2 ** 256 - 1, {"from": alice})
+    swap.approve(zap, 2 ** 256 - 1, {"from": bob})
 
 
-### Added for rebase tokens
+# Added for rebase tokens
+
 
 @pytest.fixture(scope="module")
 def wrapped_rebase_coins(rebase_coin, base_lp_token):
@@ -314,8 +345,8 @@ def wrapped_rebase_decimals(wrapped_rebase_coins):
 
 @pytest.fixture(scope="module")
 def wrapped_rebase_amounts(base_pool, wrapped_coins, wrapped_decimals):
-    wrapped_amounts = [10**i * 1000000 for i in wrapped_decimals]
-    wrapped_amounts[1] = wrapped_amounts[1] * 10**18 // base_pool.get_virtual_price()
+    wrapped_amounts = [10 ** i * 1000000 for i in wrapped_decimals]
+    wrapped_amounts[1] = wrapped_amounts[1] * 10 ** 18 // base_pool.get_virtual_price()
     yield wrapped_amounts
 
 

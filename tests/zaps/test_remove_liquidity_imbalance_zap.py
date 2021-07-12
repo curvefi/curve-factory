@@ -3,16 +3,16 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def setup(alice, bob, swap, add_initial_liquidity, approve_zap):
-    swap.transfer(bob, swap.balanceOf(alice), {'from': alice})
+    swap.transfer(bob, swap.balanceOf(alice), {"from": alice})
 
 
 @pytest.mark.parametrize("divisor", [2, 7, 31337])
 def test_lp_token_balances(bob, zap, swap, divisor, initial_amounts_underlying):
     amounts = [i // divisor for i in initial_amounts_underlying]
-    max_burn = int(((2000000 * 10**18) // divisor) * 1.1)
+    max_burn = int(((2000000 * 10 ** 18) // divisor) * 1.1)
 
     initial_balance = swap.balanceOf(bob)
-    zap.remove_liquidity_imbalance(swap, amounts, max_burn, {'from': bob})
+    zap.remove_liquidity_imbalance(swap, amounts, max_burn, {"from": bob})
 
     # bob is the only LP, total supply is affected in the same way as his balance
     assert swap.balanceOf(bob) < initial_balance
@@ -34,7 +34,7 @@ def test_wrapped_balances(
     divisor,
 ):
     amounts = [i // divisor for i in initial_amounts_underlying]
-    zap.remove_liquidity_imbalance(swap, amounts, swap.balanceOf(bob), {'from': bob})
+    zap.remove_liquidity_imbalance(swap, amounts, swap.balanceOf(bob), {"from": bob})
 
     for coin, initial in zip(wrapped_coins[1:], initial_amounts[1:]):
         assert coin.balanceOf(zap) == 0
@@ -61,7 +61,7 @@ def test_underlying_balances(
     else:
         amounts = [0] * len(initial_amounts_underlying)
         amounts[idx] = initial_amounts_underlying[idx] // divisor
-    zap.remove_liquidity_imbalance(swap, amounts, swap.balanceOf(bob), {'from': bob})
+    zap.remove_liquidity_imbalance(swap, amounts, swap.balanceOf(bob), {"from": bob})
 
     for coin, amount, initial in zip(underlying_coins, amounts, initial_amounts_underlying):
         if coin not in wrapped_coins:

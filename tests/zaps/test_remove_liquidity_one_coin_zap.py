@@ -1,7 +1,6 @@
 import brownie
 import pytest
 
-
 pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "approve_zap")
 
 
@@ -14,8 +13,8 @@ def test_remove_one(alice, bob, zap, underlying_coins, wrapped_coins, swap, idx,
     initial_amount = swap.balanceOf(alice)
     amount = initial_amount // divisor
 
-    swap.transfer(bob, initial_amount, {'from': alice})
-    zap.remove_liquidity_one_coin(swap, amount, idx, 0, {'from': bob})
+    swap.transfer(bob, initial_amount, {"from": alice})
+    zap.remove_liquidity_one_coin(swap, amount, idx, 0, {"from": bob})
 
     assert underlying.balanceOf(zap) == 0
     assert wrapped.balanceOf(zap) == 0
@@ -31,4 +30,4 @@ def test_remove_one(alice, bob, zap, underlying_coins, wrapped_coins, swap, idx,
 @pytest.mark.parametrize("idx", range(4))
 def test_amount_exceeds_balance(bob, zap, swap, idx):
     with brownie.reverts():
-        zap.remove_liquidity_one_coin(swap, 1, idx, 0, {'from': bob})
+        zap.remove_liquidity_one_coin(swap, 1, idx, 0, {"from": bob})

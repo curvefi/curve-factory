@@ -39,14 +39,13 @@ interface ERC20:
 
 interface CurvePlainPool:
     def initialize(
-    _name: String[32],
-    _symbol: String[10],
-    _coins: address[4],
-    _decimals: uint256[4],
-    _A: uint256,
-    _fee: uint256,
-    _admin: address
-): nonpayable
+        _name: String[32],
+        _symbol: String[10],
+        _coins: address[4],
+        _rate_multipliers: uint256[4],
+        _A: uint256,
+        _fee: uint256,
+    ): nonpayable
 
 interface CurvePool:
     def A() -> uint256: view
@@ -59,10 +58,9 @@ interface CurvePool:
         _name: String[32],
         _symbol: String[10],
         _coin: address,
-        _decimals: uint256,
+        _rate_multiplier: uint256,
         _A: uint256,
         _fee: uint256,
-        _owner: address,
     ): nonpayable
     def exchange(
         i: int128,
@@ -492,7 +490,11 @@ def deploy_plain_pool(
                 via `plain_implementations(N_COINS)`
     @return Address of the deployed pool
     """
+    # fee must be between 0.04% and 1%
+    assert _fee >= 4000000 and _fee <= 100000000, "Invalid fee"
+
     n_coins: uint256 = 0
+    rate_multipliers: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
     decimals: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
 
     for i in range(MAX_PLAIN_COINS):
@@ -502,7 +504,16 @@ def deploy_plain_pool(
             n_coins = i
             break
         assert self.base_pool_assets[coin] == False, "Invalid asset, deploy a metapool"
-        decimals[i] = ERC20(coin).decimals()
+
+        if _coins[i] == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
+            assert i == 0, "ETH must be first coin"
+            decimals[0] = 18
+        else:
+            decimals[i] = ERC20(coin).decimals()
+            assert decimals[i] < 19, "Max 18 decimals for coins"
+
+        rate_multipliers[i] = 10 ** (36 - decimals[i])
+
         for x in range(i, i+MAX_PLAIN_COINS):
             if x+1 == MAX_PLAIN_COINS:
                 break
@@ -513,8 +524,7 @@ def deploy_plain_pool(
     implementation: address = self.plain_implementations[n_coins][_implementation_idx]
     assert implementation != ZERO_ADDRESS, "Invalid implementation index"
     pool: address = create_forwarder_to(implementation)
-
-    CurvePlainPool(pool).initialize(_name, _symbol, _coins, decimals, _A, _fee, self.admin)
+    CurvePlainPool(pool).initialize(_name, _symbol, _coins, rate_multipliers, _A, _fee)
 
     length: uint256 = self.pool_count
     self.pool_list[length] = pool
@@ -574,12 +584,18 @@ def deploy_metapool(
                 via `metapool_implementations(BASE_POOL)`
     @return Address of the deployed pool
     """
+    # fee must be between 0.04% and 1%
+    assert _fee >= 4000000 and _fee <= 100000000, "Invalid fee"
+
     implementation: address = self.base_pool_data[_base_pool].implementations[_implementation_idx]
     assert implementation != ZERO_ADDRESS, "Invalid implementation index"
-    pool: address = create_forwarder_to(implementation)
 
+    # things break if a token has >18 decimals
     decimals: uint256 = ERC20(_coin).decimals()
-    CurvePool(pool).initialize(_name, _symbol, _coin, decimals, _A, _fee, self.admin)
+    assert decimals < 19, "Max 18 decimals for coins"
+
+    pool: address = create_forwarder_to(implementation)
+    CurvePool(pool).initialize(_name, _symbol, _coin, 10 ** (36 - decimals), _A, _fee)
     ERC20(_coin).approve(pool, MAX_UINT256)
 
     # add pool to pool_list

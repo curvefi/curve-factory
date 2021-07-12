@@ -13,6 +13,7 @@ from vyper.interfaces import ERC20
 interface Factory:
     def convert_fees() -> bool: nonpayable
     def fee_receiver(_base_pool: address) -> address: view
+    def admin() -> address: view
 
 
 event Transfer:
@@ -80,7 +81,6 @@ MAX_A: constant(uint256) = 10 ** 6
 MAX_A_CHANGE: constant(uint256) = 10
 MIN_RAMP_TIME: constant(uint256) = 86400
 
-admin: public(address)
 factory: address
 
 coins: public(address[N_COINS])
@@ -897,7 +897,7 @@ def remove_liquidity_one_coin(_burn_amount: uint256, i: int128, _min_amount: uin
 ### Admin functions ###
 @external
 def ramp_A(_future_A: uint256, _future_time: uint256):
-    assert msg.sender == self.admin  # dev: only admin
+    assert msg.sender == Factory(self.factory).admin()  # dev: only owner
     assert block.timestamp >= self.initial_A_time + MIN_RAMP_TIME
     assert _future_time >= block.timestamp + MIN_RAMP_TIME  # dev: insufficient time
 
@@ -920,7 +920,7 @@ def ramp_A(_future_A: uint256, _future_time: uint256):
 
 @external
 def stop_ramp_A():
-    assert msg.sender == self.admin  # dev: only admin
+    assert msg.sender == Factory(self.factory).admin()  # dev: only owner
 
     current_A: uint256 = self._A()
     self.initial_A = current_A

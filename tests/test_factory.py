@@ -219,7 +219,7 @@ def test_add_base_pool_only_admin(factory, base_pool, bob, fee_receiver, impleme
         )
 
 
-def test_deploy_metapool(MetaUSD, new_factory, new_factory_setup, base_pool, alice, bob):
+def test_deploy_metapool(MetaUSD, new_factory, new_factory_setup, base_pool, bob):
     coin = ERC20(decimals=7)
 
     tx = new_factory.deploy_metapool(
@@ -231,7 +231,6 @@ def test_deploy_metapool(MetaUSD, new_factory, new_factory_setup, base_pool, ali
     assert swap.coins(0) == coin
     assert swap.A() == 12345
     assert swap.fee() == 50000000
-    assert swap.admin() == alice
 
     assert new_factory.pool_count() == 1
     assert new_factory.pool_list(0) == swap
@@ -279,7 +278,7 @@ def test_add_existing_metapools_duplicate_pool(
         )
 
 
-def test_deploy_plain_pool(Plain2Basic, is_rebase, new_factory_setup, new_factory, alice, bob):
+def test_deploy_plain_pool(Plain2Basic, is_rebase, new_factory_setup, new_factory, bob):
     if is_rebase:
         pytest.skip()
 
@@ -296,7 +295,6 @@ def test_deploy_plain_pool(Plain2Basic, is_rebase, new_factory_setup, new_factor
 
     assert swap.A() == 12345
     assert swap.fee() == 50000000
-    assert swap.admin() == alice
 
     assert new_factory.pool_count() == 1
     assert new_factory.pool_list(0) == swap

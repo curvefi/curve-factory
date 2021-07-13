@@ -26,6 +26,7 @@ interface Curve:
 interface Factory:
     def convert_metapool_fees() -> bool: nonpayable
     def fee_receiver(_base_pool: address) -> address: view
+    def admin() -> address: view
 
 
 event Transfer:
@@ -109,7 +110,6 @@ MAX_A: constant(uint256) = 10 ** 6
 MAX_A_CHANGE: constant(uint256) = 10
 MIN_RAMP_TIME: constant(uint256) = 86400
 
-admin: public(address)
 factory: address
 
 coins: public(address[N_COINS])
@@ -146,36 +146,28 @@ def initialize(
     _name: String[32],
     _symbol: String[10],
     _coin: address,
-    _decimals: uint256,
+    _rate_multiplier: uint256,
     _A: uint256,
-    _fee: uint256,
-    _admin: address,
+    _fee: uint256
 ):
     """
     @notice Contract initializer
     @param _name Name of the new pool
     @param _symbol Token symbol
     @param _coin Addresses of ERC20 conracts of coins
-    @param _decimals Number of decimals in `_coin`
-    @param _A Amplification coefficient multiplied by n * (n - 1)
+    @param _rate_multiplier Rate multiplier for `_coin` (10 ** (36 - decimals))
+    @param _A Amplification coefficient multiplied by n ** (n - 1)
     @param _fee Fee to charge for exchanges
-    @param _admin Admin address
     """
-    # things break if a token has >18 decimals
-    assert _decimals < 19
-    # fee must be between 0.04% and 1%
-    assert _fee >= 4000000
-    assert _fee <= 100000000
     # check if fee was already set to prevent initializing contract twice
     assert self.fee == 0
 
     A: uint256 = _A * A_PRECISION
     self.coins = [_coin, 0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490]
-    self.rate_multiplier = 10 ** (36 - _decimals)
+    self.rate_multiplier = _rate_multiplier
     self.initial_A = A
     self.future_A = A
     self.fee = _fee
-    self.admin = _admin
     self.factory = msg.sender
 
     self.name = concat("Curve.fi Factory USD Metapool: ", _name)
@@ -1054,7 +1046,7 @@ def remove_liquidity_one_coin(
 
 @external
 def ramp_A(_future_A: uint256, _future_time: uint256):
-    assert msg.sender == self.admin  # dev: only owner
+    assert msg.sender == Factory(self.factory).admin()  # dev: only owner
     assert block.timestamp >= self.initial_A_time + MIN_RAMP_TIME
     assert _future_time >= block.timestamp + MIN_RAMP_TIME  # dev: insufficient time
 
@@ -1077,7 +1069,7 @@ def ramp_A(_future_A: uint256, _future_time: uint256):
 
 @external
 def stop_ramp_A():
-    assert msg.sender == self.admin  # dev: only owner
+    assert msg.sender == Factory(self.factory).admin()  # dev: only owner
 
     current_A: uint256 = self._A()
     self.initial_A = current_A

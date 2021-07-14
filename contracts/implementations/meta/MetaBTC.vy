@@ -642,8 +642,8 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_CO
 def exchange(
     i: int128,
     j: int128,
-    dx: uint256,
-    min_dy: uint256,
+    _dx: uint256,
+    _min_dy: uint256,
     _receiver: address = msg.sender,
 ) -> uint256:
     """
@@ -651,8 +651,8 @@ def exchange(
     @dev Index values can be found via the `coins` public getter method
     @param i Index value for the coin to send
     @param j Index valie of the coin to recieve
-    @param dx Amount of `i` being exchanged
-    @param min_dy Minimum amount of `j` to receive
+    @param _dx Amount of `i` being exchanged
+    @param _min_dy Minimum amount of `j` to receive
     @param _receiver Address that receives `j`
     @return Actual amount of `j` received
     """
@@ -662,7 +662,7 @@ def exchange(
     old_balances: uint256[N_COINS] = self.balances
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
-    x: uint256 = xp[i] + dx * rates[i] / PRECISION
+    x: uint256 = xp[i] + _dx * rates[i] / PRECISION
     y: uint256 = self.get_y(i, j, x, xp)
 
     dy: uint256 = xp[j] - y - 1  # -1 just in case there were some rounding errors
@@ -670,20 +670,20 @@ def exchange(
 
     # Convert all to real units
     dy = (dy - dy_fee) * PRECISION / rates[j]
-    assert dy >= min_dy
+    assert dy >= _min_dy
 
     dy_admin_fee: uint256 = dy_fee * ADMIN_FEE / FEE_DENOMINATOR
     dy_admin_fee = dy_admin_fee * PRECISION / rates[j]
 
     # Change balances exactly in same way as we change actual ERC20 coin amounts
-    self.balances[i] = old_balances[i] + dx
+    self.balances[i] = old_balances[i] + _dx
     # When rounding errors happen, we undercharge admin fee in favor of LP
     self.balances[j] = old_balances[j] - dy - dy_admin_fee
 
-    ERC20(self.coins[i]).transferFrom(msg.sender, self, dx)
+    ERC20(self.coins[i]).transferFrom(msg.sender, self, _dx)
     ERC20(self.coins[j]).transfer(_receiver, dy)
 
-    log TokenExchange(msg.sender, i, dx, j, dy)
+    log TokenExchange(msg.sender, i, _dx, j, dy)
 
     return dy
 
@@ -694,16 +694,15 @@ def exchange_underlying(
     i: int128,
     j: int128,
     _dx: uint256,
-    min_dy: uint256,
+    _min_dy: uint256,
     _receiver: address = msg.sender,
 ) -> uint256:
     """
     @notice Perform an exchange between two underlying coins
-    @dev Index values can be found via the `underlying_coins` public getter method
     @param i Index value for the underlying coin to send
-    @param j Index valie of the underlying coin to recieve
+    @param j Index valie of the underlying coin to receive
     @param _dx Amount of `i` being exchanged
-    @param min_dy Minimum amount of `j` to receive
+    @param _min_dy Minimum amount of `j` to receive
     @param _receiver Address that receives `j`
     @return Actual amount of `j` received
     """
@@ -784,12 +783,12 @@ def exchange_underlying(
             Curve(base_pool).remove_liquidity_one_coin(dy, base_j, 0)
             dy = ERC20(output_coin).balanceOf(self) - out_amount
 
-        assert dy >= min_dy
+        assert dy >= _min_dy
 
     else:
         # If both are from the base pool
         dy = ERC20(output_coin).balanceOf(self)
-        Curve(base_pool).exchange(base_i, base_j, dx, min_dy)
+        Curve(base_pool).exchange(base_i, base_j, dx, _min_dy)
         dy = ERC20(output_coin).balanceOf(self) - dy
 
     ERC20(output_coin).transfer(_receiver, dy)
@@ -947,7 +946,7 @@ def get_y_D(A: uint256, i: int128, xp: uint256[N_COINS], D: uint256) -> uint256:
 
 @view
 @internal
-def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _balances: uint256[N_COINS]) -> (uint256, uint256):
+def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _balances: uint256[N_COINS]) -> uint256[2]:
     # First, need to calculate
     # * Get current D
     # * Solve Eqn against y_i for D - _token_amount
@@ -976,7 +975,7 @@ def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _balances: uint256
     dy_0: uint256 = (xp[i] - new_y) * PRECISION / rates[i]  # w/o fees
     dy = (dy - 1) * PRECISION / rates[i]  # Withdraw less to account for rounding errors
 
-    return dy, dy_0 - dy
+    return [dy, dy_0 - dy]
 
 
 @view
@@ -1013,22 +1012,20 @@ def remove_liquidity_one_coin(
     """
     self._update()
 
-    dy: uint256 = 0
-    dy_fee: uint256 = 0
-    dy, dy_fee = self._calc_withdraw_one_coin(_burn_amount, i, self.balances)
-    assert dy >= _min_received
+    dy: uint256[2] = self._calc_withdraw_one_coin(_burn_amount, i, self.balances)
+    assert dy[0] >= _min_received
 
-    self.balances[i] -= (dy + dy_fee * ADMIN_FEE / FEE_DENOMINATOR)
+    self.balances[i] -= (dy[0] + dy[1] * ADMIN_FEE / FEE_DENOMINATOR)
     total_supply: uint256 = self.totalSupply - _burn_amount
     self.totalSupply = total_supply
     self.balanceOf[msg.sender] -= _burn_amount
     log Transfer(msg.sender, ZERO_ADDRESS, _burn_amount)
 
-    ERC20(self.coins[i]).transfer(_receiver, dy)
+    ERC20(self.coins[i]).transfer(_receiver, dy[0])
 
-    log RemoveLiquidityOne(msg.sender, _burn_amount, dy, total_supply)
+    log RemoveLiquidityOne(msg.sender, _burn_amount, dy[0], total_supply)
 
-    return dy
+    return dy[0]
 
 
 @external

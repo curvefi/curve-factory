@@ -264,6 +264,15 @@ def get_price_cumulative_last() -> uint256[N_COINS]:
 
 
 @view
+@internal
+def _balances() -> uint256[N_COINS]:
+    result: uint256[N_COINS] = empty(uint256[N_COINS])
+    for i in range(N_COINS):
+        result[i] = ERC20(self.coins[i]).balanceOf(self) - self.admin_balances[i]
+    return result
+
+
+@view
 @external
 def balances(i: uint256) -> uint256:
     """
@@ -272,16 +281,7 @@ def balances(i: uint256) -> uint256:
     @param i Index value for the coin to query balance of
     @return Token balance
     """
-    return ERC20(self.coins[i]).balanceOf(self) - self.admin_balances[i]
-
-
-@view
-@internal
-def _balances() -> uint256[N_COINS]:
-    result: uint256[N_COINS] = empty(uint256[N_COINS])
-    for i in range(N_COINS):
-        result[i] = ERC20(self.coins[i]).balanceOf(self) - self.admin_balances[i]
-    return result
+    return self._balances()[i]
 
 
 @view

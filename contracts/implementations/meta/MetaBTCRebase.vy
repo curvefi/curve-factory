@@ -264,6 +264,15 @@ def get_price_cumulative_last() -> uint256[N_COINS]:
 
 
 @view
+@internal
+def _balances() -> uint256[N_COINS]:
+    result: uint256[N_COINS] = empty(uint256[N_COINS])
+    for i in range(N_COINS):
+        result[i] = ERC20(self.coins[i]).balanceOf(self) - self.admin_balances[i]
+    return result
+
+
+@view
 @external
 def balances(i: uint256) -> uint256:
     """
@@ -272,16 +281,7 @@ def balances(i: uint256) -> uint256:
     @param i Index value for the coin to query balance of
     @return Token balance
     """
-    return ERC20(self.coins[i]).balanceOf(self) - self.admin_balances[i]
-
-
-@view
-@internal
-def _balances() -> uint256[N_COINS]:
-    result: uint256[N_COINS] = empty(uint256[N_COINS])
-    for i in range(N_COINS):
-        result[i] = ERC20(self.coins[i]).balanceOf(self) - self.admin_balances[i]
-    return result
+    return self._balances()[i]
 
 
 @view
@@ -663,8 +663,8 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_CO
 def exchange(
     i: int128,
     j: int128,
-    dx: uint256,
-    min_dy: uint256,
+    _dx: uint256,
+    _min_dy: uint256,
     _receiver: address = msg.sender,
 ) -> uint256:
     """
@@ -672,8 +672,8 @@ def exchange(
     @dev Index values can be found via the `coins` public getter method
     @param i Index value for the coin to send
     @param j Index valie of the coin to recieve
-    @param dx Amount of `i` being exchanged
-    @param min_dy Minimum amount of `j` to receive
+    @param _dx Amount of `i` being exchanged
+    @param _min_dy Minimum amount of `j` to receive
     @param _receiver Address that receives `j`
     @return Actual amount of `j` received
     """
@@ -683,22 +683,20 @@ def exchange(
 
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
-    x: uint256 = xp[i] + dx * rates[i] / PRECISION
-    y: uint256 = self.get_y(i, j, x, xp)
-
-    dy: uint256 = xp[j] - y - 1  # -1 just in case there were some rounding errors
+    x: uint256 = xp[i] + _dx * rates[i] / PRECISION
+    dy: uint256 = xp[j] - self.get_y(i, j, x, xp) - 1  # -1 just in case there were some rounding errors
     dy_fee: uint256 = dy * self.fee / FEE_DENOMINATOR
 
     # Convert all to real units
     dy = (dy - dy_fee) * PRECISION / rates[j]
-    assert dy >= min_dy
+    assert dy >= _min_dy
 
     self.admin_balances[j] += (dy_fee * ADMIN_FEE / FEE_DENOMINATOR) * PRECISION / rates[j]
 
-    ERC20(self.coins[i]).transferFrom(msg.sender, self, dx)
+    ERC20(self.coins[i]).transferFrom(msg.sender, self, _dx)
     ERC20(self.coins[j]).transfer(_receiver, dy)
 
-    log TokenExchange(msg.sender, i, dx, j, dy)
+    log TokenExchange(msg.sender, i, _dx, j, dy)
 
     return dy
 
@@ -709,7 +707,7 @@ def exchange_underlying(
     i: int128,
     j: int128,
     _dx: uint256,
-    min_dy: uint256,
+    _min_dy: uint256,
     _receiver: address = msg.sender,
 ) -> uint256:
     """
@@ -717,7 +715,7 @@ def exchange_underlying(
     @param i Index value for the underlying coin to send
     @param j Index valie of the underlying coin to receive
     @param _dx Amount of `i` being exchanged
-    @param min_dy Minimum amount of `j` to receive
+    @param _min_dy Minimum amount of `j` to receive
     @param _receiver Address that receives `j`
     @return Actual amount of `j` received
     """
@@ -795,12 +793,12 @@ def exchange_underlying(
             Curve(base_pool).remove_liquidity_one_coin(dy, base_j, 0)
             dy = ERC20(output_coin).balanceOf(self) - out_amount
 
-        assert dy >= min_dy
+        assert dy >= _min_dy
 
     else:
         # If both are from the base pool
         dy = ERC20(output_coin).balanceOf(self)
-        Curve(base_pool).exchange(base_i, base_j, dx, min_dy)
+        Curve(base_pool).exchange(base_i, base_j, dx, _min_dy)
         dy = ERC20(output_coin).balanceOf(self) - dy
 
     ERC20(output_coin).transfer(_receiver, dy)
@@ -826,9 +824,9 @@ def remove_liquidity(
     @return List of amounts of coins that were withdrawn
     """
     self._update()
-    balances: uint256[N_COINS] = self._balances()
     total_supply: uint256 = self.totalSupply
     amounts: uint256[N_COINS] = empty(uint256[N_COINS])
+    balances: uint256[N_COINS] = self._balances()
 
     for i in range(N_COINS):
         value: uint256 = balances[i] * _burn_amount / total_supply

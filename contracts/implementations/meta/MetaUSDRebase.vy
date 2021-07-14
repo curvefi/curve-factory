@@ -3,7 +3,8 @@
 @title StableSwap
 @author Curve.Fi
 @license Copyright (c) Curve.Fi, 2021 - all rights reserved
-@notice 3pool metapool implementation contract
+@notice 3pool metapool implementation contract with support
+        for positive-rebasing and fee-on-transfer tokens
 """
 
 interface ERC20:
@@ -469,8 +470,13 @@ def add_liquidity(
     total_supply: uint256 = self.totalSupply
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
-        if total_supply == 0:
-            assert amount > 0  # dev: initial deposit requires all coins
+        if amount == 0:
+            assert total_supply > 0
+        else:
+            coin: address = self.coins[i]
+            initial: uint256 = ERC20(coin).balanceOf(self)
+            ERC20(coin).transferFrom(msg.sender, self, amount)  # dev: failed transfer
+            amount = ERC20(coin).balanceOf(self) - initial
         new_balances[i] += amount
 
     # Invariant after change
@@ -501,12 +507,6 @@ def add_liquidity(
         mint_amount = D1  # Take the dust if there was any
 
     assert mint_amount >= _min_mint_amount
-
-    # Take coins from the sender
-    for i in range(N_COINS):
-        amount: uint256 = _amounts[i]
-        if amount > 0:
-            ERC20(self.coins[i]).transferFrom(msg.sender, self, amount)  # dev: failed transfer
 
     # Mint pool tokens
     total_supply += mint_amount
@@ -683,7 +683,12 @@ def exchange(
 
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
-    x: uint256 = xp[i] + _dx * rates[i] / PRECISION
+    coin: address = self.coins[i]
+    dx_w_fee: uint256 = ERC20(coin).balanceOf(self)
+    ERC20(coin).transferFrom(msg.sender, self, _dx)
+    dx_w_fee = ERC20(coin).balanceOf(self) - dx_w_fee
+
+    x: uint256 = xp[i] + dx_w_fee * rates[i] / PRECISION
     dy: uint256 = xp[j] - self.get_y(i, j, x, xp) - 1  # -1 just in case there were some rounding errors
     dy_fee: uint256 = dy * self.fee / FEE_DENOMINATOR
 
@@ -693,10 +698,9 @@ def exchange(
 
     self.admin_balances[j] += (dy_fee * ADMIN_FEE / FEE_DENOMINATOR) * PRECISION / rates[j]
 
-    ERC20(self.coins[i]).transferFrom(msg.sender, self, _dx)
     ERC20(self.coins[j]).transfer(_receiver, dy)
 
-    log TokenExchange(msg.sender, i, _dx, j, dy)
+    log TokenExchange(msg.sender, i, dx_w_fee, j, dy)
 
     return dy
 
@@ -749,16 +753,9 @@ def exchange_underlying(
         meta_j = 1
         output_coin = base_coins[base_j]
 
-    # Handle potential Tether fees
-    dx_w_fee: uint256 = _dx
-    if j == 3:
-        dx_w_fee = ERC20(input_coin).balanceOf(self)
-
+    dx_w_fee: uint256 = ERC20(input_coin).balanceOf(self)
     ERC20(input_coin).transferFrom(msg.sender, self, _dx)
-
-    # Handle potential Tether fees
-    if j == 3:
-        dx_w_fee = ERC20(input_coin).balanceOf(self) - dx_w_fee
+    dx_w_fee = ERC20(input_coin).balanceOf(self) - dx_w_fee
 
     if i == 0 or j == 0:
         if i == 0:

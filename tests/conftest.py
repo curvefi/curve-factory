@@ -65,13 +65,13 @@ def implementation_plain(Plain2Basic, alice):
 
 
 @pytest.fixture(scope="module")
-def implementation_rebase_btc(MetaBTCRebase, alice):
-    yield MetaBTCRebase.deploy({"from": alice})
+def implementation_rebase_btc(MetaBTCBalances, alice):
+    yield MetaBTCBalances.deploy({"from": alice})
 
 
 @pytest.fixture(scope="module")
-def implementation_rebase_usd(MetaUSDRebase, alice):
-    yield MetaUSDRebase.deploy({"from": alice})
+def implementation_rebase_usd(MetaUSDBalances, alice):
+    yield MetaUSDBalances.deploy({"from": alice})
 
 
 @pytest.fixture(scope="module")
@@ -112,12 +112,12 @@ def swap_plain(Plain2Basic, alice, factory, plain_coins):
 
 
 @pytest.fixture(scope="module")
-def swap(MetaUSD, MetaUSDRebase, is_rebase, alice, rebase_coin, base_pool, factory, coin):
+def swap(MetaUSD, MetaUSDBalances, is_rebase, alice, rebase_coin, base_pool, factory, coin):
     if is_rebase:
         tx = factory.deploy_metapool(
             base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {"from": alice}
         )
-        yield MetaUSDRebase.at(tx.return_value)
+        yield MetaUSDBalances.at(tx.return_value)
     else:
         tx = factory.deploy_metapool(
             base_pool, "Test Swap", "TST", coin, 200, 4000000, 0, {"from": alice}
@@ -143,19 +143,19 @@ def rebase_coin(alice, ATokenMock, AaveLendingPoolMock, ERC20Mock):
 
 
 @pytest.fixture(scope="module")
-def swap_rebase(MetaUSDRebase, alice, base_pool, factory, rebase_coin):
+def swap_rebase(MetaUSDBalances, alice, base_pool, factory, rebase_coin):
     tx = factory.deploy_metapool(
         base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {"from": alice}
     )
-    yield MetaUSDRebase.at(tx.return_value)
+    yield MetaUSDBalances.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")
-def swap_rebase_btc(MetaBTCRebase, alice, base_pool, factory, rebase_coin):
+def swap_rebase_btc(MetaBTCBalances, alice, base_pool, factory, rebase_coin):
     tx = factory.deploy_metapool(
         base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {"from": alice}
     )
-    yield MetaBTCRebase.at(tx.return_value)
+    yield MetaBTCBalances.at(tx.return_value)
 
 
 @pytest.fixture(scope="module")

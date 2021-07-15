@@ -401,7 +401,6 @@ def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool, _previous: 
     return diff * self.totalSupply / D0
 
 
-@payable
 @external
 @nonreentrant('lock')
 def add_liquidity(
@@ -465,9 +464,7 @@ def add_liquidity(
     # Take coins from the sender
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
-        if i == 0 and self.coins[0] == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-            assert msg.value == amount
-        elif amount > 0:
+        if amount > 0:
             # "safeTransferFrom" which works for ERC20s which return bool or not
             response: Bytes[32] = raw_call(
                 self.coins[i],
@@ -576,7 +573,6 @@ def get_dy(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS] = [0,0
     return (dy - fee) * PRECISION / rates[j]
 
 
-@payable
 @external
 @nonreentrant('lock')
 def exchange(
@@ -618,38 +614,30 @@ def exchange(
     # When rounding errors happen, we undercharge admin fee in favor of LP
     self.balances[j] = old_balances[j] - dy - dy_admin_fee
 
-    coin: address = self.coins[i]
-    if coin == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-        assert msg.value == _dx
-    else:
-        response: Bytes[32] = raw_call(
-            coin,
-            concat(
-                method_id("transferFrom(address,address,uint256)"),
-                convert(msg.sender, bytes32),
-                convert(self, bytes32),
-                convert(_dx, bytes32),
-            ),
-            max_outsize=32,
-        )
-        if len(response) > 0:
-            assert convert(response, bool)
+    response: Bytes[32] = raw_call(
+        self.coins[i],
+        concat(
+            method_id("transferFrom(address,address,uint256)"),
+            convert(msg.sender, bytes32),
+            convert(self, bytes32),
+            convert(_dx, bytes32),
+        ),
+        max_outsize=32,
+    )
+    if len(response) > 0:
+        assert convert(response, bool)
 
-    coin = self.coins[j]
-    if coin == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-        raw_call(_receiver, b"", value=dy)
-    else:
-        response: Bytes[32] = raw_call(
-            coin,
-            concat(
-                method_id("transfer(address,uint256)"),
-                convert(_receiver, bytes32),
-                convert(dy, bytes32),
-            ),
-            max_outsize=32,
-        )
-        if len(response) > 0:
-            assert convert(response, bool)
+    response = raw_call(
+        self.coins[j],
+        concat(
+            method_id("transfer(address,uint256)"),
+            convert(_receiver, bytes32),
+            convert(dy, bytes32),
+        ),
+        max_outsize=32,
+    )
+    if len(response) > 0:
+        assert convert(response, bool)
 
     log TokenExchange(msg.sender, i, _dx, j, dy)
 
@@ -682,21 +670,17 @@ def remove_liquidity(
         self.balances[i] = old_balance - value
         amounts[i] = value
 
-        coin: address = self.coins[i]
-        if coin == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-            raw_call(_receiver, b"", value=value)
-        else:
-            response: Bytes[32] = raw_call(
-                coin,
-                concat(
-                    method_id("transfer(address,uint256)"),
-                    convert(_receiver, bytes32),
-                    convert(value, bytes32),
-                ),
-                max_outsize=32,
-            )
-            if len(response) > 0:
-                assert convert(response, bool)
+        response: Bytes[32] = raw_call(
+            self.coins[i],
+            concat(
+                method_id("transfer(address,uint256)"),
+                convert(_receiver, bytes32),
+                convert(value, bytes32),
+            ),
+            max_outsize=32,
+        )
+        if len(response) > 0:
+            assert convert(response, bool)
 
     total_supply -= _burn_amount
     self.balanceOf[msg.sender] -= _burn_amount
@@ -759,23 +743,18 @@ def remove_liquidity_imbalance(
     log Transfer(msg.sender, ZERO_ADDRESS, burn_amount)
 
     for i in range(N_COINS):
-        amount: uint256 = _amounts[i]
-        if amount != 0:
-            coin: address = self.coins[i]
-            if coin == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-                raw_call(_receiver, b"", value=_amounts[i])
-            else:
-                response: Bytes[32] = raw_call(
-                    coin,
-                    concat(
-                        method_id("transfer(address,uint256)"),
-                        convert(_receiver, bytes32),
-                        convert(amount, bytes32),
-                    ),
-                    max_outsize=32,
-                )
-                if len(response) > 0:
-                    assert convert(response, bool)
+        if _amounts[i] != 0:
+            response: Bytes[32] = raw_call(
+                self.coins[i],
+                concat(
+                    method_id("transfer(address,uint256)"),
+                    convert(_receiver, bytes32),
+                    convert(_amounts[i], bytes32),
+                ),
+                max_outsize=32,
+            )
+            if len(response) > 0:
+                assert convert(response, bool)
 
     log RemoveLiquidityImbalance(msg.sender, _amounts, fees, D1, total_supply)
 
@@ -907,21 +886,17 @@ def remove_liquidity_one_coin(
     self.balanceOf[msg.sender] -= _burn_amount
     log Transfer(msg.sender, ZERO_ADDRESS, _burn_amount)
 
-    coin: address = self.coins[i]
-    if coin == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-        raw_call(_receiver, b"", value=dy[0])
-    else:
-        response: Bytes[32] = raw_call(
-            coin,
-            concat(
-                method_id("transfer(address,uint256)"),
-                convert(_receiver, bytes32),
-                convert(dy[0], bytes32),
-            ),
-            max_outsize=32,
-        )
-        if len(response) > 0:
-            assert convert(response, bool)
+    response: Bytes[32] = raw_call(
+        self.coins[i],
+        concat(
+            method_id("transfer(address,uint256)"),
+            convert(_receiver, bytes32),
+            convert(dy[0], bytes32),
+        ),
+        max_outsize=32,
+    )
+    if len(response) > 0:
+        assert convert(response, bool)
 
     log RemoveLiquidityOne(msg.sender, _burn_amount, dy[0], total_supply)
 
@@ -968,24 +943,15 @@ def stop_ramp_A():
 @view
 @external
 def admin_balances(i: uint256) -> uint256:
-    coin: address = self.coins[i]
-    if coin == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-        return self.balance - self.balances[i]
-    else:
-        return ERC20(coin).balanceOf(self) - self.balances[i]
+    return ERC20(self.coins[i]).balanceOf(self) - self.balances[i]
 
 
 @external
 def withdraw_admin_fees():
-    factory: address = self.factory
-    receiver: address = Factory(factory).fee_receiver(self)
+    receiver: address = Factory(self.factory).fee_receiver(self)
     assert receiver != ZERO_ADDRESS  # dev: receiver is not set
 
     for i in range(N_COINS):
         coin: address = self.coins[i]
-        if coin == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-            fees: uint256 = self.balance - self.balances[i]
-            raw_call(receiver, b"", value=fees)
-        else:
-            fees: uint256 = ERC20(coin).balanceOf(self) - self.balances[i]
-            ERC20(coin).transfer(receiver, fees)
+        fees: uint256 = ERC20(coin).balanceOf(self) - self.balances[i]
+        ERC20(coin).transfer(receiver, fees)

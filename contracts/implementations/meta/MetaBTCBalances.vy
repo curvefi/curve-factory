@@ -3,7 +3,8 @@
 @title StableSwap
 @author Curve.Fi
 @license Copyright (c) Curve.Fi, 2021 - all rights reserved
-@notice 3pool metapool implementation contract
+@notice sBTC metapool implementation contract with support
+        for positive-rebasing and fee-on-transfer tokens
 """
 
 interface ERC20:
@@ -13,7 +14,7 @@ interface ERC20:
     def balanceOf(_owner: address) -> uint256: view
 
 interface Curve:
-    def coins(i: uint256) -> address: view
+    def coins(i: int128) -> address: view
     def get_virtual_price() -> uint256: view
     def calc_token_amount(amounts: uint256[BASE_N_COINS], deposit: bool) -> uint256: view
     def calc_withdraw_one_coin(_token_amount: uint256, i: int128) -> uint256: view
@@ -90,11 +91,11 @@ event StopRampA:
     t: uint256
 
 
-BASE_POOL: constant(address) = 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7
+BASE_POOL: constant(address) = 0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714
 BASE_COINS: constant(address[3]) = [
-    0x6B175474E89094C44Da98b954EedeAC495271d0F,  # DAI
-    0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,  # USDC
-    0xdAC17F958D2ee523a2206206994597C13D831ec7,  # USDT
+    0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D,  # renBTC
+    0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599,  # wBTC
+    0xfE18be6b3Bd88A2D2A7f928d00292E7a9963CfC6,  # sBTC
 ]
 
 N_COINS: constant(int128) = 2
@@ -113,7 +114,7 @@ MIN_RAMP_TIME: constant(uint256) = 86400
 factory: address
 
 coins: public(address[N_COINS])
-balances: public(uint256[N_COINS])
+admin_balances: public(uint256[N_COINS])
 fee: public(uint256)  # fee * 1e10
 
 previous_balances: uint256[N_COINS]
@@ -163,15 +164,15 @@ def initialize(
     assert self.fee == 0
 
     A: uint256 = _A * A_PRECISION
-    self.coins = [_coin, 0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490]
+    self.coins = [_coin, 0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3]
     self.rate_multiplier = _rate_multiplier
     self.initial_A = A
     self.future_A = A
     self.fee = _fee
     self.factory = msg.sender
 
-    self.name = concat("Curve.fi Factory USD Metapool: ", _name)
-    self.symbol = concat(_symbol, "3CRV-f")
+    self.name = concat("Curve.fi Factory BTC Metapool: ", _name)
+    self.symbol = concat(_symbol, "/sbtcCRV-f")
 
     for coin in BASE_COINS:
         ERC20(coin).approve(BASE_POOL, MAX_UINT256)
@@ -259,14 +260,35 @@ def get_previous_balances() -> uint256[N_COINS]:
 
 @view
 @external
-def get_balances() -> uint256[N_COINS]:
-    return self.balances
+def get_price_cumulative_last() -> uint256[N_COINS]:
+    return self.price_cumulative_last
+
+
+@view
+@internal
+def _balances() -> uint256[N_COINS]:
+    result: uint256[N_COINS] = empty(uint256[N_COINS])
+    for i in range(N_COINS):
+        result[i] = ERC20(self.coins[i]).balanceOf(self) - self.admin_balances[i]
+    return result
 
 
 @view
 @external
-def get_price_cumulative_last() -> uint256[N_COINS]:
-    return self.price_cumulative_last
+def balances(i: uint256) -> uint256:
+    """
+    @notice Get the current balance of a coin within the
+            pool, less the accrued admin fees
+    @param i Index value for the coin to query balance of
+    @return Token balance
+    """
+    return self._balances()[i]
+
+
+@view
+@external
+def get_balances() -> uint256[N_COINS]:
+    return self._balances()
 
 
 @view
@@ -299,10 +321,10 @@ def _update():
     """
     elapsed_time: uint256 = block.timestamp - self.block_timestamp_last
     if elapsed_time > 0:
+        balances: uint256[N_COINS] = self._balances()
         for i in range(N_COINS):
-            _balance: uint256 = self.balances[i]
-            self.price_cumulative_last[i] += _balance * elapsed_time
-            self.previous_balances[i] = _balance
+            self.price_cumulative_last[i] += balances[i] * elapsed_time
+        self.previous_balances = balances
         self.block_timestamp_last = block.timestamp
 
 
@@ -336,15 +358,6 @@ def _xp_mem(_rates: uint256[N_COINS], _balances: uint256[N_COINS]) -> uint256[N_
 @pure
 @internal
 def get_D(_xp: uint256[N_COINS], _amp: uint256) -> uint256:
-    """
-    D invariant calculation in non-overflowing integer operations
-    iteratively
-
-    A * sum(x_i) * n**n + D = A * D * n**n + D**(n+1) / (n**n * prod(x_i))
-
-    Converging solution:
-    D[j+1] = (A * n**n * sum(x_i) - D[j]**(n+1) / (n**n prod(x_i))) / (A * n**n - 1)
-    """
     S: uint256 = 0
     Dprev: uint256 = 0
     for x in _xp:
@@ -388,8 +401,9 @@ def get_virtual_price() -> uint256:
     @return LP token virtual price normalized to 1e18
     """
     amp: uint256 = self._A()
+    balances: uint256[N_COINS] = self._balances()
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
-    xp: uint256[N_COINS] = self._xp_mem(rates, self.balances)
+    xp: uint256[N_COINS] = self._xp_mem(rates, balances)
     D: uint256 = self.get_D(xp, amp)
     # D is in the units similar to DAI (e.g. converted to precision 1e18)
     # When balanced, D = n * x_u - total virtual value of the portfolio
@@ -405,12 +419,12 @@ def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool, _previous: 
          Needed to prevent front-running, not for precise calculations!
     @param _amounts Amount of each coin being deposited
     @param _is_deposit set True for deposits, False for withdrawals
-    @param _previous use previous_balances or self.balances
+    @param _previous use previous_balances or self._balances()
     @return Expected amount of LP tokens received
     """
     amp: uint256 = self._A()
+    balances: uint256[N_COINS] = self._balances()
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
-    balances: uint256[N_COINS] = self.balances
     if _previous:
         balances = self.previous_balances
 
@@ -446,18 +460,23 @@ def add_liquidity(
     """
     self._update()
     amp: uint256 = self._A()
+    old_balances: uint256[N_COINS] = self._balances()
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
 
     # Initial invariant
-    old_balances: uint256[N_COINS] = self.balances
     D0: uint256 = self.get_D_mem(rates, old_balances, amp)
     new_balances: uint256[N_COINS] = old_balances
 
     total_supply: uint256 = self.totalSupply
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
-        if total_supply == 0:
-            assert amount > 0  # dev: initial deposit requires all coins
+        if amount == 0:
+            assert total_supply > 0
+        else:
+            coin: address = self.coins[i]
+            initial: uint256 = ERC20(coin).balanceOf(self)
+            ERC20(coin).transferFrom(msg.sender, self, amount)  # dev: failed transfer
+            amount = ERC20(coin).balanceOf(self) - initial
         new_balances[i] += amount
 
     # Invariant after change
@@ -480,21 +499,14 @@ def add_liquidity(
             else:
                 difference = new_balance - ideal_balance
             fees[i] = base_fee * difference / FEE_DENOMINATOR
-            self.balances[i] = new_balance - (fees[i] * ADMIN_FEE / FEE_DENOMINATOR)
+            self.admin_balances[i] += fees[i] * ADMIN_FEE / FEE_DENOMINATOR
             new_balances[i] -= fees[i]
         D2: uint256 = self.get_D_mem(rates, new_balances, amp)
         mint_amount = total_supply * (D2 - D0) / D0
     else:
-        self.balances = new_balances
         mint_amount = D1  # Take the dust if there was any
 
     assert mint_amount >= _min_mint_amount
-
-    # Take coins from the sender
-    for i in range(N_COINS):
-        amount: uint256 = _amounts[i]
-        if amount > 0:
-            ERC20(self.coins[i]).transferFrom(msg.sender, self, amount)  # dev: failed transfer
 
     # Mint pool tokens
     total_supply += mint_amount
@@ -570,7 +582,7 @@ def get_dy(i: int128, j: int128, dx: uint256, _balances: uint256[N_COINS] = [0,0
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
     xp: uint256[N_COINS] = _balances
     if _balances[0] == 0:
-        xp = self.balances
+        xp = self._balances()
     xp = self._xp_mem(rates, xp)
 
     x: uint256 = xp[i] + (dx * rates[i] / PRECISION)
@@ -595,7 +607,7 @@ def get_dy_underlying(i: int128, j: int128, dx: uint256, _balances: uint256[N_CO
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
     xp: uint256[N_COINS] = _balances
     if _balances[0] == 0:
-        xp = self.balances
+        xp = self._balances()
     xp = self._xp_mem(rates, xp)
     base_pool: address = BASE_POOL
 
@@ -666,33 +678,29 @@ def exchange(
     @return Actual amount of `j` received
     """
     self._update()
+    old_balances: uint256[N_COINS] = self._balances()
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
 
-    old_balances: uint256[N_COINS] = self.balances
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
-    x: uint256 = xp[i] + _dx * rates[i] / PRECISION
-    y: uint256 = self.get_y(i, j, x, xp)
+    coin: address = self.coins[i]
+    dx_w_fee: uint256 = ERC20(coin).balanceOf(self)
+    ERC20(coin).transferFrom(msg.sender, self, _dx)
+    dx_w_fee = ERC20(coin).balanceOf(self) - dx_w_fee
 
-    dy: uint256 = xp[j] - y - 1  # -1 just in case there were some rounding errors
+    x: uint256 = xp[i] + dx_w_fee * rates[i] / PRECISION
+    dy: uint256 = xp[j] - self.get_y(i, j, x, xp) - 1  # -1 just in case there were some rounding errors
     dy_fee: uint256 = dy * self.fee / FEE_DENOMINATOR
 
     # Convert all to real units
     dy = (dy - dy_fee) * PRECISION / rates[j]
     assert dy >= _min_dy
 
-    dy_admin_fee: uint256 = dy_fee * ADMIN_FEE / FEE_DENOMINATOR
-    dy_admin_fee = dy_admin_fee * PRECISION / rates[j]
+    self.admin_balances[j] += (dy_fee * ADMIN_FEE / FEE_DENOMINATOR) * PRECISION / rates[j]
 
-    # Change balances exactly in same way as we change actual ERC20 coin amounts
-    self.balances[i] = old_balances[i] + _dx
-    # When rounding errors happen, we undercharge admin fee in favor of LP
-    self.balances[j] = old_balances[j] - dy - dy_admin_fee
-
-    ERC20(self.coins[i]).transferFrom(msg.sender, self, _dx)
     ERC20(self.coins[j]).transfer(_receiver, dy)
 
-    log TokenExchange(msg.sender, i, _dx, j, dy)
+    log TokenExchange(msg.sender, i, dx_w_fee, j, dy)
 
     return dy
 
@@ -716,8 +724,8 @@ def exchange_underlying(
     @return Actual amount of `j` received
     """
     self._update()
+    old_balances: uint256[N_COINS] = self._balances()
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
-    old_balances: uint256[N_COINS] = self.balances
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
     base_pool: address = BASE_POOL
@@ -745,16 +753,9 @@ def exchange_underlying(
         meta_j = 1
         output_coin = base_coins[base_j]
 
-    # Handle potential Tether fees
-    dx_w_fee: uint256 = _dx
-    if j == 3:
-        dx_w_fee = ERC20(input_coin).balanceOf(self)
-
+    dx_w_fee: uint256 = ERC20(input_coin).balanceOf(self)
     ERC20(input_coin).transferFrom(msg.sender, self, _dx)
-
-    # Handle potential Tether fees
-    if j == 3:
-        dx_w_fee = ERC20(input_coin).balanceOf(self) - dx_w_fee
+    dx_w_fee = ERC20(input_coin).balanceOf(self) - dx_w_fee
 
     if i == 0 or j == 0:
         if i == 0:
@@ -788,10 +789,7 @@ def exchange_underlying(
         dy_admin_fee: uint256 = dy_fee * ADMIN_FEE / FEE_DENOMINATOR
         dy_admin_fee = dy_admin_fee * PRECISION / rates[meta_j]
 
-        # Change balances exactly in same way as we change actual ERC20 coin amounts
-        self.balances[meta_i] = old_balances[meta_i] + dx_w_fee
-        # When rounding errors happen, we undercharge admin fee in favor of LP
-        self.balances[meta_j] = old_balances[meta_j] - dy - dy_admin_fee
+        self.admin_balances[meta_j] += dy_admin_fee
 
         # Withdraw from the base pool if needed
         if j > 0:
@@ -832,12 +830,11 @@ def remove_liquidity(
     self._update()
     total_supply: uint256 = self.totalSupply
     amounts: uint256[N_COINS] = empty(uint256[N_COINS])
+    balances: uint256[N_COINS] = self._balances()
 
     for i in range(N_COINS):
-        old_balance: uint256 = self.balances[i]
-        value: uint256 = old_balance * _burn_amount / total_supply
+        value: uint256 = balances[i] * _burn_amount / total_supply
         assert value >= _min_amounts[i]
-        self.balances[i] = old_balance - value
         amounts[i] = value
         ERC20(self.coins[i]).transfer(_receiver, value)
 
@@ -868,8 +865,8 @@ def remove_liquidity_imbalance(
     self._update()
 
     amp: uint256 = self._A()
+    old_balances: uint256[N_COINS] = self._balances()
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
-    old_balances: uint256[N_COINS] = self.balances
     D0: uint256 = self.get_D_mem(rates, old_balances, amp)
 
     new_balances: uint256[N_COINS] = old_balances
@@ -888,7 +885,7 @@ def remove_liquidity_imbalance(
         else:
             difference = new_balance - ideal_balance
         fees[i] = base_fee * difference / FEE_DENOMINATOR
-        self.balances[i] = new_balance - (fees[i] * ADMIN_FEE / FEE_DENOMINATOR)
+        self.admin_balances[i] += fees[i] * ADMIN_FEE / FEE_DENOMINATOR
         new_balances[i] -= fees[i]
     D2: uint256 = self.get_D_mem(rates, new_balances, amp)
 
@@ -1004,7 +1001,7 @@ def calc_withdraw_one_coin(_burn_amount: uint256, i: int128, _previous: bool = F
     @param _previous indicate to use previous_balances or current balances
     @return Amount of coin received
     """
-    balances: uint256[N_COINS] = self.balances
+    balances: uint256[N_COINS] = self._balances()
     if _previous:
         balances = self.previous_balances
     return self._calc_withdraw_one_coin(_burn_amount, i, balances)[0]
@@ -1028,10 +1025,10 @@ def remove_liquidity_one_coin(
     """
     self._update()
 
-    dy: uint256[2] = self._calc_withdraw_one_coin(_burn_amount, i, self.balances)
+    dy: uint256[2] = self._calc_withdraw_one_coin(_burn_amount, i, self._balances())
     assert dy[0] >= _min_received
 
-    self.balances[i] -= (dy[0] + dy[1] * ADMIN_FEE / FEE_DENOMINATOR)
+    self.admin_balances[i] += dy[1] * ADMIN_FEE / FEE_DENOMINATOR
     total_supply: uint256 = self.totalSupply - _burn_amount
     self.totalSupply = total_supply
     self.balanceOf[msg.sender] -= _burn_amount
@@ -1081,26 +1078,23 @@ def stop_ramp_A():
     log StopRampA(current_A, block.timestamp)
 
 
-@view
-@external
-def admin_balances(i: uint256) -> uint256:
-    return ERC20(self.coins[i]).balanceOf(self) - self.balances[i]
-
-
 @external
 def withdraw_admin_fees():
-    factory: address = self.factory
-
     # transfer coin 0 to Factory and call `convert_fees` to swap it for coin 1
+    balances: uint256[N_COINS] = self._balances()
+    factory: address = self.factory
     coin: address = self.coins[0]
-    amount: uint256 = ERC20(coin).balanceOf(self) - self.balances[0]
+    amount: uint256 = self.admin_balances[0]
     if amount > 0:
         ERC20(coin).transfer(factory, amount)
         Factory(factory).convert_metapool_fees()
+        self.admin_balances[0] = 0
 
     # transfer coin 1 to the receiver
     coin = self.coins[1]
-    amount = ERC20(coin).balanceOf(self) - self.balances[1]
+    amount = self.admin_balances[1]
+
     if amount > 0:
         receiver: address = Factory(factory).fee_receiver(BASE_POOL)
         ERC20(coin).transfer(receiver, amount)
+        self.admin_balances[1] = 0

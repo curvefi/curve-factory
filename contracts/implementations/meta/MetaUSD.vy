@@ -456,9 +456,11 @@ def add_liquidity(
     total_supply: uint256 = self.totalSupply
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
-        if total_supply == 0:
-            assert amount > 0  # dev: initial deposit requires all coins
-        new_balances[i] += amount
+        if amount == 0:
+            assert total_supply > 0
+        else:
+            ERC20(self.coins[i]).transferFrom(msg.sender, self, amount)  # dev: failed transfer
+            new_balances[i] += amount
 
     # Invariant after change
     D1: uint256 = self.get_D_mem(rates, new_balances, amp)
@@ -489,12 +491,6 @@ def add_liquidity(
         mint_amount = D1  # Take the dust if there was any
 
     assert mint_amount >= _min_mint_amount
-
-    # Take coins from the sender
-    for i in range(N_COINS):
-        amount: uint256 = _amounts[i]
-        if amount > 0:
-            ERC20(self.coins[i]).transferFrom(msg.sender, self, amount)  # dev: failed transfer
 
     # Mint pool tokens
     total_supply += mint_amount
@@ -874,7 +870,10 @@ def remove_liquidity_imbalance(
 
     new_balances: uint256[N_COINS] = old_balances
     for i in range(N_COINS):
-        new_balances[i] -= _amounts[i]
+        amount: uint256 = _amounts[i]
+        if amount != 0:
+            new_balances[i] -= amount
+            ERC20(self.coins[i]).transfer(_receiver, amount)
     D1: uint256 = self.get_D_mem(rates, new_balances, amp)
 
     fees: uint256[N_COINS] = empty(uint256[N_COINS])
@@ -901,12 +900,6 @@ def remove_liquidity_imbalance(
     self.totalSupply = total_supply
     self.balanceOf[msg.sender] -= burn_amount
     log Transfer(msg.sender, ZERO_ADDRESS, burn_amount)
-
-    for i in range(N_COINS):
-        amount: uint256 = _amounts[i]
-        if amount != 0:
-            ERC20(self.coins[i]).transfer(_receiver, amount)
-
     log RemoveLiquidityImbalance(msg.sender, _amounts, fees, D1, total_supply)
 
     return burn_amount

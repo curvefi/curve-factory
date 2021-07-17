@@ -476,8 +476,7 @@ def add_liquidity(
             coin: address = self.coins[i]
             initial: uint256 = ERC20(coin).balanceOf(self)
             ERC20(coin).transferFrom(msg.sender, self, amount)  # dev: failed transfer
-            amount = ERC20(coin).balanceOf(self) - initial
-        new_balances[i] += amount
+            new_balances[i] += ERC20(coin).balanceOf(self) - initial
 
     # Invariant after change
     D1: uint256 = self.get_D_mem(rates, new_balances, amp)
@@ -871,7 +870,10 @@ def remove_liquidity_imbalance(
 
     new_balances: uint256[N_COINS] = old_balances
     for i in range(N_COINS):
-        new_balances[i] -= _amounts[i]
+        amount: uint256 = _amounts[i]
+        if amount != 0:
+            new_balances[i] -= amount
+            ERC20(self.coins[i]).transfer(_receiver, amount)
     D1: uint256 = self.get_D_mem(rates, new_balances, amp)
 
     fees: uint256[N_COINS] = empty(uint256[N_COINS])
@@ -898,12 +900,6 @@ def remove_liquidity_imbalance(
     self.totalSupply = total_supply
     self.balanceOf[msg.sender] -= burn_amount
     log Transfer(msg.sender, ZERO_ADDRESS, burn_amount)
-
-    for i in range(N_COINS):
-        amount: uint256 = _amounts[i]
-        if amount != 0:
-            ERC20(self.coins[i]).transfer(_receiver, amount)
-
     log RemoveLiquidityImbalance(msg.sender, _amounts, fees, D1, total_supply)
 
     return burn_amount

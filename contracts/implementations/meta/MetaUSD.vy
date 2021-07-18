@@ -4,6 +4,7 @@
 @author Curve.Fi
 @license Copyright (c) Curve.Fi, 2021 - all rights reserved
 @notice 3pool metapool implementation contract
+@dev ERC20 support for return True/revert, return None
 """
 
 interface ERC20:

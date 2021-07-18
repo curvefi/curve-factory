@@ -3,8 +3,8 @@
 @title StableSwap
 @author Curve.Fi
 @license Copyright (c) Curve.Fi, 2020 - all rights reserved
-@notice Plain pool implementation, optimized for coins with
-        18 decimals that return True or revert on a transfer
+@notice 3 coin pool implementation with no lending
+@dev Optimized to only support ERC20's with 18 decimals that return True/revert
 """
 
 from vyper.interfaces import ERC20

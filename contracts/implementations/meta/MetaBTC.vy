@@ -336,6 +336,15 @@ def _xp_mem(_rates: uint256[N_COINS], _balances: uint256[N_COINS]) -> uint256[N_
 @pure
 @internal
 def get_D(_xp: uint256[N_COINS], _amp: uint256) -> uint256:
+    """
+    D invariant calculation in non-overflowing integer operations
+    iteratively
+
+    A * sum(x_i) * n**n + D = A * D * n**n + D**(n+1) / (n**n * prod(x_i))
+
+    Converging solution:
+    D[j+1] = (A * n**n * sum(x_i) - D[j]**(n+1) / (n**n prod(x_i))) / (A * n**n - 1)
+    """
     S: uint256 = 0
     Dprev: uint256 = 0
     for x in _xp:
@@ -1065,9 +1074,8 @@ def admin_balances(i: uint256) -> uint256:
 
 @external
 def withdraw_admin_fees():
-    factory: address = self.factory
-
     # transfer coin 0 to Factory and call `convert_fees` to swap it for coin 1
+    factory: address = self.factory
     coin: address = self.coins[0]
     amount: uint256 = ERC20(coin).balanceOf(self) - self.balances[0]
     if amount > 0:

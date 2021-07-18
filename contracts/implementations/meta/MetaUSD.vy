@@ -497,7 +497,6 @@ def add_liquidity(
     self.balanceOf[_receiver] += mint_amount
     self.totalSupply = total_supply
     log Transfer(ZERO_ADDRESS, _receiver, mint_amount)
-
     log AddLiquidity(msg.sender, _amounts, fees, D1, total_supply)
 
     return mint_amount
@@ -1082,9 +1081,8 @@ def admin_balances(i: uint256) -> uint256:
 
 @external
 def withdraw_admin_fees():
-    factory: address = self.factory
-
     # transfer coin 0 to Factory and call `convert_fees` to swap it for coin 1
+    factory: address = self.factory
     coin: address = self.coins[0]
     amount: uint256 = ERC20(coin).balanceOf(self) - self.balances[0]
     if amount > 0:

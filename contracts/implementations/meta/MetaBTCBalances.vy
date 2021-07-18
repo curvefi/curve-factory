@@ -3,8 +3,9 @@
 @title StableSwap
 @author Curve.Fi
 @license Copyright (c) Curve.Fi, 2021 - all rights reserved
-@notice sBTC metapool implementation contract with support
-        for positive-rebasing and fee-on-transfer tokens
+@notice sBTC metapool implementation contract
+@dev ERC20 support for return True/revert, return None
+     Support for positive-rebasing and fee-on-transfer tokens
 """
 
 interface ERC20:
@@ -259,12 +260,6 @@ def get_previous_balances() -> uint256[N_COINS]:
 
 
 @view
-@external
-def get_price_cumulative_last() -> uint256[N_COINS]:
-    return self.price_cumulative_last
-
-
-@view
 @internal
 def _balances() -> uint256[N_COINS]:
     result: uint256[N_COINS] = empty(uint256[N_COINS])
@@ -289,6 +284,12 @@ def balances(i: uint256) -> uint256:
 @external
 def get_balances() -> uint256[N_COINS]:
     return self._balances()
+
+
+@view
+@external
+def get_price_cumulative_last() -> uint256[N_COINS]:
+    return self.price_cumulative_last
 
 
 @view
@@ -358,6 +359,15 @@ def _xp_mem(_rates: uint256[N_COINS], _balances: uint256[N_COINS]) -> uint256[N_
 @pure
 @internal
 def get_D(_xp: uint256[N_COINS], _amp: uint256) -> uint256:
+    """
+    D invariant calculation in non-overflowing integer operations
+    iteratively
+
+    A * sum(x_i) * n**n + D = A * D * n**n + D**(n+1) / (n**n * prod(x_i))
+
+    Converging solution:
+    D[j+1] = (A * n**n * sum(x_i) - D[j]**(n+1) / (n**n prod(x_i))) / (A * n**n - 1)
+    """
     S: uint256 = 0
     Dprev: uint256 = 0
     for x in _xp:
@@ -419,7 +429,7 @@ def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool, _previous: 
          Needed to prevent front-running, not for precise calculations!
     @param _amounts Amount of each coin being deposited
     @param _is_deposit set True for deposits, False for withdrawals
-    @param _previous use previous_balances or self._balances()
+    @param _previous use previous_balances or self.balances
     @return Expected amount of LP tokens received
     """
     amp: uint256 = self._A()
@@ -476,8 +486,7 @@ def add_liquidity(
             coin: address = self.coins[i]
             initial: uint256 = ERC20(coin).balanceOf(self)
             ERC20(coin).transferFrom(msg.sender, self, amount)  # dev: failed transfer
-            amount = ERC20(coin).balanceOf(self) - initial
-        new_balances[i] += amount
+            new_balances[i] += ERC20(coin).balanceOf(self) - initial
 
     # Invariant after change
     D1: uint256 = self.get_D_mem(rates, new_balances, amp)
@@ -513,7 +522,6 @@ def add_liquidity(
     self.balanceOf[_receiver] += mint_amount
     self.totalSupply = total_supply
     log Transfer(ZERO_ADDRESS, _receiver, mint_amount)
-
     log AddLiquidity(msg.sender, _amounts, fees, D1, total_supply)
 
     return mint_amount
@@ -871,7 +879,10 @@ def remove_liquidity_imbalance(
 
     new_balances: uint256[N_COINS] = old_balances
     for i in range(N_COINS):
-        new_balances[i] -= _amounts[i]
+        amount: uint256 = _amounts[i]
+        if amount != 0:
+            new_balances[i] -= amount
+            ERC20(self.coins[i]).transfer(_receiver, amount)
     D1: uint256 = self.get_D_mem(rates, new_balances, amp)
 
     fees: uint256[N_COINS] = empty(uint256[N_COINS])
@@ -898,12 +909,6 @@ def remove_liquidity_imbalance(
     self.totalSupply = total_supply
     self.balanceOf[msg.sender] -= burn_amount
     log Transfer(msg.sender, ZERO_ADDRESS, burn_amount)
-
-    for i in range(N_COINS):
-        amount: uint256 = _amounts[i]
-        if amount != 0:
-            ERC20(self.coins[i]).transfer(_receiver, amount)
-
     log RemoveLiquidityImbalance(msg.sender, _amounts, fees, D1, total_supply)
 
     return burn_amount

@@ -3,9 +3,8 @@
 @title StableSwap
 @author Curve.Fi
 @license Copyright (c) Curve.Fi, 2020 - all rights reserved
-@notice Minimal pool implementation with no lending
-@dev This contract is only a template, pool-specific constants
-     must be set prior to compiling
+@notice 4 coin pool implementation with no lending
+@dev ERC20 support for return True/revert, return True/False, return None
 """
 
 from vyper.interfaces import ERC20
@@ -427,9 +426,23 @@ def add_liquidity(
     new_balances: uint256[N_COINS] = old_balances
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
-        if total_supply == 0:
-            assert amount > 0  # dev: initial deposit requires all coins
-        new_balances[i] += amount
+        if amount > 0:
+            response: Bytes[32] = raw_call(
+                self.coins[i],
+                concat(
+                    method_id("transferFrom(address,address,uint256)"),
+                    convert(msg.sender, bytes32),
+                    convert(self, bytes32),
+                    convert(amount, bytes32),
+                ),
+                max_outsize=32,
+            )
+            if len(response) > 0:
+                assert convert(response, bool)  # dev: failed transfer
+            new_balances[i] += amount
+            # end "safeTransferFrom"
+        else:
+            assert total_supply != 0  # dev: initial deposit requires all coins
 
     # Invariant after change
     D1: uint256 = self.get_D_mem(rates, new_balances, amp)
@@ -460,25 +473,6 @@ def add_liquidity(
         mint_amount = D1  # Take the dust if there was any
 
     assert mint_amount >= _min_mint_amount, "Slippage screwed you"
-
-    # Take coins from the sender
-    for i in range(N_COINS):
-        amount: uint256 = _amounts[i]
-        if amount > 0:
-            # "safeTransferFrom" which works for ERC20s which return bool or not
-            response: Bytes[32] = raw_call(
-                self.coins[i],
-                concat(
-                    method_id("transferFrom(address,address,uint256)"),
-                    convert(msg.sender, bytes32),
-                    convert(self, bytes32),
-                    convert(amount, bytes32),
-                ),
-                max_outsize=32,
-            )
-            if len(response) > 0:
-                assert convert(response, bool)  # dev: failed transfer
-            # end "safeTransferFrom"
 
     # Mint pool tokens
     total_supply += mint_amount
@@ -714,7 +708,20 @@ def remove_liquidity_imbalance(
 
     new_balances: uint256[N_COINS] = old_balances
     for i in range(N_COINS):
-        new_balances[i] -= _amounts[i]
+        amount: uint256 = _amounts[i]
+        if amount != 0:
+            new_balances[i] -= amount
+            response: Bytes[32] = raw_call(
+                self.coins[i],
+                concat(
+                    method_id("transfer(address,uint256)"),
+                    convert(_receiver, bytes32),
+                    convert(amount, bytes32),
+                ),
+                max_outsize=32,
+            )
+            if len(response) > 0:
+                assert convert(response, bool)
     D1: uint256 = self.get_D_mem(rates, new_balances, amp)
 
     fees: uint256[N_COINS] = empty(uint256[N_COINS])
@@ -741,21 +748,6 @@ def remove_liquidity_imbalance(
     self.totalSupply = total_supply
     self.balanceOf[msg.sender] -= burn_amount
     log Transfer(msg.sender, ZERO_ADDRESS, burn_amount)
-
-    for i in range(N_COINS):
-        if _amounts[i] != 0:
-            response: Bytes[32] = raw_call(
-                self.coins[i],
-                concat(
-                    method_id("transfer(address,uint256)"),
-                    convert(_receiver, bytes32),
-                    convert(_amounts[i], bytes32),
-                ),
-                max_outsize=32,
-            )
-            if len(response) > 0:
-                assert convert(response, bool)
-
     log RemoveLiquidityImbalance(msg.sender, _amounts, fees, D1, total_supply)
 
     return burn_amount

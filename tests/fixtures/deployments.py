@@ -135,3 +135,8 @@ def base_pool_btc(alice, fee_receiver, implementation_btc, factory, implementati
     )
 
     yield pool
+
+
+@pytest.fixture(scope="module")
+def owner_proxy(alice, OwnerProxy):
+    return OwnerProxy.deploy(alice, alice, alice, {"from": alice})

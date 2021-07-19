@@ -788,6 +788,18 @@ def accept_transfer_ownership():
 
 
 @external
+def set_manager(_manager: address):
+    """
+    @notice Set the manager
+    @dev Callable by the admin or existing manager
+    @param _manager Manager address
+    """
+    assert msg.sender in [self.manager, self.admin]  # dev: admin-only function
+
+    self.manager = _manager
+
+
+@external
 def set_fee_receiver(_pool: address, _fee_receiver: address):
     """
     @notice Set fee receiver for base and plain pools

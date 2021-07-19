@@ -17,6 +17,7 @@ struct PoolArray:
 struct BasePoolArray:
     implementations: address[10]
     lp_token: address
+    fee_receiver: address
     coins: address[MAX_COINS]
     decimals: uint256
     n_coins: uint256
@@ -122,19 +123,21 @@ base_pool_assets: public(HashMap[address, bool])
 # are organized according to the number of coins in the pool
 plain_implementations: public(HashMap[uint256, address[10]])
 
+# fee receiver for plain pools
+fee_receiver: address
+
 # mapping of coins -> pools for trading
 # a mapping key is generated for each pair of addresses via
 # `bitwise_xor(convert(a, uint256), convert(b, uint256))`
 markets: HashMap[uint256, address[4294967296]]
 market_counts: HashMap[uint256, uint256]
 
-# base pool/plain pool -> address to transfer admin fees to
-fee_receiver: public(HashMap[address, address])
-
 
 @external
-def __init__():
+def __init__(_fee_receiver: address):
     self.admin = msg.sender
+    self.manager = msg.sender
+    self.fee_receiver = _fee_receiver
 
 
 # <--- Factory Getters --->
@@ -477,6 +480,16 @@ def get_pool_asset_type(_pool: address) -> uint256:
         return self.base_pool_data[base_pool].asset_type
 
 
+@view
+@external
+def get_fee_receiver(_pool: address) -> address:
+    base_pool: address = self.pool_data[_pool].base_pool
+    if base_pool == ZERO_ADDRESS:
+        return self.fee_receiver
+    else:
+        return self.base_pool_data[_pool].fee_receiver
+
+
 # <--- Pool Deployers --->
 
 @external
@@ -682,6 +695,7 @@ def add_base_pool(
     self.base_pool_count = length + 1
     self.base_pool_data[_base_pool].lp_token = Registry(registry).get_lp_token(_base_pool)
     self.base_pool_data[_base_pool].n_coins = n_coins
+    self.base_pool_data[_base_pool].fee_receiver = _fee_receiver
     if _asset_type != 0:
         self.base_pool_data[_base_pool].asset_type = _asset_type
 
@@ -700,9 +714,7 @@ def add_base_pool(
         self.base_pool_data[_base_pool].coins[i] = coin
         self.base_pool_assets[coin] = True
         decimals += shift(ERC20(coin).decimals(), convert(i*8, int128))
-
     self.base_pool_data[_base_pool].decimals = decimals
-    self.fee_receiver[_base_pool] = _fee_receiver
 
     log BasePoolAdded(_base_pool)
 
@@ -800,14 +812,18 @@ def set_manager(_manager: address):
 
 
 @external
-def set_fee_receiver(_pool: address, _fee_receiver: address):
+def set_fee_receiver(_base_pool: address, _fee_receiver: address):
     """
     @notice Set fee receiver for base and plain pools
-    @param _pool Address of pool to set fee receiver for
-    @param _fee_receiver Address of receiver of fees from `_pool`
+    @param _base_pool Address of base pool to set fee receiver for.
+                      For plain pools, leave as `ZERO_ADDRESS`.
+    @param _fee_receiver Address that fees are sent to
     """
     assert msg.sender == self.admin  # dev: admin only
-    self.fee_receiver[_pool] = _fee_receiver
+    if _base_pool == ZERO_ADDRESS:
+        self.fee_receiver = _fee_receiver
+    else:
+        self.base_pool_data[_base_pool].fee_receiver = _fee_receiver
 
 
 @external
@@ -817,12 +833,12 @@ def convert_metapool_fees() -> bool:
             the metapool's fee receiver
     @dev All fees are converted to LP token of base pool
     """
-    assert self.pool_data[msg.sender].base_pool != ZERO_ADDRESS  # dev: sender must be metapool
+    base_pool: address = self.pool_data[msg.sender].base_pool
+    assert base_pool != ZERO_ADDRESS  # dev: sender must be metapool
     coin: address = self.pool_data[msg.sender].coins[0]
-    assert coin != ZERO_ADDRESS  # dev: unknown pool
 
     amount: uint256 = ERC20(coin).balanceOf(self)
-    receiver: address = self.fee_receiver[self.pool_data[msg.sender].base_pool]
+    receiver: address = self.base_pool_data[base_pool].fee_receiver
 
     CurvePool(msg.sender).exchange(0, 1, amount, 0, receiver)
     return True

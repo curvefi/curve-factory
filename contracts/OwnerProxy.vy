@@ -28,6 +28,7 @@ interface Factory:
     def set_fee_receiver(_base_pool: address, _fee_receiver: address): nonpayable
     def commit_transfer_ownership(addr: address): nonpayable
     def accept_transfer_ownership(): nonpayable
+    def set_manager(_manager: address): nonpayable
 
 
 event CommitAdmins:
@@ -162,6 +163,12 @@ def set_plain_implementations(
 def set_fee_receiver(_target: address, _base_pool: address, _fee_receiver: address):
     assert msg.sender == self.ownership_admin, "Access denied"
     Factory(_target).set_fee_receiver(_base_pool, _fee_receiver)
+
+
+@external
+def set_manager(_target: address, _manager: address):
+    assert msg.sender == self.ownership_admin, "Access denied"
+    Factory(_target).set_manager(_manager)
 
 
 @external

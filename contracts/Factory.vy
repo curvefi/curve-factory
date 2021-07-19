@@ -104,6 +104,7 @@ OLD_FACTORY: constant(address) = 0x0959158b6040D32d04c301A72CBFD6b39E21c9AE
 
 admin: public(address)
 future_admin: public(address)
+manager: public(address)
 
 pool_list: public(address[4294967296])   # master list of pools
 pool_count: public(uint256)              # actual length of pool_list
@@ -745,6 +746,21 @@ def set_plain_implementations(
                 break
         else:
             self.plain_implementations[_n_coins][i] = new_imp
+
+
+
+@external
+def batch_set_pool_asset_type(_pools: address[32], _asset_types: uint256[32]):
+    """
+    @notice Batch set the asset type for factory pools
+    @dev Used to modify asset types that were set incorrectly at deployment
+    """
+    assert msg.sender in [self.manager, self.admin]  # dev: admin-only function
+
+    for i in range(32):
+        if _pools[i] == ZERO_ADDRESS:
+            break
+        self.pool_data[_pools[i]].asset_type = _asset_types[i]
 
 
 @external

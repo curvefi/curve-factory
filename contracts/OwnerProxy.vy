@@ -14,6 +14,7 @@ interface Factory:
     def add_base_pool(
         _base_pool: address,
         _fee_receiver: address,
+        _asset_type: uint256,
         _implementations: address[10],
     ): nonpayable
     def set_metapool_implementations(
@@ -122,12 +123,13 @@ def add_base_pool(
     _target: address,
     _base_pool: address,
     _fee_receiver: address,
+    _asset_type: uint256,
     _implementations: address[10],
 ):
 
     assert msg.sender == self.ownership_admin, "Access denied"
 
-    Factory(_target).add_base_pool(_base_pool, _fee_receiver, _implementations)
+    Factory(_target).add_base_pool(_base_pool, _fee_receiver, _asset_type, _implementations)
 
 
 @external

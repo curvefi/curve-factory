@@ -116,6 +116,7 @@ def test_add_base_pool(owner_proxy, new_factory, base_pool_btc, implementation_b
         new_factory,
         base_pool_btc,
         ETH_ADDRESS,
+        2,
         [implementation_btc] + [ZERO_ADDRESS] * 9,
         {"from": alice},
     )
@@ -126,7 +127,7 @@ def test_add_base_pool(owner_proxy, new_factory, base_pool_btc, implementation_b
 def test_add_base_pool_guarded(owner_proxy, bob):
     with brownie.reverts("Access denied"):
         owner_proxy.add_base_pool(
-            ETH_ADDRESS, ETH_ADDRESS, ETH_ADDRESS, [ZERO_ADDRESS] * 10, {"from": bob}
+            ETH_ADDRESS, ETH_ADDRESS, ETH_ADDRESS, 0, [ZERO_ADDRESS] * 10, {"from": bob}
         )
 
 

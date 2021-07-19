@@ -53,11 +53,11 @@ def new_factory_setup(
         2, [implementation_plain] + [ZERO_ADDRESS] * 9, {"from": alice}
     )
     new_factory.add_base_pool(
-        base_pool, fee_receiver, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice}
+        base_pool, fee_receiver, 0, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice}
     )
     pool = Contract("0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714")
     new_factory.add_base_pool(
-        pool, fee_receiver, [implementation_btc] + [ZERO_ADDRESS] * 9, {"from": alice}
+        pool, fee_receiver, 2, [implementation_btc] + [ZERO_ADDRESS] * 9, {"from": alice}
     )
 
 
@@ -195,7 +195,7 @@ def test_get_coin_indices_reverts(factory, swap, base_lp_token, underlying_coins
 def test_add_base_pool(factory, alice, fee_receiver, implementation_usd):
     susd_pool = "0xA5407eAE9Ba41422680e2e00537571bcC53efBfD"
     factory.add_base_pool(
-        susd_pool, fee_receiver, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice}
+        susd_pool, fee_receiver, 0, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice}
     )
     assert factory.base_pool_count() == 3
     assert factory.base_pool_list(2) == susd_pool
@@ -205,7 +205,7 @@ def test_add_base_pool(factory, alice, fee_receiver, implementation_usd):
 def test_add_base_pool_already_exists(factory, base_pool, alice, fee_receiver, implementation_usd):
     with brownie.reverts("dev: pool exists"):
         factory.add_base_pool(
-            base_pool, fee_receiver, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice}
+            base_pool, fee_receiver, 0, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice}
         )
 
 
@@ -214,6 +214,7 @@ def test_add_base_pool_only_admin(factory, base_pool, bob, fee_receiver, impleme
         factory.add_base_pool(
             "0xA5407eAE9Ba41422680e2e00537571bcC53efBfD",
             fee_receiver,
+            0,
             [implementation_usd] + [ZERO_ADDRESS] * 9,
             {"from": bob},
         )
@@ -243,7 +244,7 @@ def test_add_existing_metapools(
     assert new_factory.pool_count() == 0
     # add existing USD pools to new factory
     new_factory.add_base_pool(
-        base_pool, fee_receiver, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice}
+        base_pool, fee_receiver, 0, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice}
     )
     new_factory.add_existing_metapools(
         ["0x5a6A4D54456819380173272A5E8E9B9904BdF41B", "0x43b4FdFD4Ff969587185cDB6f0BD875c5Fc83f8c"]
@@ -267,7 +268,7 @@ def test_add_existing_metapools_duplicate_pool(
     new_factory, base_pool, implementation_usd, fee_receiver, alice
 ):
     new_factory.add_base_pool(
-        base_pool, fee_receiver, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice}
+        base_pool, fee_receiver, 0, [implementation_usd] + [ZERO_ADDRESS] * 9, {"from": alice}
     )
     new_factory.add_existing_metapools(
         ["0x5a6A4D54456819380173272A5E8E9B9904BdF41B"] + [ZERO_ADDRESS] * 9
@@ -285,7 +286,7 @@ def test_deploy_plain_pool(Plain2Basic, is_rebase, new_factory_setup, new_factor
     coins = [ERC20(decimals=7), ERC20(decimals=9), ZERO_ADDRESS, ZERO_ADDRESS]
 
     tx = new_factory.deploy_plain_pool(
-        "Test Plain", "TST", coins, 12345, 50000000, 0, {"from": bob}
+        "Test Plain", "TST", coins, 12345, 50000000, 0, 0, {"from": bob}
     )
     assert tx.return_value == tx.new_contracts[0]
     swap = Plain2Basic.at(tx.return_value)
@@ -306,7 +307,7 @@ def test_pool_count(new_factory, new_factory_setup, bob, base_pool):
     coins = [ERC20(decimals=7), ERC20(decimals=9), ZERO_ADDRESS, ZERO_ADDRESS]
 
     tx = new_factory.deploy_plain_pool(
-        "Test Plain", "TST", coins, 12345, 50000000, 0, {"from": bob}
+        "Test Plain", "TST", coins, 12345, 50000000, 0, 0, {"from": bob}
     )
     assert tx.return_value == tx.new_contracts[0]
     assert new_factory.pool_count() == 1
@@ -332,4 +333,4 @@ def test_deploy_plain_pool_revert(base_pool, new_factory, new_factory_setup, bob
     coins = [existing_coin, ERC20(decimals=9), ZERO_ADDRESS, ZERO_ADDRESS]
     # should revert because a metapool already exists for one of the coins
     with brownie.reverts("Invalid asset, deploy a metapool"):
-        new_factory.deploy_plain_pool("Test Plain", "TST", coins, 12345, 50000000, 0, {"from": bob})
+        new_factory.deploy_plain_pool("Test Plain", "TST", coins, 12345, 50000000, {"from": bob})

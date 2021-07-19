@@ -42,6 +42,7 @@ def factory(
     contract.add_base_pool(
         base_pool,
         fee_receiver,
+        0,
         [implementation_usd, implementation_rebase_usd] + [ZERO_ADDRESS] * 8,
         {"from": alice},
     )
@@ -130,6 +131,7 @@ def base_pool_btc(alice, fee_receiver, implementation_btc, factory, implementati
     factory.add_base_pool(
         pool,
         fee_receiver,
+        2,
         [implementation_btc, implementation_rebase_btc] + [ZERO_ADDRESS] * 8,
         {"from": alice},
     )

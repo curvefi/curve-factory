@@ -13,12 +13,12 @@ interface Curve:
 interface Factory:
     def add_base_pool(
         _base_pool: address,
-        _metapool_implementation: address,
         _fee_receiver: address,
+        _implementations: address[10],
     ): nonpayable
     def set_metapool_implementations(
         _base_pool: address,
-    _implementations: address[10],
+        _implementations: address[10],
     ): nonpayable
     def set_plain_implementations(
         _n_coins: uint256,
@@ -121,12 +121,13 @@ def stop_ramp_A(_pool: address):
 def add_base_pool(
     _target: address,
     _base_pool: address,
-    _metapool_implementation: address,
-    _fee_receiver: address
+    _fee_receiver: address,
+    _implementations: address[10],
 ):
-    assert msg.sender == self.ownership_admin
 
-    Factory(_target).add_base_pool(_base_pool, _metapool_implementation, _fee_receiver)
+    assert msg.sender == self.ownership_admin, "Access denied"
+
+    Factory(_target).add_base_pool(_base_pool, _fee_receiver, _implementations)
 
 
 @external

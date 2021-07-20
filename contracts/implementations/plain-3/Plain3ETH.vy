@@ -12,7 +12,7 @@ from vyper.interfaces import ERC20
 
 interface Factory:
     def convert_fees() -> bool: nonpayable
-    def fee_receiver(_base_pool: address) -> address: view
+    def get_fee_receiver(_pool: address) -> address: view
     def admin() -> address: view
 
 
@@ -973,8 +973,7 @@ def admin_balances(i: uint256) -> uint256:
 
 @external
 def withdraw_admin_fees():
-    receiver: address = Factory(self.factory).fee_receiver(self)
-    assert receiver != ZERO_ADDRESS  # dev: receiver is not set
+    receiver: address = Factory(self.factory).get_fee_receiver(self)
 
     raw_call(receiver, b"", value=self.balance - self.balances[0])
     for i in range(1, N_COINS):

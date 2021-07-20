@@ -36,7 +36,7 @@ def test_unguarded_accept_transfer_ownership(new_factory, alice, bob, owner_prox
 def test_set_fee_receiver(factory, alice, bob, owner_proxy):
     # there is no input validation
     owner_proxy.set_fee_receiver(factory, ZERO_ADDRESS, bob, {"from": alice})
-    assert factory.fee_receiver(ZERO_ADDRESS) == bob
+    assert factory.get_fee_receiver(ZERO_ADDRESS) == bob
 
 
 def test_set_fee_receiver_guarded(factory, bob, owner_proxy):

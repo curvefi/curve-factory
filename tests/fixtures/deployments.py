@@ -38,7 +38,7 @@ def factory(
     implementation_rebase_usd,
     implementation_plain,
 ):
-    contract = Factory.deploy({"from": alice})
+    contract = Factory.deploy(fee_receiver, {"from": alice})
     contract.add_base_pool(
         base_pool,
         fee_receiver,
@@ -54,7 +54,7 @@ def factory(
 
 @pytest.fixture()
 def new_factory(Factory, alice, fee_receiver, base_pool, implementation_usd):
-    contract = Factory.deploy({"from": alice})
+    contract = Factory.deploy(fee_receiver, {"from": alice})
     yield contract
 
 

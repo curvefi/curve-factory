@@ -199,7 +199,7 @@ def test_add_base_pool(factory, alice, fee_receiver, implementation_usd):
     )
     assert factory.base_pool_count() == 3
     assert factory.base_pool_list(2) == susd_pool
-    assert factory.fee_receiver(susd_pool) == fee_receiver
+    assert factory.get_fee_receiver(susd_pool) == fee_receiver
 
 
 def test_add_base_pool_already_exists(factory, base_pool, alice, fee_receiver, implementation_usd):

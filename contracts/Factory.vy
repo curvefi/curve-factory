@@ -9,6 +9,7 @@
 struct PoolArray:
     base_pool: address
     implementation: address
+    liquidity_gauge: address
     coins: address[MAX_PLAIN_COINS]
     decimals: uint256[MAX_PLAIN_COINS]
     n_coins: uint256
@@ -80,6 +81,9 @@ interface CurveFactoryMetapool:
 interface OldFactory:
     def get_coins(_pool: address) -> address[2]: view
 
+interface LiquidityGauge:
+    def initialize(_lp_token: address): nonpayable
+
 
 event BasePoolAdded:
     base_pool: address
@@ -96,6 +100,10 @@ event MetaPoolDeployed:
     A: uint256
     fee: uint256
     deployer: address
+
+event LiquidityGaugeDeployed:
+    pool: address
+    gauge: address
 
 
 MAX_COINS: constant(int128) = 8
@@ -125,6 +133,8 @@ plain_implementations: public(HashMap[uint256, address[10]])
 
 # fee receiver for plain pools
 fee_receiver: address
+
+gauge_implementation: public(address)
 
 # mapping of coins -> pools for trading
 # a mapping key is generated for each pair of addresses via
@@ -444,6 +454,18 @@ def get_coin_indices(
 
 @view
 @external
+def get_gauge(_pool: address) -> address:
+    """
+    @notice Get the address of the liquidity gauge contract for a factory pool
+    @dev Returns `ZERO_ADDRESS` if a gauge has not been deployed
+    @param _pool Pool address
+    @return Implementation contract address
+    """
+    return self.pool_data[_pool].liquidity_gauge
+
+
+@view
+@external
 def get_implementation_address(_pool: address) -> address:
     """
     @notice Get the address of the implementation contract used for a factory pool
@@ -666,6 +688,24 @@ def deploy_metapool(
     return pool
 
 
+@external
+def deploy_gauge(_pool: address) -> address:
+    """
+    @notice Deploy a liquidity gauge for a factory pool
+    @param _pool Factory pool address to deploy a gauge for
+    @return Address of the deployed gauge
+    """
+    assert self.pool_data[_pool].coins[0] != ZERO_ADDRESS, "Unknown pool"
+    assert self.pool_data[_pool].liquidity_gauge == ZERO_ADDRESS, "Gauge already deployed"
+
+    gauge: address = create_forwarder_to(self.gauge_implementation)
+    LiquidityGauge(gauge).initialize(_pool)
+    self.pool_data[_pool].liquidity_gauge = gauge
+
+    log LiquidityGaugeDeployed(_pool, gauge)
+    return gauge
+
+
 # <--- Admin / Guarded Functionality --->
 
 @external
@@ -759,6 +799,12 @@ def set_plain_implementations(
         else:
             self.plain_implementations[_n_coins][i] = new_imp
 
+
+@external
+def set_gauge_implementation(_gauge_implementation: address):
+    assert msg.sender == self.admin  # dev: admin-only function
+
+    self.gauge_implementation = _gauge_implementation
 
 
 @external

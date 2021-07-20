@@ -14,6 +14,7 @@ interface Factory:
     def add_base_pool(
         _base_pool: address,
         _fee_receiver: address,
+        _asset_type: uint256,
         _implementations: address[10],
     ): nonpayable
     def set_metapool_implementations(
@@ -27,6 +28,7 @@ interface Factory:
     def set_fee_receiver(_base_pool: address, _fee_receiver: address): nonpayable
     def commit_transfer_ownership(addr: address): nonpayable
     def accept_transfer_ownership(): nonpayable
+    def set_manager(_manager: address): nonpayable
 
 
 event CommitAdmins:
@@ -122,12 +124,13 @@ def add_base_pool(
     _target: address,
     _base_pool: address,
     _fee_receiver: address,
+    _asset_type: uint256,
     _implementations: address[10],
 ):
 
     assert msg.sender == self.ownership_admin, "Access denied"
 
-    Factory(_target).add_base_pool(_base_pool, _fee_receiver, _implementations)
+    Factory(_target).add_base_pool(_base_pool, _fee_receiver, _asset_type, _implementations)
 
 
 @external
@@ -160,6 +163,12 @@ def set_plain_implementations(
 def set_fee_receiver(_target: address, _base_pool: address, _fee_receiver: address):
     assert msg.sender == self.ownership_admin, "Access denied"
     Factory(_target).set_fee_receiver(_base_pool, _fee_receiver)
+
+
+@external
+def set_manager(_target: address, _manager: address):
+    assert msg.sender == self.ownership_admin, "Access denied"
+    Factory(_target).set_manager(_manager)
 
 
 @external

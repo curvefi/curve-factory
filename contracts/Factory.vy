@@ -12,6 +12,7 @@ struct PoolArray:
     coins: address[MAX_PLAIN_COINS]
     decimals: uint256[MAX_PLAIN_COINS]
     n_coins: uint256
+    asset_type: uint256
 
 struct BasePoolArray:
     implementations: address[10]
@@ -19,6 +20,7 @@ struct BasePoolArray:
     coins: address[MAX_COINS]
     decimals: uint256
     n_coins: uint256
+    asset_type: uint256
 
 
 interface AddressProvider:
@@ -102,6 +104,7 @@ OLD_FACTORY: constant(address) = 0x0959158b6040D32d04c301A72CBFD6b39E21c9AE
 
 admin: public(address)
 future_admin: public(address)
+manager: public(address)
 
 pool_list: public(address[4294967296])   # master list of pools
 pool_count: public(uint256)              # actual length of pool_list
@@ -458,8 +461,23 @@ def is_meta(_pool: address) -> bool:
     return self.pool_data[_pool].base_pool != ZERO_ADDRESS
 
 
-# <--- Pool Deployers --->
+@view
+@external
+def get_pool_asset_type(_pool: address) -> uint256:
+    """
+    @notice Query the asset type of `_pool`
+    @dev 0 = USD, 1 = ETH, 2 = BTC, 3 = Other
+    @param _pool Pool Address
+    @return Integer indicating the pool asset type
+    """
+    base_pool: address = self.pool_data[_pool].base_pool
+    if base_pool == ZERO_ADDRESS:
+        return self.pool_data[_pool].asset_type
+    else:
+        return self.base_pool_data[base_pool].asset_type
 
+
+# <--- Pool Deployers --->
 
 @external
 def deploy_plain_pool(
@@ -468,6 +486,7 @@ def deploy_plain_pool(
     _coins: address[MAX_PLAIN_COINS],
     _A: uint256,
     _fee: uint256,
+    _asset_type: uint256 = 0,
     _implementation_idx: uint256 = 0,
 ) -> address:
     """
@@ -485,6 +504,8 @@ def deploy_plain_pool(
     @param _fee Trade fee, given as an integer with 1e10 precision. The
                 minimum fee is 0.04% (4000000), the maximum is 1% (100000000).
                 50% of the fee is distributed to veCRV holders.
+    @param _asset_type Asset type for pool, as an integer
+                       0 = USD, 1 = ETH, 2 = BTC, 3 = Other
     @param _implementation_idx Index of the implementation to use. All possible
                 implementations for a pool of N_COINS can be publicly accessed
                 via `plain_implementations(N_COINS)`
@@ -533,6 +554,8 @@ def deploy_plain_pool(
     self.pool_data[pool].n_coins = n_coins
     self.pool_data[pool].base_pool = ZERO_ADDRESS
     self.pool_data[pool].implementation = implementation
+    if _asset_type != 0:
+        self.pool_data[pool].asset_type = _asset_type
 
     for i in range(MAX_PLAIN_COINS):
         coin: address = _coins[i]
@@ -636,6 +659,7 @@ def deploy_metapool(
 def add_base_pool(
     _base_pool: address,
     _fee_receiver: address,
+    _asset_type: uint256,
     _implementations: address[10],
 ):
     """
@@ -643,6 +667,7 @@ def add_base_pool(
     @dev Only callable by admin
     @param _base_pool Pool address to add
     @param _fee_receiver Admin fee receiver address for metapools using this base pool
+    @param _asset_type Asset type for pool, as an integer  0 = USD, 1 = ETH, 2 = BTC, 3 = Other
     @param _implementations List of implementation addresses that can be used with this base pool
     """
     assert msg.sender == self.admin  # dev: admin-only function
@@ -657,6 +682,8 @@ def add_base_pool(
     self.base_pool_count = length + 1
     self.base_pool_data[_base_pool].lp_token = Registry(registry).get_lp_token(_base_pool)
     self.base_pool_data[_base_pool].n_coins = n_coins
+    if _asset_type != 0:
+        self.base_pool_data[_base_pool].asset_type = _asset_type
 
     for i in range(10):
         implementation: address = _implementations[i]
@@ -721,6 +748,21 @@ def set_plain_implementations(
             self.plain_implementations[_n_coins][i] = new_imp
 
 
+
+@external
+def batch_set_pool_asset_type(_pools: address[32], _asset_types: uint256[32]):
+    """
+    @notice Batch set the asset type for factory pools
+    @dev Used to modify asset types that were set incorrectly at deployment
+    """
+    assert msg.sender in [self.manager, self.admin]  # dev: admin-only function
+
+    for i in range(32):
+        if _pools[i] == ZERO_ADDRESS:
+            break
+        self.pool_data[_pools[i]].asset_type = _asset_types[i]
+
+
 @external
 def commit_transfer_ownership(_addr: address):
     """
@@ -743,6 +785,18 @@ def accept_transfer_ownership():
 
     self.admin = _admin
     self.future_admin = ZERO_ADDRESS
+
+
+@external
+def set_manager(_manager: address):
+    """
+    @notice Set the manager
+    @dev Callable by the admin or existing manager
+    @param _manager Manager address
+    """
+    assert msg.sender in [self.manager, self.admin]  # dev: admin-only function
+
+    self.manager = _manager
 
 
 @external
@@ -781,7 +835,7 @@ def add_existing_metapools(_pools: address[10]) -> bool:
     """
     @notice Add existing metapools from the old factory
     @dev Base pools that are used by the pools to be added must
-         be added separately with `add_base_pool`.
+         be added separately with `add_base_pool`
     @param _pools Addresses of existing pools to add
     """
 

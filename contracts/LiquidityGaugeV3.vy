@@ -1,4 +1,4 @@
-# @version 0.2.12
+# @version 0.2.14
 """
 @title Liquidity Gauge v3
 @author Curve Finance

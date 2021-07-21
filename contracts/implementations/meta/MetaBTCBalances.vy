@@ -27,7 +27,7 @@ interface Curve:
 
 interface Factory:
     def convert_metapool_fees() -> bool: nonpayable
-    def fee_receiver(_base_pool: address) -> address: view
+    def get_fee_receiver(_pool: address) -> address: view
     def admin() -> address: view
 
 
@@ -1100,6 +1100,6 @@ def withdraw_admin_fees():
     amount = self.admin_balances[1]
 
     if amount > 0:
-        receiver: address = Factory(factory).fee_receiver(BASE_POOL)
+        receiver: address = Factory(factory).get_fee_receiver(self)
         ERC20(coin).transfer(receiver, amount)
         self.admin_balances[1] = 0

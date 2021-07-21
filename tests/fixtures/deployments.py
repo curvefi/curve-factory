@@ -99,7 +99,7 @@ def swap_rebase(MetaUSDBalances, alice, base_pool, factory, rebase_coin):
 @pytest.fixture(scope="module")
 def swap_rebase_btc(MetaBTCBalances, alice, base_pool, factory, rebase_coin):
     tx = factory.deploy_metapool(
-        base_pool, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {"from": alice}
+        base_pool_btc, "Test Swap", "TST", rebase_coin, 200, 4000000, 1, {"from": alice}
     )
     yield MetaBTCBalances.at(tx.return_value)
 

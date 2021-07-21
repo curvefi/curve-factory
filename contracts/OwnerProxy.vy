@@ -25,6 +25,7 @@ interface Factory:
         _n_coins: uint256,
         _implementations: address[10],
     ): nonpayable
+    def set_gauge_implementation(_gauge_implementation: address): nonpayable
     def set_fee_receiver(_base_pool: address, _fee_receiver: address): nonpayable
     def commit_transfer_ownership(addr: address): nonpayable
     def accept_transfer_ownership(): nonpayable
@@ -157,6 +158,12 @@ def set_plain_implementations(
 ):
     assert msg.sender == self.ownership_admin, "Access denied"
     Factory(_target).set_plain_implementations(_n_coins, _implementations)
+
+
+@external
+def set_gauge_implementation(_target: address, _gauge_implementation: address):
+    assert msg.sender == self.ownership_admin, "Access denied"
+    Factory(_target).set_gauge_implementation(_gauge_implementation)
 
 
 @external

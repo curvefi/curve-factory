@@ -509,7 +509,7 @@ def get_fee_receiver(_pool: address) -> address:
     if base_pool == ZERO_ADDRESS:
         return self.fee_receiver
     else:
-        return self.base_pool_data[_pool].fee_receiver
+        return self.base_pool_data[base_pool].fee_receiver
 
 
 # <--- Pool Deployers --->

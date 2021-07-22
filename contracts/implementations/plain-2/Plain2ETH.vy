@@ -1,4 +1,4 @@
-# @version 0.2.12
+# @version 0.2.14
 """
 @title StableSwap
 @author Curve.Fi
@@ -969,8 +969,9 @@ def admin_balances(i: uint256) -> uint256:
 def withdraw_admin_fees():
     receiver: address = Factory(self.factory).get_fee_receiver(self)
 
-    raw_call(receiver, b"", value=self.balance - self.balances[0])
+    fees: uint256 = self.balance - self.balances[0]
+    raw_call(receiver, b"", value=fees)
 
     coin: address = self.coins[1]
-    fees: uint256 = ERC20(coin).balanceOf(self) - self.balances[1]
+    fees = ERC20(coin).balanceOf(self) - self.balances[1]
     ERC20(coin).transfer(receiver, fees)

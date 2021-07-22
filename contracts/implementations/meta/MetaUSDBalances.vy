@@ -1,16 +1,14 @@
-# @version 0.2.12
+# @version 0.2.14
 """
 @title StableSwap
 @author Curve.Fi
 @license Copyright (c) Curve.Fi, 2021 - all rights reserved
 @notice 3pool metapool implementation contract
-@dev ERC20 support for return True/revert, return None
+@dev ERC20 support for return True/revert, return True/False, return None
      Support for positive-rebasing and fee-on-transfer tokens
 """
 
 interface ERC20:
-    def transfer(_receiver: address, _amount: uint256): nonpayable
-    def transferFrom(_sender: address, _receiver: address, _amount: uint256): nonpayable
     def approve(_spender: address, _amount: uint256): nonpayable
     def balanceOf(_owner: address) -> uint256: view
 
@@ -485,7 +483,18 @@ def add_liquidity(
         else:
             coin: address = self.coins[i]
             initial: uint256 = ERC20(coin).balanceOf(self)
-            ERC20(coin).transferFrom(msg.sender, self, amount)  # dev: failed transfer
+            response: Bytes[32] = raw_call(
+                coin,
+                concat(
+                    method_id("transferFrom(address,address,uint256)"),
+                    convert(msg.sender, bytes32),
+                    convert(self, bytes32),
+                    convert(amount, bytes32),
+                ),
+                max_outsize=32,
+            )
+            if len(response) > 0:
+                assert convert(response, bool)
             new_balances[i] += ERC20(coin).balanceOf(self) - initial
 
     # Invariant after change
@@ -693,7 +702,18 @@ def exchange(
 
     coin: address = self.coins[i]
     dx_w_fee: uint256 = ERC20(coin).balanceOf(self)
-    ERC20(coin).transferFrom(msg.sender, self, _dx)
+    response: Bytes[32] = raw_call(
+        coin,
+        concat(
+            method_id("transferFrom(address,address,uint256)"),
+            convert(msg.sender, bytes32),
+            convert(self, bytes32),
+            convert(_dx, bytes32),
+        ),
+        max_outsize=32,
+    )
+    if len(response) > 0:
+        assert convert(response, bool)
     dx_w_fee = ERC20(coin).balanceOf(self) - dx_w_fee
 
     x: uint256 = xp[i] + dx_w_fee * rates[i] / PRECISION
@@ -706,7 +726,17 @@ def exchange(
 
     self.admin_balances[j] += (dy_fee * ADMIN_FEE / FEE_DENOMINATOR) * PRECISION / rates[j]
 
-    ERC20(self.coins[j]).transfer(_receiver, dy)
+    response = raw_call(
+        self.coins[j],
+        concat(
+            method_id("transfer(address,uint256)"),
+            convert(_receiver, bytes32),
+            convert(dy, bytes32),
+        ),
+        max_outsize=32,
+    )
+    if len(response) > 0:
+        assert convert(response, bool)
 
     log TokenExchange(msg.sender, i, dx_w_fee, j, dy)
 
@@ -762,7 +792,18 @@ def exchange_underlying(
         output_coin = base_coins[base_j]
 
     dx_w_fee: uint256 = ERC20(input_coin).balanceOf(self)
-    ERC20(input_coin).transferFrom(msg.sender, self, _dx)
+    response: Bytes[32] = raw_call(
+        input_coin,
+        concat(
+            method_id("transferFrom(address,address,uint256)"),
+            convert(msg.sender, bytes32),
+            convert(self, bytes32),
+            convert(_dx, bytes32),
+        ),
+        max_outsize=32,
+    )
+    if len(response) > 0:
+        assert convert(response, bool)
     dx_w_fee = ERC20(input_coin).balanceOf(self) - dx_w_fee
 
     if i == 0 or j == 0:
@@ -813,7 +854,17 @@ def exchange_underlying(
         Curve(base_pool).exchange(base_i, base_j, dx_w_fee, _min_dy)
         dy = ERC20(output_coin).balanceOf(self) - dy
 
-    ERC20(output_coin).transfer(_receiver, dy)
+    response = raw_call(
+        output_coin,
+        concat(
+            method_id("transfer(address,uint256)"),
+            convert(_receiver, bytes32),
+            convert(dy, bytes32),
+        ),
+        max_outsize=32,
+    )
+    if len(response) > 0:
+        assert convert(response, bool)
 
     log TokenExchangeUnderlying(msg.sender, i, _dx, j, dy)
 
@@ -844,8 +895,17 @@ def remove_liquidity(
         value: uint256 = balances[i] * _burn_amount / total_supply
         assert value >= _min_amounts[i]
         amounts[i] = value
-        ERC20(self.coins[i]).transfer(_receiver, value)
-
+        response: Bytes[32] = raw_call(
+            self.coins[i],
+            concat(
+                method_id("transfer(address,uint256)"),
+                convert(_receiver, bytes32),
+                convert(value, bytes32),
+            ),
+            max_outsize=32,
+        )
+        if len(response) > 0:
+            assert convert(response, bool)
     total_supply -= _burn_amount
     self.balanceOf[msg.sender] -= _burn_amount
     self.totalSupply = total_supply
@@ -882,7 +942,17 @@ def remove_liquidity_imbalance(
         amount: uint256 = _amounts[i]
         if amount != 0:
             new_balances[i] -= amount
-            ERC20(self.coins[i]).transfer(_receiver, amount)
+            response: Bytes[32] = raw_call(
+                self.coins[i],
+                concat(
+                    method_id("transfer(address,uint256)"),
+                    convert(_receiver, bytes32),
+                    convert(amount, bytes32),
+                ),
+                max_outsize=32,
+            )
+            if len(response) > 0:
+                assert convert(response, bool)
     D1: uint256 = self.get_D_mem(rates, new_balances, amp)
 
     fees: uint256[N_COINS] = empty(uint256[N_COINS])
@@ -1039,7 +1109,17 @@ def remove_liquidity_one_coin(
     self.balanceOf[msg.sender] -= _burn_amount
     log Transfer(msg.sender, ZERO_ADDRESS, _burn_amount)
 
-    ERC20(self.coins[i]).transfer(_receiver, dy[0])
+    response: Bytes[32] = raw_call(
+        self.coins[i],
+        concat(
+            method_id("transfer(address,uint256)"),
+            convert(_receiver, bytes32),
+            convert(dy[0], bytes32),
+        ),
+        max_outsize=32,
+    )
+    if len(response) > 0:
+        assert convert(response, bool)
 
     log RemoveLiquidityOne(msg.sender, _burn_amount, dy[0], total_supply)
 
@@ -1084,22 +1164,43 @@ def stop_ramp_A():
 
 
 @external
+@nonreentrant('lock')
 def withdraw_admin_fees():
     # transfer coin 0 to Factory and call `convert_fees` to swap it for coin 1
     balances: uint256[N_COINS] = self._balances()
     factory: address = self.factory
-    coin: address = self.coins[0]
     amount: uint256 = self.admin_balances[0]
     if amount > 0:
-        ERC20(coin).transfer(factory, amount)
-        Factory(factory).convert_metapool_fees()
         self.admin_balances[0] = 0
+        coin: address = self.coins[0]
+        response: Bytes[32] = raw_call(
+            coin,
+            concat(
+                method_id("transfer(address,uint256)"),
+                convert(factory, bytes32),
+                convert(amount, bytes32),
+            ),
+            max_outsize=32,
+        )
+        if len(response) > 0:
+            assert convert(response, bool)
+        Factory(factory).convert_metapool_fees()
 
     # transfer coin 1 to the receiver
-    coin = self.coins[1]
     amount = self.admin_balances[1]
 
     if amount > 0:
-        receiver: address = Factory(factory).get_fee_receiver(self)
-        ERC20(coin).transfer(receiver, amount)
         self.admin_balances[1] = 0
+        coin: address = self.coins[1]
+        receiver: address = Factory(factory).get_fee_receiver(self)
+        response: Bytes[32] = raw_call(
+            coin,
+            concat(
+                method_id("transfer(address,uint256)"),
+                convert(receiver, bytes32),
+                convert(amount, bytes32),
+            ),
+            max_outsize=32,
+        )
+        if len(response) > 0:
+            assert convert(response, bool)

@@ -50,6 +50,6 @@ def approve_bob(bob, plain_coins, swap):
         coin.approve(swap, 2 ** 256 - 1, {"from": bob})
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def add_initial_liquidity(alice, approve_alice, mint_alice, initial_amounts, swap):
     swap.add_liquidity(initial_amounts, 0, {"from": alice})

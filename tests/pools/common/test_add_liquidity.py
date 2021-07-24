@@ -4,49 +4,48 @@ import pytest
 pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "mint_bob", "approve_bob")
 
 
-def test_add_liquidity(bob, swap, wrapped_coins, initial_amounts, base_pool):
+def test_add_liquidity(bob, swap, plain_coins, initial_amounts):
     swap.add_liquidity(initial_amounts, 0, {"from": bob})
 
-    for coin, amount in zip(wrapped_coins, initial_amounts):
+    for coin, amount in zip(plain_coins, initial_amounts):
         assert coin.balanceOf(bob) == 0
         assert coin.balanceOf(swap) == amount * 2
 
-    ideal = 2000000 * 10 ** 18
+    ideal = len(plain_coins) * 1_000_000 * 10 ** 18
     assert abs(swap.balanceOf(bob) - ideal) <= 1
-    assert abs(swap.totalSupply() - ideal * 2) <= 3
+    assert abs(swap.totalSupply() - ideal * 2) <= 2
 
 
 @pytest.mark.parametrize("idx", range(2))
-def test_add_one_coin(bob, swap, wrapped_coins, initial_amounts, idx, base_pool):
-    amounts = [0, 0]
+def test_add_one_coin(bob, swap, plain_coins, initial_amounts, idx):
+    amounts = [0] * len(plain_coins)
     amounts[idx] = initial_amounts[idx]
 
     swap.add_liquidity(amounts, 0, {"from": bob})
 
-    for i, coin in enumerate(wrapped_coins):
+    for i, coin in enumerate(plain_coins):
         assert coin.balanceOf(bob) == initial_amounts[i] - amounts[i]
         assert coin.balanceOf(swap) == initial_amounts[i] + amounts[i]
 
-    difference = abs(swap.balanceOf(bob) - (10 ** 18 * 1000000))
-    assert difference / (10 ** 18 * 1000000) < 0.01
+    difference = abs(swap.balanceOf(bob) - (10 ** 18 * 1_000_000))
+    assert difference / (10 ** 18 * 1_000_000) < 0.01
 
 
-def test_insufficient_balance(charlie, swap, wrapped_decimals):
-    amounts = [(10 ** i) for i in wrapped_decimals]
+def test_insufficient_balance(charlie, swap, decimals):
+    amounts = [(10 ** i) for i in decimals]
 
-    with brownie.reverts():
+    with brownie.reverts():  # invalid approval or balance
         swap.add_liquidity(amounts, 0, {"from": charlie})
 
 
-def test_min_amount_too_high(bob, swap, wrapped_decimals, wrapped_coins, base_pool):
-    amounts = [10 ** i for i in wrapped_decimals]
-
-    ideal_amount = 10 ** 18 + base_pool.get_virtual_price()
+def test_min_amount_too_high(bob, swap, initial_amounts, plain_pool_size):
     with brownie.reverts():
-        swap.add_liquidity(amounts, ideal_amount, {"from": bob})
+        swap.add_liquidity(
+            initial_amounts, plain_pool_size * 1_000_000 * 10 ** 18 + 1, {"from": bob}
+        )
 
 
-def test_event(bob, swap, initial_amounts, wrapped_coins):
+def test_event(bob, swap, initial_amounts):
     tx = swap.add_liquidity(initial_amounts, 0, {"from": bob})
 
     event = tx.events["AddLiquidity"]
@@ -55,6 +54,6 @@ def test_event(bob, swap, initial_amounts, wrapped_coins):
     assert event["token_supply"] == swap.totalSupply()
 
 
-def test_send_eth(bob, swap, wrapped_coins, initial_amounts):
-    with brownie.reverts():
-        swap.add_liquidity(initial_amounts, 0, {"from": bob, "value": 1})
+# def test_send_eth(bob, swap, plain_coins, initial_amounts):
+#     with brownie.reverts():
+#         swap.add_liquidity(initial_amounts, 0, {"from": bob, "value": 1})

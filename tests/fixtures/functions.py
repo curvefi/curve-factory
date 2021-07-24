@@ -1,6 +1,9 @@
 from functools import partial
 
 import pytest
+from brownie import ZERO_ADDRESS
+
+# session level functions
 
 
 def _deploy_plain_implementation(_project, _pool_size, _pool_type, _deployer):
@@ -11,3 +14,25 @@ def _deploy_plain_implementation(_project, _pool_size, _pool_type, _deployer):
 @pytest.fixture(scope="session")
 def deploy_plain_implementation(alice, project):
     return partial(_deploy_plain_implementation, _project=project, _deployer=alice)
+
+
+@pytest.fixture(scope="module")
+def set_plain_implementations(alice, factory, plain_implementations, plain_pool_size):
+    factory.set_plain_implementations(
+        plain_pool_size, plain_implementations + [ZERO_ADDRESS] * 6, {"from": alice}
+    )
+
+
+# function level functions
+
+
+@pytest.fixture
+def mint_alice(alice, initial_amounts, plain_coins):
+    for coin, amount in zip(plain_coins, initial_amounts):
+        coin._mint_for_testing(alice, amount, {"from": alice})
+
+
+@pytest.fixture
+def approve_alice(alice, plain_coins, swap):
+    for coin in plain_coins:
+        coin.approve(swap, 2 ** 256 - 1, {"from": alice})

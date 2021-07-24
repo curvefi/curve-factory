@@ -1,4 +1,4 @@
-# @version 0.2.14
+# @version 0.2.15
 """
 @title Curve StableSwap Owner Proxy
 @author Curve Finance

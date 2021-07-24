@@ -1,4 +1,5 @@
 import pytest
+from brownie import ZERO_ADDRESS
 
 # implementation contracts - paramaterized by pool size
 
@@ -21,6 +22,11 @@ def plain_optimized(deploy_plain_implementation, plain_pool_size):
 @pytest.fixture(scope="session")
 def plain_rebase(deploy_plain_implementation, plain_pool_size):
     return deploy_plain_implementation(_pool_size=plain_pool_size, _pool_type="Balances")
+
+
+@pytest.fixture(scope="session")
+def plain_implementations(plain_basic, plain_eth, plain_optimized, plain_rebase):
+    return [plain_basic, plain_eth, plain_optimized, plain_rebase]
 
 
 # meta-pools require mainnet-fork network for testing
@@ -60,3 +66,26 @@ def factory(alice, frank, Factory):
 @pytest.fixture(scope="session")
 def lending_pool(alice, AaveLendingPoolMock):
     return AaveLendingPoolMock.deploy({"from": alice})
+
+
+@pytest.fixture(scope="module")
+def swap(
+    alice,
+    factory,
+    plain_implementations,
+    plain_coins,
+    project,
+    plain_pool_size,
+):
+    # modifies the factory so should be module scoped
+    tx = factory.deploy_plain_pool(
+        "Test Plain Pool",
+        "TPP",
+        plain_coins + [ZERO_ADDRESS] * (4 - plain_pool_size),
+        200,
+        4000000,
+        0,
+        2,
+        {"from": alice},
+    )
+    return getattr(project, plain_implementations[2]._name).at(tx.return_value)

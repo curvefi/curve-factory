@@ -1,29 +1,23 @@
 import brownie
 import pytest
 
-pytestmark = pytest.mark.usefixtures("mint_alice", "approve_alice")
+pytestmark = pytest.mark.usefixtures("set_plain_implementations", "mint_alice", "approve_alice")
 
 
-@pytest.mark.parametrize("min_amount", [0, 2 * 10 ** 18])
-def test_initial(
-    alice, swap, wrapped_coins, min_amount, wrapped_decimals, initial_amounts, base_pool
-):
-    amounts = [10 ** i for i in wrapped_decimals]
+@pytest.mark.parametrize("min_amount", [0, 10 ** 18])
+def test_initial(alice, swap, plain_coins, min_amount, decimals, initial_amounts):
+    amounts = [10 ** i for i in decimals]
 
-    swap.add_liquidity(amounts, min_amount, {"from": alice})
+    swap.add_liquidity(amounts, len(plain_coins) * min_amount, {"from": alice})
 
-    for coin, amount, initial in zip(wrapped_coins, amounts, initial_amounts):
+    for coin, amount, initial in zip(plain_coins, amounts, initial_amounts):
         assert coin.balanceOf(alice) == initial - amount
         assert coin.balanceOf(swap) == amount
 
-    ideal = 10 ** 18 + base_pool.get_virtual_price()
-    assert 0.9999 < swap.balanceOf(alice) / ideal < 1
-    assert swap.balanceOf(alice) == swap.totalSupply()
-
 
 @pytest.mark.parametrize("idx", range(2))
-def test_initial_liquidity_missing_coin(alice, swap, rebase_coin, idx, wrapped_decimals):
-    amounts = [10 ** i for i in wrapped_decimals]
+def test_initial_liquidity_missing_coin(alice, swap, idx, decimals):
+    amounts = [10 ** i for i in decimals]
     amounts[idx] = 0
     with brownie.reverts():
         swap.add_liquidity(amounts, 0, {"from": alice})

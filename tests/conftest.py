@@ -2,7 +2,12 @@ import pytest
 from brownie._config import CONFIG
 from brownie.project.main import get_loaded_projects
 
-pytest_plugins = ["fixtures.accounts", "fixtures.deployments", "fixtures.functions"]
+pytest_plugins = [
+    "fixtures.accounts",
+    "fixtures.coins",
+    "fixtures.deployments",
+    "fixtures.functions",
+]
 
 
 def pytest_addoption(parser):
@@ -33,3 +38,19 @@ def project():
 @pytest.fixture(scope="session")
 def is_forked():
     return "fork" in CONFIG.active_network["id"]
+
+
+@pytest.fixture(scope="module", autouse=True)
+def module_isolation(chain):
+    start_height = chain.height
+    yield
+    end_height = chain.height
+    chain.undo(end_height - start_height)
+
+
+@pytest.fixture(autouse=True)
+def fn_isolation(module_isolation, chain):
+    start_height = chain.height
+    yield
+    end_height = chain.height
+    chain.undo(end_height - start_height)

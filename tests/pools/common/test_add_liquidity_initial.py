@@ -1,7 +1,7 @@
 import brownie
 import pytest
 
-pytestmark = pytest.mark.usefixtures("set_plain_implementations", "mint_alice", "approve_alice")
+pytestmark = pytest.mark.usefixtures("mint_alice", "approve_alice")
 
 
 @pytest.mark.parametrize("min_amount", [0, 10 ** 18])

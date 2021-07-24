@@ -5,6 +5,7 @@ from brownie.project.main import get_loaded_projects
 pytest_plugins = [
     "fixtures.accounts",
     "fixtures.coins",
+    "fixtures.constants",
     "fixtures.deployments",
     "fixtures.functions",
 ]
@@ -45,7 +46,8 @@ def module_isolation(chain):
     start_height = chain.height
     yield
     end_height = chain.height
-    chain.undo(end_height - start_height)
+    if end_height - start_height:
+        chain.undo(end_height - start_height)
 
 
 @pytest.fixture(autouse=True)
@@ -53,4 +55,5 @@ def fn_isolation(module_isolation, chain):
     start_height = chain.height
     yield
     end_height = chain.height
-    chain.undo(end_height - start_height)
+    if end_height - start_height:
+        chain.undo(end_height - start_height)

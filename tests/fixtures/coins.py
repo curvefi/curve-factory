@@ -15,13 +15,3 @@ def plain_coins(_plain_coins, plain_pool_size):
 @pytest.fixture(scope="session")
 def decimals(plain_coins):
     return [coin.decimals() for coin in plain_coins]
-
-
-@pytest.fixture(scope="session")
-def initial_amounts(decimals):
-    return [10_000 * 10 ** precision for precision in decimals]
-
-
-@pytest.fixture(scope="session")
-def deposit_amounts(decimals):
-    return [1_000 * 10 ** precision for precision in decimals]

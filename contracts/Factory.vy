@@ -549,7 +549,7 @@ def deploy_plain_pool(
     # fee must be between 0.04% and 1%
     assert _fee >= 4000000 and _fee <= 100000000, "Invalid fee"
 
-    n_coins: uint256 = 0
+    n_coins: uint256 = MAX_PLAIN_COINS
     rate_multipliers: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
     decimals: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
 

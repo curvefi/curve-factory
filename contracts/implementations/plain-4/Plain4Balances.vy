@@ -957,7 +957,7 @@ def withdraw_admin_fees():
 
     for i in range(N_COINS):
         amount: uint256 = self.admin_balances[i]
-        if i != 0:
+        if amount != 0:
             coin: address = self.coins[i]
             raw_call(
                 coin,

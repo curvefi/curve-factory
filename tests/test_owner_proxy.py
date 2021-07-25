@@ -70,42 +70,42 @@ def test_apply_set_admins_guarded(owner_proxy, alice, bob, charlie, dave):
         owner_proxy.apply_set_admins({"from": bob})
 
 
-def test_ramp_A(owner_proxy, swap_plain, alice, chain):
-    future_a = swap_plain.A() * 1.5
+def test_ramp_A(owner_proxy, swap, alice, chain):
+    future_a = swap.A() * 1.5
     future_time = chain.time() + 86400
     A_PRECISION = 100
-    owner_proxy.ramp_A(swap_plain, future_a, future_time, {"from": alice})
-    assert swap_plain.future_A() / A_PRECISION == future_a
-    assert swap_plain.future_A_time() == future_time
+    owner_proxy.ramp_A(swap, future_a, future_time, {"from": alice})
+    assert swap.future_A() / A_PRECISION == future_a
+    assert swap.future_A_time() == future_time
     chain.sleep(86400 + 1)
 
 
-def test_ramp_A_guarded(owner_proxy, swap_plain, bob):
+def test_ramp_A_guarded(owner_proxy, swap, bob):
     with brownie.reverts("Access denied"):
-        owner_proxy.ramp_A(swap_plain, 0, 0, {"from": bob})
+        owner_proxy.ramp_A(swap, 0, 0, {"from": bob})
 
 
-def test_stop_ramp_A(owner_proxy, swap_plain, chain, alice):
-    future_a = swap_plain.A() * 2
+def test_stop_ramp_A(owner_proxy, swap, chain, alice):
+    future_a = swap.A() * 2
     future_time = chain.time() + 86400
-    owner_proxy.ramp_A(swap_plain, future_a, future_time, {"from": alice})
+    owner_proxy.ramp_A(swap, future_a, future_time, {"from": alice})
 
     chain.sleep(86400 // 2)
-    owner_proxy.stop_ramp_A(swap_plain, {"from": alice})
+    owner_proxy.stop_ramp_A(swap, {"from": alice})
 
-    assert math.isclose(swap_plain.A(), 3 * future_a / 4)
+    assert math.isclose(swap.A(), 3 * future_a / 4)
 
 
-def test_stop_ramp_A_guarded(owner_proxy, swap_plain, chain, alice, bob):
-    future_a = swap_plain.A() * 2
+def test_stop_ramp_A_guarded(owner_proxy, swap, chain, alice, bob):
+    future_a = swap.A() * 2
     future_time = chain.time() + 86400
-    owner_proxy.ramp_A(swap_plain, future_a, future_time, {"from": alice})
+    owner_proxy.ramp_A(swap, future_a, future_time, {"from": alice})
 
     chain.sleep(86400 // 2)
-    owner_proxy.stop_ramp_A(swap_plain, {"from": alice})
+    owner_proxy.stop_ramp_A(swap, {"from": alice})
 
     with brownie.reverts("Access denied"):
-        owner_proxy.stop_ramp_A(swap_plain, {"from": bob})
+        owner_proxy.stop_ramp_A(swap, {"from": bob})
 
 
 def test_add_base_pool(owner_proxy, new_factory, base_pool_btc, implementation_btc, alice):

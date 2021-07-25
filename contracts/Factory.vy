@@ -597,7 +597,14 @@ def deploy_plain_pool(
         if coin == ZERO_ADDRESS:
             break
         self.pool_data[pool].coins[i] = coin
-        ERC20(coin).approve(pool, MAX_UINT256)
+        raw_call(
+            coin,
+            concat(
+                method_id("approve(address,uint256)"),
+                convert(pool, bytes32),
+                convert(MAX_UINT256, bytes32)
+            )
+        )
         for j in range(MAX_PLAIN_COINS):
             if i < j:
                 swappable_coin: address = _coins[j]

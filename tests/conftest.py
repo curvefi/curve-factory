@@ -104,12 +104,12 @@ def pytest_collection_modifyitems(config, items):
             items.remove(item)
             continue
 
-        if path_parts[1] == "rebase":
+        if len(path_parts) > 1 and path_parts[1] == "rebase":
             if pool_type != 3:
                 items.remove(item)
                 continue
 
-        if path_parts[0] == "zaps":
+        if len(path_parts) > 0 and path_parts[0] == "zaps":
             # need to handle connecting to mainnet-fork
             items.remove(item)
             continue

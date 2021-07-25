@@ -959,5 +959,12 @@ def withdraw_admin_fees():
         amount: uint256 = self.admin_balances[i]
         if i != 0:
             coin: address = self.coins[i]
-            ERC20(coin).transfer(receiver, amount)
+            raw_call(
+                coin,
+                concat(
+                    method_id("transfer(address,uint256)"),
+                    convert(receiver, bytes32),
+                    convert(fees, bytes32)
+                )
+            )
             self.admin_balances[i] = 0

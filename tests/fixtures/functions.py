@@ -17,9 +17,7 @@ def deploy_plain_implementation(alice, project):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def set_plain_implementations(
-    alice, factory, plain_implementations, plain_pool_size, module_isolation
-):
+def set_plain_implementations(alice, factory, plain_implementations, plain_pool_size):
     factory.set_plain_implementations(
         plain_pool_size, plain_implementations + [ZERO_ADDRESS] * 6, {"from": alice}
     )

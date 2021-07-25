@@ -42,18 +42,16 @@ def is_forked():
 
 
 @pytest.fixture(scope="module", autouse=True)
-def module_isolation(chain):
-    start_height = chain.height
+def mod_isolation(chain):
+    chain.snapshot()
     yield
-    end_height = chain.height
-    if end_height - start_height:
-        chain.undo(end_height - start_height)
+    chain.revert()
 
 
 @pytest.fixture(autouse=True)
-def fn_isolation(module_isolation, chain):
-    start_height = chain.height
+def isolation(chain, history):
+    start = len(history)
     yield
-    end_height = chain.height
-    if end_height - start_height:
-        chain.undo(end_height - start_height)
+    end = len(history)
+    if end - start > 0:
+        chain.undo(end - start)

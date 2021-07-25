@@ -979,7 +979,7 @@ def withdraw_admin_fees():
     raw_call(receiver, b"", value=fees)
     for i in range(1, N_COINS):
         coin: address = self.coins[i]
-        fees: uint256 = ERC20(coin).balanceOf(self) - self.balances[i]
+        fees = ERC20(coin).balanceOf(self) - self.balances[i]
         raw_call(
             coin,
             concat(

@@ -964,7 +964,7 @@ def withdraw_admin_fees():
                 concat(
                     method_id("transfer(address,uint256)"),
                     convert(receiver, bytes32),
-                    convert(fees, bytes32)
+                    convert(amount, bytes32)
                 )
             )
             self.admin_balances[i] = 0

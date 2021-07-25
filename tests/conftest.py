@@ -115,12 +115,12 @@ def plain_pool_type(request):
 
 @pytest.fixture(scope="session")
 def is_eth_pool(plain_pool_type):
-    return True if plain_pool_type == 1 else False
+    return plain_pool_type == 1
 
 
 @pytest.fixture(scope="session")
 def is_rebase_pool(plain_pool_type):
-    return True if plain_pool_type == 3 else False
+    return plain_pool_type == 3
 
 
 @pytest.fixture(scope="session")

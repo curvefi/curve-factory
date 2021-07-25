@@ -1,7 +1,7 @@
 from functools import partial
 
 import pytest
-from brownie import ZERO_ADDRESS
+from brownie import ETH_ADDRESS, ZERO_ADDRESS
 
 # session level functions
 
@@ -34,24 +34,32 @@ def eth_amount(is_eth_pool):
 @pytest.fixture
 def mint_alice(alice, initial_amounts, coins):
     for coin, amount in zip(coins, initial_amounts):
+        if coin == ETH_ADDRESS:
+            continue
         coin._mint_for_testing(alice, amount, {"from": alice})
 
 
 @pytest.fixture(scope="module")
 def approve_alice(alice, coins, swap):
     for coin in coins:
+        if coin == ETH_ADDRESS:
+            continue
         coin.approve(swap, 2 ** 256 - 1, {"from": alice})
 
 
 @pytest.fixture
 def mint_bob(bob, initial_amounts, coins):
     for coin, amount in zip(coins, initial_amounts):
+        if coin == ETH_ADDRESS:
+            continue
         coin._mint_for_testing(bob, amount, {"from": bob})
 
 
 @pytest.fixture(scope="module")
 def approve_bob(bob, coins, swap):
     for coin in coins:
+        if coin == ETH_ADDRESS:
+            continue
         coin.approve(swap, 2 ** 256 - 1, {"from": bob})
 
 

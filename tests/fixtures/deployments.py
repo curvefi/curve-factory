@@ -73,7 +73,7 @@ def swap(
     alice,
     factory,
     plain_implementations,
-    plain_coins,
+    coins,
     project,
     plain_pool_size,
     plain_pool_type,
@@ -82,7 +82,7 @@ def swap(
     tx = factory.deploy_plain_pool(
         "Test Plain Pool",
         "TPP",
-        plain_coins + [ZERO_ADDRESS] * (4 - plain_pool_size),
+        coins + [ZERO_ADDRESS] * (4 - plain_pool_size),
         200,
         4000000,
         0,

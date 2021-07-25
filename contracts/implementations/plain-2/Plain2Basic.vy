@@ -318,7 +318,6 @@ def get_D(_xp: uint256[N_COINS], _amp: uint256) -> uint256:
     D[j+1] = (A * n**n * sum(x_i) - D[j]**(n+1) / (n**n prod(x_i))) / (A * n**n - 1)
     """
     S: uint256 = 0
-    Dprev: uint256 = 0
     for x in _xp:
         S += x
     if S == 0:
@@ -327,10 +326,8 @@ def get_D(_xp: uint256[N_COINS], _amp: uint256) -> uint256:
     D: uint256 = S
     Ann: uint256 = _amp * N_COINS
     for i in range(255):
-        D_P: uint256 = D
-        for x in _xp:
-            D_P = D_P * D / (x * N_COINS)  # If division by 0, this will be borked: only withdrawal will work. And that is good
-        Dprev = D
+        D_P: uint256 = D * D / _xp[0] * D / _xp[1] / (N_COINS)**2
+        Dprev: uint256 = D
         D = (Ann * S / A_PRECISION + D_P * N_COINS) * D / ((Ann - A_PRECISION) * D / A_PRECISION + (N_COINS + 1) * D_P)
         # Equality with the precision of 1
         if D > Dprev:

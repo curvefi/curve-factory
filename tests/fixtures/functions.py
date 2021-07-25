@@ -23,33 +23,38 @@ def set_plain_implementations(alice, factory, plain_implementations, plain_pool_
     )
 
 
+@pytest.fixture(scope="session")
+def eth_amount(is_eth_pool):
+    return lambda amount: amount if is_eth_pool else 0
+
+
 # function level functions
 
 
 @pytest.fixture
-def mint_alice(alice, initial_amounts, plain_coins):
-    for coin, amount in zip(plain_coins, initial_amounts):
+def mint_alice(alice, initial_amounts, coins):
+    for coin, amount in zip(coins, initial_amounts):
         coin._mint_for_testing(alice, amount, {"from": alice})
 
 
 @pytest.fixture(scope="module")
-def approve_alice(alice, plain_coins, swap):
-    for coin in plain_coins:
+def approve_alice(alice, coins, swap):
+    for coin in coins:
         coin.approve(swap, 2 ** 256 - 1, {"from": alice})
 
 
 @pytest.fixture
-def mint_bob(bob, initial_amounts, plain_coins):
-    for coin, amount in zip(plain_coins, initial_amounts):
+def mint_bob(bob, initial_amounts, coins):
+    for coin, amount in zip(coins, initial_amounts):
         coin._mint_for_testing(bob, amount, {"from": bob})
 
 
 @pytest.fixture(scope="module")
-def approve_bob(bob, plain_coins, swap):
-    for coin in plain_coins:
+def approve_bob(bob, coins, swap):
+    for coin in coins:
         coin.approve(swap, 2 ** 256 - 1, {"from": bob})
 
 
 @pytest.fixture
-def add_initial_liquidity(alice, approve_alice, mint_alice, initial_amounts, swap):
-    swap.add_liquidity(initial_amounts, 0, {"from": alice})
+def add_initial_liquidity(alice, approve_alice, mint_alice, initial_amounts, swap, eth_amount):
+    swap.add_liquidity(initial_amounts, 0, {"from": alice, "value": eth_amount(initial_amounts[0])})

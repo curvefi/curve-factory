@@ -33,6 +33,12 @@ def pytest_addoption(parser):
         default="revert,False,None",
         help="comma-separated list of ERC20 token return types to test against",
     )
+    parser.addoption(
+        "--decimals",
+        action="store",
+        default="18",
+        help="comma-separated list of ERC20 token precisions to test against",
+    )
 
 
 def pytest_generate_tests(metafunc):
@@ -63,6 +69,14 @@ def pytest_generate_tests(metafunc):
             indirect=True,
             ids=[f"(ReturnType={i})" for i in cli_options],
         )
+    if "decimals" in metafunc.fixturenames:
+        cli_options = metafunc.config.getoption("decimals").split(",")
+        metafunc.parametrize(
+            "decimals",
+            [int(i) for i in cli_options],
+            indirect=True,
+            ids=[f"(Decimals={i})" for i in cli_options],
+        )
 
 
 def pytest_collection_modifyitems(config, items):
@@ -71,12 +85,19 @@ def pytest_collection_modifyitems(config, items):
             params = item.callspec.params
             pool_type = params["plain_pool_type"]
             return_type = params["return_type"]
+            decimals = params["decimals"]
         except Exception:
             continue
 
         # optimized pool only supports return True/revert
         if pool_type == 2 and return_type != "revert":
             items.remove(item)
+            continue
+
+        # optimized pool only supports precision == 18
+        if pool_type == 2 and decimals != 18:
+            items.remove(item)
+            continue
 
     # hacky magic to ensure the correct number of tests is shown in collection report
     config.pluginmanager.get_plugin("terminalreporter")._numcollected = len(items)
@@ -90,6 +111,28 @@ def plain_pool_size(request):
 @pytest.fixture(scope="session")
 def plain_pool_type(request):
     return request.param
+
+
+@pytest.fixture(scope="session")
+def is_eth_pool(plain_pool_type):
+    return True if plain_pool_type == 1 else False
+
+
+@pytest.fixture(scope="session")
+def is_rebase_pool(plain_pool_type):
+    return True if plain_pool_type == 3 else False
+
+
+@pytest.fixture(scope="session")
+def return_type(request):
+    return request.param
+
+
+@pytest.fixture(scope="session")
+def decimals(plain_pool_size, request, is_eth_pool):
+    if is_eth_pool:
+        return [18] + [request.param] * (plain_pool_size - 1)
+    return [request.param] * plain_pool_size
 
 
 @pytest.fixture(scope="session")

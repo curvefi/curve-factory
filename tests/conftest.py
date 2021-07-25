@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from brownie._config import CONFIG
 from brownie.project.main import get_loaded_projects
@@ -80,7 +82,11 @@ def pytest_generate_tests(metafunc):
 
 
 def pytest_collection_modifyitems(config, items):
+    project = get_loaded_projects()[0]
+
     for item in items.copy():
+        path_parts = Path(item.fspath).relative_to(project._path).parts[1:-1]
+        breakpoint()
         try:
             params = item.callspec.params
             pool_type = params["plain_pool_type"]
@@ -96,6 +102,10 @@ def pytest_collection_modifyitems(config, items):
 
         # optimized pool only supports precision == 18
         if pool_type == 2 and decimals != 18:
+            items.remove(item)
+            continue
+
+        if "rebase" in path_parts and pool_type != 3:
             items.remove(item)
             continue
 

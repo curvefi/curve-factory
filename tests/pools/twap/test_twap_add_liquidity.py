@@ -3,7 +3,7 @@ import pytest
 pytestmark = pytest.mark.usefixtures("mint_alice", "approve_alice")
 
 
-def test_twap_cumulative_price_is_initially_0(swap, wrapped_coins):
+def test_twap_cumulative_price_is_initially_0(swap, coins):
 
     # this was the time since the last call to _updated
     # which after a deployemnt means this should be 0
@@ -17,18 +17,16 @@ def test_twap_cumulative_price_is_initially_0(swap, wrapped_coins):
     assert initial_time == 0
 
     # for each coin
-    for i, coin in enumerate(wrapped_coins):
+    for i, coin in enumerate(coins):
         # assert the cumulative price since deployment is 0
         # accurate since we just deployed and only called view functions
         assert twap_cumulative_price[i] == 0
 
 
-def test_twap_cumulative_price_remains_0_after_providing_initial_liquidity(
-    alice, swap, wrapped_decimals
-):
+def test_twap_cumulative_price_remains_0_after_providing_initial_liquidity(alice, swap, decimals):
 
     # amount of 1 coin in the appropriate magnitude
-    amounts = [10 ** i for i in wrapped_decimals]
+    amounts = [10 ** i for i in decimals]
 
     # add liquidity of 1 coin
     swap.add_liquidity(amounts, 0, {"from": alice})
@@ -47,10 +45,10 @@ def test_twap_cumulative_price_remains_0_after_providing_initial_liquidity(
 
 
 def test_twap_cumulative_price_increases_with_subsequent_liquidity_provisions(
-    alice, swap, chain, wrapped_coins, wrapped_decimals
+    alice, swap, chain, coins, decimals
 ):
     # initial liquidity amount to deposit
-    deposit_amounts = [10 ** i for i in wrapped_decimals]
+    deposit_amounts = [10 ** i for i in decimals]
 
     # deposit our initial liquidity
     # this won't affect the cumulative price of coins
@@ -96,7 +94,7 @@ def test_twap_cumulative_price_increases_with_subsequent_liquidity_provisions(
     # time that has elapsed
     time_elapsed = updated_block_timestamp - old_block_timestamp
 
-    for i, coin in enumerate(wrapped_coins):
+    for i, coin in enumerate(coins):
         # amount deposited each time
         amount = deposit_amounts[i]
         # = prev_cumu_price + (amount prior to last _update call * time elapsed)

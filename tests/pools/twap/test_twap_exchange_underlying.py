@@ -5,6 +5,7 @@ import pytest
 pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "approve_bob")
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize(
     "sending,receiving", filter(lambda k: 0 in k, itertools.permutations(range(4), 2))
 )

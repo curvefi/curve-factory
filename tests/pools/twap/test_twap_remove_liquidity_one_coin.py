@@ -4,7 +4,7 @@ pytestmark = pytest.mark.usefixtures("add_initial_liquidity")
 
 
 @pytest.mark.parametrize("idx", range(2))
-def test_amount_received(chain, alice, swap, base_pool, idx):
+def test_amount_received(alice, swap, idx):
     twap_control = swap.get_price_cumulative_last()
     start = swap.block_timestamp_last()
     balances_before = swap.get_balances()

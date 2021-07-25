@@ -1,5 +1,6 @@
 import itertools
 
+import pytest
 from brownie import chain
 from brownie_tokens import MintableForkToken
 
@@ -7,6 +8,7 @@ from brownie_tokens import MintableForkToken
 # so we do not run the entire test suite against them
 
 
+@pytest.mark.skip
 def test_btc_swaps(alice, bob, fee_receiver, swap_btc, factory, coin):
     # add liquidity
     wrapped_coins = [coin, MintableForkToken(swap_btc.coins(1))]
@@ -69,6 +71,7 @@ def test_btc_swaps(alice, bob, fee_receiver, swap_btc, factory, coin):
     assert wrapped_coins[1].balanceOf(fee_receiver) > admin_fee > 0
 
 
+@pytest.mark.skip
 def test_zap_gas(DepositZapBTC, alice, bob, swap_btc, factory, coin):
     zap = DepositZapBTC.deploy({"from": alice})
     underlying_coins = [coin] + [

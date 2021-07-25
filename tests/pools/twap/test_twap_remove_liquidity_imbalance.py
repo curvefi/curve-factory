@@ -24,7 +24,7 @@ def test_remove_balanced(alice, swap, divisor, initial_amounts):
 
 
 @pytest.mark.parametrize("idx", range(2))
-def test_remove_one(alice, swap, wrapped_coins, idx, initial_amounts):
+def test_remove_one(alice, swap, idx, initial_amounts):
     amounts = [i // 2 for i in initial_amounts]
     amounts[idx] = 0
 

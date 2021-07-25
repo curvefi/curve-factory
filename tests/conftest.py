@@ -109,6 +109,11 @@ def pytest_collection_modifyitems(config, items):
                 items.remove(item)
                 continue
 
+        if path_parts[0] == "zaps":
+            # need to handle connecting to mainnet-fork
+            items.remove(item)
+            continue
+
     # hacky magic to ensure the correct number of tests is shown in collection report
     config.pluginmanager.get_plugin("terminalreporter")._numcollected = len(items)
 

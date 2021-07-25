@@ -15,8 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        decimals: [18, 6]
-        return_type: ["revert", "None"]
+        decimals: [18]
+        return_type: ["False"]
         plain_pool_type: ["basic", "eth", "optimized", "rebase"]
         pool_size: [2, 3, 4]
 

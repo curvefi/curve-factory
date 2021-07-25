@@ -86,7 +86,6 @@ def pytest_collection_modifyitems(config, items):
 
     for item in items.copy():
         path_parts = Path(item.fspath).relative_to(project._path).parts[1:-1]
-        breakpoint()
         try:
             params = item.callspec.params
             pool_type = params["plain_pool_type"]
@@ -105,9 +104,10 @@ def pytest_collection_modifyitems(config, items):
             items.remove(item)
             continue
 
-        if "rebase" in path_parts and pool_type != 3:
-            items.remove(item)
-            continue
+        if path_parts[1] == "rebase":
+            if pool_type != 3:
+                items.remove(item)
+                continue
 
     # hacky magic to ensure the correct number of tests is shown in collection report
     config.pluginmanager.get_plugin("terminalreporter")._numcollected = len(items)

@@ -2,7 +2,7 @@
 """
 @title StableSwap
 @author Curve.Fi
-@license Copyright (c) Curve.Fi, 2020 - all rights reserved
+@license Copyright (c) Curve.Fi, 2020-2021 - all rights reserved
 @notice 2 coin pool implementation with no lending
 @dev Optimized to only support ERC20's with 18 decimals that return True/revert
 """
@@ -124,7 +124,7 @@ def initialize(
     @param _symbol Token symbol
     @param _coins List of all ERC20 conract addresses of coins
     @param _rate_multipliers List of number of decimals in coins
-    @param _A Amplification coefficient multiplied by n * (n - 1)
+    @param _A Amplification coefficient multiplied by n ** (n - 1)
     @param _fee Fee to charge for exchanges
     """
     # check if fee was already set to prevent initializing contract twice

@@ -2,7 +2,7 @@
 """
 @title StableSwap
 @author Curve.Fi
-@license Copyright (c) Curve.Fi, 2021 - all rights reserved
+@license Copyright (c) Curve.Fi, 2020-2021 - all rights reserved
 @notice sBTC metapool implementation contract
 @dev ERC20 support for return True/revert, return True/False, return None
      Support for positive-rebasing and fee-on-transfer tokens

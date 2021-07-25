@@ -29,3 +29,8 @@ def erin(accounts):
 @pytest.fixture(scope="session")
 def frank(accounts):
     return accounts[5]
+
+
+@pytest.fixture(scope="session")
+def fee_receiver(frank):
+    return frank

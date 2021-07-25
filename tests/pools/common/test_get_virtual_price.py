@@ -1,15 +1,13 @@
-import itertools
-
 import pytest
 
 pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "approve_bob", "mint_bob")
 
 
-def test_number_go_up(bob, swap, initial_amounts, wrapped_coins):
+def test_number_go_up(bob, swap, initial_amounts, plain_pool_size):
     virtual_price = swap.get_virtual_price()
 
     for i, amount in enumerate(initial_amounts):
-        amounts = [0, 0]
+        amounts = [0] * plain_pool_size
         amounts[i] = amount
         swap.add_liquidity(amounts, 0, {"from": bob})
 
@@ -29,40 +27,43 @@ def test_remove_one_coin(alice, swap, idx):
 
 
 @pytest.mark.parametrize("idx", range(2))
-def test_remove_imbalance(alice, swap, wrapped_coins, idx, initial_amounts):
+def test_remove_imbalance(alice, swap, idx, initial_amounts, plain_pool_size):
     amounts = [i // 2 for i in initial_amounts]
     amounts[idx] = 0
 
     virtual_price = swap.get_virtual_price()
-    swap.remove_liquidity_imbalance(amounts, 2000000 * 10 ** 18, {"from": alice})
+    swap.remove_liquidity_imbalance(
+        amounts, plain_pool_size * 1_000_000 * 10 ** 18, {"from": alice}
+    )
 
     assert swap.get_virtual_price() > virtual_price
 
 
-def test_remove(alice, swap, wrapped_coins, initial_amounts):
+def test_remove(alice, swap, plain_pool_size, initial_amounts):
     withdraw_amount = sum(initial_amounts) // 2
 
     virtual_price = swap.get_virtual_price()
-    swap.remove_liquidity(withdraw_amount, [0, 0], {"from": alice})
+    swap.remove_liquidity(withdraw_amount, [0] * plain_pool_size, {"from": alice})
 
     assert swap.get_virtual_price() >= virtual_price
 
 
 @pytest.mark.parametrize("sending,receiving", [(0, 1), (1, 0)])
-def test_exchange(bob, swap, sending, receiving, wrapped_coins, wrapped_decimals):
+def test_exchange(bob, swap, sending, receiving, decimals):
     virtual_price = swap.get_virtual_price()
 
-    amount = 10 ** wrapped_decimals[sending]
+    amount = 10 ** decimals[sending]
     swap.exchange(sending, receiving, amount, 0, {"from": bob})
 
     assert swap.get_virtual_price() > virtual_price
 
 
-@pytest.mark.parametrize("sending,receiving", itertools.permutations(range(4), 2))
-def test_exchange_underlying(bob, swap, sending, receiving, underlying_coins, underlying_decimals):
-    virtual_price = swap.get_virtual_price()
+# TODO: fix for metapools
+# @pytest.mark.parametrize("sending,receiving", itertools.permutations(range(4), 2))
+# def test_exchange_underlying(bob, swap, sending, receiving, underlying_coins, underlying_decimals):  # noqa
+#     virtual_price = swap.get_virtual_price()
+#
+#     amount = 10 ** underlying_decimals[sending]
+#     swap.exchange_underlying(sending, receiving, amount, 0, {"from": bob})
 
-    amount = 10 ** underlying_decimals[sending]
-    swap.exchange_underlying(sending, receiving, amount, 0, {"from": bob})
-
-    assert swap.get_virtual_price() > virtual_price
+#     assert swap.get_virtual_price() > virtual_price

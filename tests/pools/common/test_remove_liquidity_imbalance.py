@@ -22,9 +22,8 @@ def test_remove_one(alice, swap, plain_coins, plain_pool_size, idx, initial_amou
     amounts = [0] * plain_pool_size
     amounts[idx] = initial_amounts[idx] // 2
 
-    swap.remove_liquidity_imbalance(
-        amounts, plain_pool_size * 1_000_000 * 10 ** 18, {"from": alice}
-    )
+    lp_balance = plain_pool_size * 1_000_000 * 10 ** 18
+    swap.remove_liquidity_imbalance(amounts, lp_balance, {"from": alice})
 
     for i, coin in enumerate(plain_coins):
         assert coin.balanceOf(alice) == amounts[i]
@@ -32,7 +31,7 @@ def test_remove_one(alice, swap, plain_coins, plain_pool_size, idx, initial_amou
 
     actual_balance = swap.balanceOf(alice)
     actual_total_supply = swap.totalSupply()
-    ideal_balance = plain_pool_size * 1_000_000 * 10 ** 18
+    ideal_balance = (2 * plain_pool_size - 1) * lp_balance / (2 * plain_pool_size)
 
     assert actual_balance == actual_total_supply
     assert ideal_balance * 0.9994 < actual_balance < ideal_balance

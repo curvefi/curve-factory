@@ -4,12 +4,14 @@ import pytest
 pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "mint_bob", "approve_bob")
 
 
+@pytest.mark.skip
 @pytest.fixture(scope="module")
 def swap2(MetaUSD, alice, base_pool, factory, coin):
     tx = factory.deploy_metapool(base_pool, "Test Swap", "TST", coin, 200, 4000000, {"from": alice})
     yield MetaUSD.at(tx.return_value)
 
 
+@pytest.mark.skip
 @pytest.fixture(scope="module")
 def migrator(PoolMigrator, alice, swap):
     contract = PoolMigrator.deploy({"from": alice})
@@ -17,6 +19,7 @@ def migrator(PoolMigrator, alice, swap):
     yield contract
 
 
+@pytest.mark.skip
 def test_migrate(alice, is_rebase, migrator, swap, swap2):
     if is_rebase:
         pytest.skip()
@@ -30,6 +33,7 @@ def test_migrate(alice, is_rebase, migrator, swap, swap2):
     assert swap2.balanceOf(migrator) == 0
 
 
+@pytest.mark.skip
 def test_migrate_partial(alice, is_rebase, migrator, swap, swap2, coin):
     if is_rebase:
         pytest.skip()
@@ -43,6 +47,7 @@ def test_migrate_partial(alice, is_rebase, migrator, swap, swap2, coin):
     assert swap2.balanceOf(migrator) == 0
 
 
+@pytest.mark.skip
 def test_migrate_multiple(alice, migrator, is_rebase, swap, swap2, coin):
     if is_rebase:
         pytest.skip()
@@ -57,6 +62,7 @@ def test_migrate_multiple(alice, migrator, is_rebase, swap, swap2, coin):
     assert swap2.balanceOf(migrator) == 0
 
 
+@pytest.mark.skip
 def test_migrate_bidirectional(alice, migrator, is_rebase, swap, swap2):
     if is_rebase:
         pytest.skip()
@@ -72,12 +78,14 @@ def test_migrate_bidirectional(alice, migrator, is_rebase, swap, swap2):
     assert swap2.balanceOf(migrator) == 0
 
 
+@pytest.mark.skip
 def test_migration_wrong_pool(alice, migrator, swap, swap_btc):
     balance = swap.balanceOf(alice)
     with brownie.reverts():
         migrator.migrate_to_new_pool(swap, swap_btc, balance, {"from": alice})
 
 
+@pytest.mark.skip
 def test_insufficient_balance(alice, migrator, swap, swap2):
     balance = swap.balanceOf(alice)
     with brownie.reverts():

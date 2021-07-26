@@ -90,6 +90,6 @@ def test_ramp_A_insufficient_time(chain, alice, swap):
         swap.ramp_A(0, chain.time() + MIN_RAMP_TIME - 1, {"from": alice})
 
 
-def test_stop_ramp_A_only_owner(chain, bob, swap):
+def test_stop_ramp_A_only_owner(bob, swap):
     with brownie.reverts():
         swap.stop_ramp_A({"from": bob})

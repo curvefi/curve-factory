@@ -30,6 +30,8 @@ jobs:
         path: |
           ~/.solcx
           ~/.vvm
+          ~/.brownie
+          /home/runner/work/curve-factory/build
         key: compiler-cache
 
     - name: Setup Node.js

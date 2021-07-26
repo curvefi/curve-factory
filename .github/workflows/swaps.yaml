@@ -15,8 +15,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        decimals: [18, 6]
-        return_value: ["True", "None"]
+        decimals: [18]
+        return_type: ["False"]
+        plain_pool_type: ["basic", "eth", "optimized", "rebase"]
+        pool_size: [2, 3, 4]
+
 
     steps:
     - uses: actions/checkout@v2
@@ -27,6 +30,8 @@ jobs:
         path: |
           ~/.solcx
           ~/.vvm
+          ~/.brownie
+          /home/runner/work/curve-factory/build
         key: compiler-cache
 
     - name: Setup Node.js
@@ -44,4 +49,4 @@ jobs:
       run: pip install -r requirements.txt
 
     - name: Run Tests
-      run: brownie test tests/pools tests/rebase_token_pools tests/plain_pools --decimals ${{ matrix.decimals }} --return_value ${{ matrix.return_value }}
+      run: brownie test tests/pools --decimals ${{ matrix.decimals }} --return-type ${{ matrix.return_type }} --plain-pool-type ${{ matrix.plain_pool_type }} --plain-pool-size ${{ matrix.pool_size }}

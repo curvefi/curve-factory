@@ -1,4 +1,6 @@
 autofetch_sources: true
 
 networks:
-  default: mainnet-fork
+  development:
+    cmd_settings:
+      default_balance: 1_000_000_000

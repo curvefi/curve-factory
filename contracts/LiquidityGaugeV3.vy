@@ -372,33 +372,18 @@ def claimed_reward(_addr: address, _token: address) -> uint256:
 
 @view
 @external
-def claimable_reward(_addr: address, _token: address) -> uint256:
+def claimable_reward(_user: address, _reward_token: address) -> uint256:
     """
     @notice Get the number of claimable reward tokens for a user
-    @dev This call does not consider pending claimable amount in `reward_contract`.
-         Off-chain callers should instead use `claimable_rewards_write` as a
-         view method.
-    @param _addr Account to get reward amount for
-    @param _token Token to get reward amount for
+    @param _user Account to get reward amount for
+    @param _reward_token Token to get reward amount for
     @return uint256 Claimable reward token amount
     """
-    return shift(self.claim_data[_addr][_token], -128)
+    integral: uint256 = self._get_reward_integral(_reward_token)
+    integral_for: uint256 = self.reward_integral_for[_reward_token][_user]
+    new_claimable: uint256 = self.balanceOf[_user] * (integral - integral_for) / 10**18
 
-
-@external
-@nonreentrant('lock')
-def claimable_reward_write(_addr: address, _token: address) -> uint256:
-    """
-    @notice Get the number of claimable reward tokens for a user
-    @dev This function should be manually changed to "view" in the ABI
-         Calling it via a transaction will claim available reward tokens
-    @param _addr Account to get reward amount for
-    @param _token Token to get reward amount for
-    @return uint256 Claimable reward token amount
-    """
-    if self.reward_count != 0:
-        self._checkpoint_rewards(_addr, self.totalSupply, False, ZERO_ADDRESS)
-    return shift(self.claim_data[_addr][_token], -128)
+    return shift(self.claim_data[_user][_reward_token], -128) + new_claimable
 
 
 @external

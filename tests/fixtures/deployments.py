@@ -90,3 +90,8 @@ def swap(
         {"from": alice},
     )
     return getattr(project, plain_implementations[plain_pool_type]._name).at(tx.return_value)
+
+
+@pytest.fixture(scope="module")
+def owner_proxy(alice, OwnerProxy):
+    return OwnerProxy.deploy(alice, alice, alice, {"from": alice})

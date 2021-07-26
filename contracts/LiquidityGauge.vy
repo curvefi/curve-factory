@@ -1,8 +1,9 @@
 # @version 0.2.15
 """
-@title Liquidity Gauge v3
+@title Liquidity Gauge
 @author Curve Finance
 @license MIT
+@notice Implementation contract for use with Curve Factory
 """
 
 from vyper.interfaces import ERC20

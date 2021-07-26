@@ -7,7 +7,6 @@ pytestmark = pytest.mark.usefixtures("mint_alice", "approve_alice")
 
 @pytest.mark.parametrize("min_amount", [0, 10 ** 18])
 def test_initial(alice, swap, coins, min_amount, decimals, initial_amounts, eth_amount):
-    assert coins[0] == ETH_ADDRESS
     amounts = [10 ** i for i in decimals]
 
     swap.add_liquidity(

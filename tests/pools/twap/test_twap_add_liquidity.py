@@ -23,13 +23,15 @@ def test_twap_cumulative_price_is_initially_0(swap, coins):
         assert twap_cumulative_price[i] == 0
 
 
-def test_twap_cumulative_price_remains_0_after_providing_initial_liquidity(alice, swap, decimals):
+def test_twap_cumulative_price_remains_0_after_providing_initial_liquidity(
+    alice, swap, decimals, eth_amount
+):
 
     # amount of 1 coin in the appropriate magnitude
     amounts = [10 ** i for i in decimals]
 
     # add liquidity of 1 coin
-    swap.add_liquidity(amounts, 0, {"from": alice})
+    swap.add_liquidity(amounts, 0, {"from": alice, "value": eth_amount(amounts[0])})
 
     # get the cumulative price since last
     # should be something like
@@ -45,7 +47,7 @@ def test_twap_cumulative_price_remains_0_after_providing_initial_liquidity(alice
 
 
 def test_twap_cumulative_price_increases_with_subsequent_liquidity_provisions(
-    alice, swap, chain, coins, decimals
+    alice, swap, chain, coins, decimals, eth_amount
 ):
     # initial liquidity amount to deposit
     deposit_amounts = [10 ** i for i in decimals]
@@ -53,7 +55,7 @@ def test_twap_cumulative_price_increases_with_subsequent_liquidity_provisions(
     # deposit our initial liquidity
     # this won't affect the cumulative price of coins
     # but will set the block_timestamp_last since _update is called
-    swap.add_liquidity(deposit_amounts, 0, {"from": alice})
+    swap.add_liquidity(deposit_amounts, 0, {"from": alice, "value": eth_amount(deposit_amounts[0])})
 
     # the block timestamp when we added initial liquidity
     start = swap.block_timestamp_last()
@@ -62,7 +64,7 @@ def test_twap_cumulative_price_increases_with_subsequent_liquidity_provisions(
     chain.sleep(1)
 
     # add liqudity again this will affect the cumulative price
-    swap.add_liquidity(deposit_amounts, 0, {"from": alice})
+    swap.add_liquidity(deposit_amounts, 0, {"from": alice, "value": eth_amount(deposit_amounts[0])})
 
     # get the updated values for cumulative price and block timestamp
     # since we added liquidity again we _update was called and
@@ -82,7 +84,7 @@ def test_twap_cumulative_price_increases_with_subsequent_liquidity_provisions(
     chain.sleep(1_000_000)
 
     # add some more liquidity
-    swap.add_liquidity(deposit_amounts, 0, {"from": alice})
+    swap.add_liquidity(deposit_amounts, 0, {"from": alice, "value": eth_amount(deposit_amounts[0])})
 
     # get our updated cumulative price
     # = prev_cumu_price + (amount prior to last _update call * time elapsed)

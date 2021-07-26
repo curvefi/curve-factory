@@ -1,4 +1,5 @@
 import pytest
+from brownie import ETH_ADDRESS
 
 pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "approve_bob")
 
@@ -7,7 +8,8 @@ pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "approve_bob")
 def test_exchange(bob, swap, coins, sending, receiving, decimals, eth_amount):
 
     amount = 10 ** decimals[sending]
-    coins[sending]._mint_for_testing(bob, amount, {"from": bob})
+    if coins[sending] != ETH_ADDRESS:
+        coins[sending]._mint_for_testing(bob, amount, {"from": bob})
 
     twap_control = swap.get_price_cumulative_last()
     start = swap.block_timestamp_last()

@@ -32,9 +32,10 @@ def setup(alice, factory, bob, swap, coins, charlie, add_initial_liquidity, eth_
 
 def test_withdraw_admin_fees(bob, coins, swap, charlie):
     fees = []
+    pre_balance = 1_000_000_000 * 10 ** 18
     for i, coin in enumerate(coins[:2]):
         if coin == ETH_ADDRESS:
-            assert charlie.balance() == 0
+            assert charlie.balance() - pre_balance == 0
         else:
             assert coin.balanceOf(charlie) == 0
         fees.append(swap.admin_balances(i))
@@ -42,7 +43,7 @@ def test_withdraw_admin_fees(bob, coins, swap, charlie):
     swap.withdraw_admin_fees({"from": bob})
     for i, coin in enumerate(coins[:2]):
         if coin == ETH_ADDRESS:
-            assert charlie.balance() == fees[i]
+            assert charlie.balance() - pre_balance == fees[i]
             continue
 
         assert coin.balanceOf(charlie) == fees[i]

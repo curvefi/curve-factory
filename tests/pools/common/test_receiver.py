@@ -37,11 +37,12 @@ def test_exchange(alice, charlie, swap, coins):
 def test_remove_liquidity(alice, swap, charlie, coins, initial_amounts, plain_pool_size):
     initial_amount = swap.balanceOf(alice)
     withdraw_amount = initial_amount // 4
+    charlie_pre_bal = charlie.balance()
     swap.remove_liquidity(withdraw_amount, [0] * plain_pool_size, charlie, {"from": alice})
 
     for coin, amount in zip(coins, initial_amounts):
         if coin == ETH_ADDRESS:
-            assert swap.balance() + charlie.balance() == amount
+            assert swap.balance() + charlie.balance() - charlie_pre_bal == amount
             continue
 
         assert coin.balanceOf(swap) + coin.balanceOf(charlie) == amount
@@ -53,6 +54,7 @@ def test_remove_liquidity(alice, swap, charlie, coins, initial_amounts, plain_po
 def test_remove_imbalanced(alice, charlie, swap, coins, initial_amounts):
     initial_balance = swap.balanceOf(alice)
     amounts = [i // 4 for i in initial_amounts]
+    charlie_pre_bal = charlie.balance()
     swap.remove_liquidity_imbalance(amounts, initial_balance, charlie, {"from": alice})
 
     for i, coin in enumerate(coins):
@@ -61,7 +63,7 @@ def test_remove_imbalanced(alice, charlie, swap, coins, initial_amounts):
             assert swap.balance() == initial_amounts[i] - amounts[i]
             continue
 
-        assert coin.balanceOf(charlie) == amounts[i]
+        assert coin.balanceOf(charlie) - charlie_pre_bal == amounts[i]
         assert coin.balanceOf(swap) == initial_amounts[i] - amounts[i]
 
     assert swap.balanceOf(alice) / initial_balance == 0.75

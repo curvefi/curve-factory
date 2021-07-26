@@ -43,3 +43,8 @@ def coins(plain_coins, rebase_coins, is_eth_pool, is_rebase_pool):
 @pytest.fixture(scope="session")
 def underlying_coins(plain_coins, is_rebase_pool):
     return plain_coins if is_rebase_pool else []
+
+
+@pytest.fixture(scope="session")
+def underlying_decimals(decimals):
+    return decimals

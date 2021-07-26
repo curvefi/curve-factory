@@ -348,19 +348,6 @@ def get_underlying_balances(_pool: address) -> uint256[MAX_COINS]:
     return underlying_balances
 
 
-@pure
-@external
-def get_twap_balances(
-    _first_balances: uint256[MAX_COINS],
-    _last_balances: uint256[MAX_COINS],
-    _time_elapsed: uint256
-) -> uint256[MAX_COINS]:
-    balances: uint256[MAX_COINS] = empty(uint256[MAX_COINS])
-    for i in range(MAX_COINS):
-        balances[i] = (_last_balances[i] - _first_balances[i]) / _time_elapsed
-    return balances
-
-
 @view
 @external
 def get_A(_pool: address) -> uint256:
@@ -704,8 +691,10 @@ def deploy_gauge(_pool: address) -> address:
     """
     assert self.pool_data[_pool].coins[0] != ZERO_ADDRESS, "Unknown pool"
     assert self.pool_data[_pool].liquidity_gauge == ZERO_ADDRESS, "Gauge already deployed"
+    implementation: address = self.gauge_implementation
+    assert implementation != ZERO_ADDRESS, "Gauge implementation not set"
 
-    gauge: address = create_forwarder_to(self.gauge_implementation)
+    gauge: address = create_forwarder_to(implementation)
     LiquidityGauge(gauge).initialize(_pool)
     self.pool_data[_pool].liquidity_gauge = gauge
 
@@ -933,6 +922,7 @@ def add_existing_metapools(_pools: address[10]) -> bool:
             # sbtc
             base_pool = 0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714
             implementation = 0x2f956eEe002B0dEbD468CF2E0490d1aEc65e027F
+            self.pool_data[pool].asset_type = 2
         else:
             raise
 

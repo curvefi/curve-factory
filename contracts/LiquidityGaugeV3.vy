@@ -641,10 +641,24 @@ def set_reward_distributor(_reward_token: address, _distributor: address):
 
 
 @external
+@nonreentrant("lock")
 def deposit_reward_token(_reward_token: address, _amount: uint256):
     assert msg.sender == self.reward_data[_reward_token].distributor
 
-    ERC20(_reward_token).transferFrom(msg.sender, self, _amount)
+    self._checkpoint_rewards(ZERO_ADDRESS, self.totalSupply, False, ZERO_ADDRESS)
+
+    response: Bytes[32] = raw_call(
+        _reward_token,
+        concat(
+            method_id("transferFrom(address,uint256)"),
+            convert(msg.sender, bytes32),
+            convert(self, bytes32),
+            convert(_amount, bytes32),
+        ),
+        max_outsize=32,
+    )
+    if len(response) != 0:
+        assert convert(response, bool)
 
     period_finish: uint256 = self.reward_data[_reward_token].period_finish
     if block.timestamp >= period_finish:

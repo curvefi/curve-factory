@@ -59,11 +59,11 @@ def test_remove_imbalanced(alice, charlie, swap, coins, initial_amounts):
 
     for i, coin in enumerate(coins):
         if coin == ETH_ADDRESS:
-            assert charlie.balance() == amounts[i]
+            assert charlie.balance() - charlie_pre_bal == amounts[i]
             assert swap.balance() == initial_amounts[i] - amounts[i]
             continue
 
-        assert coin.balanceOf(charlie) - charlie_pre_bal == amounts[i]
+        assert coin.balanceOf(charlie) == amounts[i]
         assert coin.balanceOf(swap) == initial_amounts[i] - amounts[i]
 
     assert swap.balanceOf(alice) / initial_balance == 0.75

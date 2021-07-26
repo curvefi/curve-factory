@@ -23,14 +23,14 @@ def test_remove_liquidity(alice, swap, min_amount, initial_amounts):
         assert twap[i] == twap_control[i] + (balance * elapsed)
 
 
-def test_remove_partial(alice, swap):
+def test_remove_partial(alice, swap, plain_pool_size):
     initial_amount = swap.balanceOf(alice)
     withdraw_amount = initial_amount // 2
     twap_control = swap.get_price_cumulative_last()
     start = swap.block_timestamp_last()
     balances_before = swap.get_balances()
 
-    swap.remove_liquidity(withdraw_amount, [0, 0], {"from": alice})
+    swap.remove_liquidity(withdraw_amount, [0] * plain_pool_size, {"from": alice})
 
     twap = swap.get_price_cumulative_last()
     after = swap.block_timestamp_last()

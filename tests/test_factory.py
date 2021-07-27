@@ -21,7 +21,7 @@ def setup(
 ):
     amount = 10 ** decimals[0]
     swap.exchange(0, 1, amount, 0, {"from": bob, "value": eth_amount(amount)})
-    swap.exchange(1, 0, 10 ** 18, 0, {"from": bob})
+    swap.exchange(1, 0, 10 ** decimals[1], 0, {"from": bob})
 
     # add initial liquidity to plain pool
     amounts = []

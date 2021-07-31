@@ -1,11 +1,33 @@
 import pytest
 from brownie import ZERO_ADDRESS, compile_source
 
+
+def pack_values(values) -> bytes:
+    """Stolen from curvefi/curve-pool-registry"""
+    assert max(values) < 256
+    return sum(i << c * 8 for c, i in enumerate(values))
+
+
+# mock infra
+
+
+@pytest.fixture(scope="session", autouse=True)
+def address_provider(alice, AddressProvider):
+    return AddressProvider.deploy(alice, {"from": alice})
+
+
+@pytest.fixture(scope="session", autouse=True)
+def registry(alice, address_provider, Registry):
+    registry = Registry.deploy(address_provider, ZERO_ADDRESS, {"from": alice})
+    address_provider.set_address(0, registry, {"from": alice})
+    return registry
+
+
 # mock base pool
 
 
 @pytest.fixture(scope="session")
-def base_pool(alice, CurvePool, base_coins, lp_token):
+def base_pool(alice, CurvePool, base_coins, lp_token, registry):
     pool = CurvePool.deploy(alice, base_coins, lp_token, 200, 3000000, 5000000000, {"from": alice})
     lp_token.set_minter(pool, {"from": alice})
 
@@ -14,6 +36,17 @@ def base_pool(alice, CurvePool, base_coins, lp_token):
         coin._mint_for_testing(alice, amount, {"from": alice})
         coin.approve(pool, 2 ** 256 - 1, {"from": alice})
     pool.add_liquidity([amount] * 3, 0, {"from": alice})
+
+    registry.add_pool_without_underlying(
+        pool,
+        3,
+        lp_token,
+        "0x0",
+        pack_values([18, 18, 18]),
+        pack_values([0, 0, 0]),
+        False,
+        "Test Base Pool",
+    )
 
     return pool
 

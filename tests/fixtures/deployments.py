@@ -1,6 +1,23 @@
 import pytest
 from brownie import ZERO_ADDRESS, compile_source
 
+# mock base pool
+
+
+@pytest.fixture(scope="session")
+def base_pool(alice, CurvePool, base_coins, lp_token):
+    pool = CurvePool.deploy(alice, base_coins, lp_token, 200, 3000000, 5000000000, {"from": alice})
+    lp_token.set_minter(pool, {"from": alice})
+
+    amount = (10 ** 9) * 10 ** 18  # 1_000_000_000
+    for coin in base_coins:
+        coin._mint_for_testing(alice, amount, {"from": alice})
+        coin.approve(pool, 2 ** 256 - 1, {"from": alice})
+    pool.add_liquidity([amount] * 3, 0, {"from": alice})
+
+    return pool
+
+
 # implementation contracts - paramaterized by pool size
 
 
@@ -32,24 +49,60 @@ def plain_implementations(plain_basic, plain_eth, plain_optimized, plain_rebase)
 # meta-pools require mainnet-fork network for testing
 
 
-@pytest.fixture(scope="session")
-def meta_btc(alice, MetaBTC):
-    return MetaBTC.deploy({"from": alice})
+def _replace_btc(source, base_pool, base_coins, lp_token):
+    real_addrs = [
+        "0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714",  # pool addr
+        "0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3",  # lp token
+        "0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D",  # renBTC
+        "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",  # wBTC
+        "0xfE18be6b3Bd88A2D2A7f928d00292E7a9963CfC6",  # sBTC
+    ]
+    replacements = [base_pool, lp_token] + base_coins
+    for old, new in zip(real_addrs, replacements):
+        source = source.replace(old, new.address)
+    return source
+
+
+def _replace_usd(source, base_pool, base_coins, lp_token):
+    real_addrs = [
+        "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7",  # pool addr
+        "0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490",  # lp token
+        "0x6B175474E89094C44Da98b954EedeAC495271d0F",  # DAI
+        "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC
+        "0xdAC17F958D2ee523a2206206994597C13D831ec7",  # USDT
+    ]
+    replacements = [base_pool, lp_token] + base_coins
+    for old, new in zip(real_addrs, replacements):
+        source = source.replace(old, new.address)
+    return source
 
 
 @pytest.fixture(scope="session")
-def meta_usd(alice, MetaBTCBalances):
-    return MetaBTCBalances.deploy({"from": alice})
+def meta_btc(alice, MetaBTC, base_pool, base_coins, lp_token):
+    source = MetaBTC._build["source"]
+    new_source = _replace_btc(source, base_pool, base_coins, lp_token)
+    return compile_source(new_source).Vyper.deploy({"from": alice})
 
 
 @pytest.fixture(scope="session")
-def meta_btc_rebase(alice, MetaUSD):
-    return MetaUSD.deploy({"from": alice})
+def meta_usd(alice, MetaUSD, base_pool, base_coins, lp_token):
+    source = MetaUSD._build["source"]
+    new_source = _replace_usd(source, base_pool, base_coins, lp_token)
+    return compile_source(new_source).Vyper.deploy({"from": alice})
 
 
 @pytest.fixture(scope="session")
-def meta_usd_rebase(alice, MetaUSDBalances):
-    return MetaUSDBalances.deploy({"from": alice})
+def meta_btc_rebase(alice, MetaBTCBalances, base_pool, base_coins, lp_token):
+    source = MetaBTCBalances._build["source"]
+    new_source = _replace_btc(source, base_pool, base_coins, lp_token)
+    return compile_source(new_source).Vyper.deploy({"from": alice})
+
+
+@pytest.fixture(scope="session")
+def meta_usd_rebase(alice, MetaUSDBalances, base_pool, base_coins, lp_token):
+    source = MetaUSDBalances._build["source"]
+    new_source = _replace_usd(source, base_pool, base_coins, lp_token)
+    return compile_source(new_source).Vyper.deploy({"from": alice})
 
 
 # gauge implementation

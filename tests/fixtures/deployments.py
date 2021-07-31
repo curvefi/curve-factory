@@ -1,6 +1,10 @@
 import pytest
 from brownie import ZERO_ADDRESS, compile_source
 
+# keys are keccak256(source)
+# values are
+meta_contracts = {}
+
 
 def pack_values(values) -> bytes:
     """Stolen from curvefi/curve-pool-registry"""
@@ -111,31 +115,39 @@ def _replace_usd(source, base_pool, base_coins, lp_token):
 
 
 @pytest.fixture(scope="session")
-def meta_btc(alice, MetaBTC, base_pool, base_coins, lp_token):
+def meta_btc(alice, MetaBTC, base_pool, base_coins, lp_token, web3):
     source = MetaBTC._build["source"]
     new_source = _replace_btc(source, base_pool, base_coins, lp_token)
-    return compile_source(new_source).Vyper.deploy({"from": alice})
+    temp_project = compile_source(new_source)
+    meta_contracts[web3.keccak(text=new_source)] = temp_project.Vyper
+    return temp_project.Vyper.deploy({"from": alice})
 
 
 @pytest.fixture(scope="session")
-def meta_usd(alice, MetaUSD, base_pool, base_coins, lp_token):
+def meta_usd(alice, MetaUSD, base_pool, base_coins, lp_token, web3):
     source = MetaUSD._build["source"]
     new_source = _replace_usd(source, base_pool, base_coins, lp_token)
-    return compile_source(new_source).Vyper.deploy({"from": alice})
+    temp_project = compile_source(new_source)
+    meta_contracts[web3.keccak(text=new_source)] = temp_project.Vyper
+    return temp_project.Vyper.deploy({"from": alice})
 
 
 @pytest.fixture(scope="session")
-def meta_btc_rebase(alice, MetaBTCBalances, base_pool, base_coins, lp_token):
+def meta_btc_rebase(alice, MetaBTCBalances, base_pool, base_coins, lp_token, web3):
     source = MetaBTCBalances._build["source"]
     new_source = _replace_btc(source, base_pool, base_coins, lp_token)
-    return compile_source(new_source).Vyper.deploy({"from": alice})
+    temp_project = compile_source(new_source)
+    meta_contracts[web3.keccak(text=new_source)] = temp_project.Vyper
+    return temp_project.Vyper.deploy({"from": alice})
 
 
 @pytest.fixture(scope="session")
-def meta_usd_rebase(alice, MetaUSDBalances, base_pool, base_coins, lp_token):
+def meta_usd_rebase(alice, MetaUSDBalances, base_pool, base_coins, lp_token, web3):
     source = MetaUSDBalances._build["source"]
     new_source = _replace_usd(source, base_pool, base_coins, lp_token)
-    return compile_source(new_source).Vyper.deploy({"from": alice})
+    temp_project = compile_source(new_source)
+    meta_contracts[web3.keccak(text=new_source)] = temp_project.Vyper
+    return temp_project.Vyper.deploy({"from": alice})
 
 
 # gauge implementation
@@ -225,6 +237,7 @@ def swap(
     plain_pool_size,
     pool_type,
     is_meta_pool,
+    web3,
 ):
     if not is_meta_pool:
         # modifies the factory so should be module scoped
@@ -243,7 +256,8 @@ def swap(
         tx = factory.deploy_metapool(
             base_pool, "Test Meta Pool", "TMP", coins[1], 200, 3000000, 0, {"from": alice}
         )
-        return getattr(project, meta_implementations[0]._name).at(tx.return_value)
+        key = web3.keccak(text=meta_implementations[0]._build["source"])
+        return meta_contracts[key].at(tx.return_value)
 
 
 @pytest.fixture(scope="module")

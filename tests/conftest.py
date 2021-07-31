@@ -149,10 +149,19 @@ def return_type(request):
 
 
 @pytest.fixture(scope="session")
-def decimals(plain_pool_size, request, is_eth_pool):
+def decimals(plain_pool_size, request, is_eth_pool, is_meta_pool):
     if is_eth_pool:
         return [18] + [request.param] * (plain_pool_size - 1)
+    elif is_meta_pool:
+        return [18] + [request.param]
     return [request.param] * plain_pool_size
+
+
+@pytest.fixture(scope="session")
+def underlying_decimals(decimals, is_meta_pool):
+    if is_meta_pool:
+        return [18] * 3 + decimals[-1:]
+    return decimals
 
 
 @pytest.fixture(scope="session")

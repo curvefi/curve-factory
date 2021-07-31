@@ -12,7 +12,7 @@ pytest_plugins = [
     "fixtures.functions",
 ]
 
-pool_types = {"basic": 0, "eth": 1, "optimized": 2, "rebase": 3}
+pool_types = {"basic": 0, "eth": 1, "optimized": 2, "rebase": 3, "meta-usd": 4, "meta-btc": 5}
 return_types = {"revert": 0, "False": 1, "None": 2}
 
 
@@ -24,10 +24,10 @@ def pytest_addoption(parser):
         help="comma-separated list of plain pool sizes to test against",
     )
     parser.addoption(
-        "--plain-pool-type",
+        "--pool-type",
         action="store",
-        default="basic,eth,optimized,rebase",
-        help="comma-separated list of plain pool sizes to test against",
+        default="basic,eth,optimized,rebase,meta-usd,meta-btc",
+        help="comma-separated list of pool types to test against",
     )
     parser.addoption(
         "--return-type",
@@ -53,11 +53,11 @@ def pytest_generate_tests(metafunc):
             indirect=True,
             ids=[f"(PoolSize={i})" for i in cli_options],
         )
-    if "plain_pool_type" in metafunc.fixturenames:
-        cli_options = metafunc.config.getoption("plain_pool_type").split(",")
+    if "pool_type" in metafunc.fixturenames:
+        cli_options = metafunc.config.getoption("pool_type").split(",")
         pool_type_ids = [pool_types[v] for v in cli_options]
         metafunc.parametrize(
-            "plain_pool_type",
+            "pool_type",
             pool_type_ids,
             indirect=True,
             ids=[f"(PoolType={i})" for i in cli_options],
@@ -88,7 +88,7 @@ def pytest_collection_modifyitems(config, items):
         path_parts = Path(item.fspath).relative_to(project._path).parts[1:-1]
         try:
             params = item.callspec.params
-            pool_type = params["plain_pool_type"]
+            pool_type = params["pool_type"]
             return_type = params["return_type"]
             decimals = params["decimals"]
         except Exception:
@@ -124,18 +124,23 @@ def plain_pool_size(request):
 
 
 @pytest.fixture(scope="session")
-def plain_pool_type(request):
+def pool_type(request):
     return request.param
 
 
 @pytest.fixture(scope="session")
-def is_eth_pool(plain_pool_type):
-    return plain_pool_type == 1
+def is_eth_pool(pool_type):
+    return pool_type == 1
 
 
 @pytest.fixture(scope="session")
-def is_rebase_pool(plain_pool_type):
-    return plain_pool_type == 3
+def is_rebase_pool(pool_type):
+    return pool_type == 3
+
+
+@pytest.fixture(scope="session")
+def is_meta_pool(pool_type):
+    return pool_type in [4, 5]
 
 
 @pytest.fixture(scope="session")

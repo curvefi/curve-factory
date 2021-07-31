@@ -121,7 +121,7 @@ def swap(
     coins,
     project,
     plain_pool_size,
-    plain_pool_type,
+    pool_type,
 ):
     # modifies the factory so should be module scoped
     tx = factory.deploy_plain_pool(
@@ -131,10 +131,10 @@ def swap(
         200,
         4000000,
         0,
-        plain_pool_type,
+        pool_type,
         {"from": alice},
     )
-    return getattr(project, plain_implementations[plain_pool_type]._name).at(tx.return_value)
+    return getattr(project, plain_implementations[pool_type]._name).at(tx.return_value)
 
 
 @pytest.fixture(scope="module")

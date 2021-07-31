@@ -197,8 +197,12 @@ def meta_implementations(pool_type, meta_usd, meta_usd_rebase, meta_btc, meta_bt
 
 
 @pytest.fixture(scope="session")
-def factory(alice, frank, Factory):
-    return Factory.deploy(frank, {"from": alice})
+def factory(alice, frank, Factory, address_provider):
+    source = Factory._build["source"]
+    new_source = source.replace(
+        "0x0000000022D53366457F9d5E68Ec105046FC4383", address_provider.address
+    )
+    return compile_source(new_source).Vyper.deploy(frank, {"from": alice})
 
 
 # Mock contracts

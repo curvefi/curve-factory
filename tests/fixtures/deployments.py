@@ -150,6 +150,16 @@ def gauge_implementation(alice, LiquidityGauge, minter, crv, voting_escrow, gaug
     return NewLiquidityGauge.deploy({"from": alice})
 
 
+@pytest.fixture(scope="session")
+def meta_implementations(pool_type, meta_usd, meta_usd_rebase, meta_btc, meta_btc_rebase):
+    if pool_type == 4:
+        return [meta_usd, meta_usd_rebase]
+    elif pool_type == 5:
+        return [meta_btc, meta_btc_rebase]
+    else:
+        return []
+
+
 # Factories
 
 
@@ -169,25 +179,34 @@ def lending_pool(alice, AaveLendingPoolMock):
 @pytest.fixture(scope="module")
 def swap(
     alice,
+    base_pool,
     factory,
     plain_implementations,
+    meta_implementations,
     coins,
     project,
     plain_pool_size,
     pool_type,
+    is_meta_pool,
 ):
-    # modifies the factory so should be module scoped
-    tx = factory.deploy_plain_pool(
-        "Test Plain Pool",
-        "TPP",
-        coins + [ZERO_ADDRESS] * (4 - plain_pool_size),
-        200,
-        4000000,
-        0,
-        pool_type,
-        {"from": alice},
-    )
-    return getattr(project, plain_implementations[pool_type]._name).at(tx.return_value)
+    if not is_meta_pool:
+        # modifies the factory so should be module scoped
+        tx = factory.deploy_plain_pool(
+            "Test Plain Pool",
+            "TPP",
+            coins + [ZERO_ADDRESS] * (4 - plain_pool_size),
+            200,
+            4000000,
+            0,
+            pool_type,
+            {"from": alice},
+        )
+        return getattr(project, plain_implementations[pool_type]._name).at(tx.return_value)
+    else:
+        tx = factory.deploy_metapool(
+            base_pool, "Test Meta Pool", "TMP", coins[1], 200, 3000000, 0, {"from": alice}
+        )
+        return getattr(project, meta_implementations[0]._name).at(tx.return_value)
 
 
 @pytest.fixture(scope="module")

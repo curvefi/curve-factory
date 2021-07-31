@@ -23,6 +23,20 @@ def set_plain_implementations(alice, factory, plain_implementations, plain_pool_
     )
 
 
+@pytest.fixture(scope="module", autouse=True)
+def set_meta_implementations(
+    alice, factory, base_pool, meta_implementations, pool_type, fee_receiver
+):
+    asset_type = 0 if pool_type == 4 else 2 if pool_type == 5 else 3
+    factory.add_base_pool(
+        base_pool,
+        fee_receiver,
+        asset_type,
+        meta_implementations + [ZERO_ADDRESS] * 8,
+        {"from": alice},
+    )
+
+
 @pytest.fixture(scope="session")
 def set_gauge_implementation(alice, factory, gauge_implementation):
     factory.set_gauge_implementation(gauge_implementation, {"from": alice})

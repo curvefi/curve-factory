@@ -27,6 +27,7 @@ delegated_to: public(HashMap[address, HashMap[address, uint256]])
 operator: HashMap[address, address]
 
 VOTING_ESCROW: constant(address) = 0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2
+MIN_VECRV: constant(uint256) = 2500 * 10**18
 
 
 @external
@@ -92,6 +93,9 @@ def delegate_boost(
     assert _expire_time < 2**40, "Expiry time too high"
     assert _expire_time > block.timestamp, "Already expired"
     assert _cancel_time <= _expire_time, "Cancel time after expiry time"
+
+    # check for minimum veCRV balance, used to prevent 0 veCRV delegation spam
+    assert ERC20(VOTING_ESCROW).balanceOf(_delegator) >= MIN_VECRV, "Insufficient veCRV to delegate"
 
     # check for an existing, expired delegation
     data: uint256 = self.delegated_to[_delegator][_gauge]

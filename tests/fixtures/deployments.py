@@ -1,5 +1,5 @@
 import pytest
-from brownie import ZERO_ADDRESS, compile_source
+from brownie import ZERO_ADDRESS, Contract, compile_source
 
 # keys are keccak256(source)
 # values are
@@ -123,12 +123,23 @@ def _replace_usd(source, base_pool, base_coins, lp_token):
 
 
 @pytest.fixture(scope="session")
-def meta_btc(alice, MetaBTC, base_pool, base_coins, lp_token, web3):
+def meta_btc(alice, MetaBTC, base_pool, base_coins, lp_token, pytestconfig):
+    meta_btc_abi = pytestconfig.cache.get("meta_btc_abi", False)
+    meta_btc_bytecode = pytestconfig.cache.get("meta_btc_bytecode", False)
+    if meta_btc_abi and meta_btc_bytecode:
+        tx = alice.transfer(data=meta_btc_bytecode)
+        instance = Contract.from_abi("Meta BTC", tx.contract_address, meta_btc_abi)
+        meta_contracts[tx.contract_address] = meta_btc_abi
+        return instance
+
     source = MetaBTC._build["source"]
     new_source = _replace_btc(source, base_pool, base_coins, lp_token)
-    temp_project = compile_source(new_source)
-    meta_contracts[web3.keccak(text=new_source)] = temp_project.Vyper
-    return temp_project.Vyper.deploy({"from": alice})
+    NewMetaBTC = compile_source(new_source).Vyper
+    instance = NewMetaBTC.deploy({"from": alice})
+    meta_contracts[instance.address] = NewMetaBTC.abi
+
+    pytestconfig.set("meta_btc_abi", NewMetaBTC.abi)
+    pytestconfig.set("meta_btc_bytecode", NewMetaBTC.bytecode)
 
 
 @pytest.fixture(scope="session")

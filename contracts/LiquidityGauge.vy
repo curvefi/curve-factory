@@ -39,6 +39,9 @@ interface ERC20Extended:
 interface Factory:
     def admin() -> address: view
 
+interface Delegator:
+    def get_adjusted_vecrv_balance(_user: address, _gauge: address) -> uint256: view
+
 
 event Deposit:
     provider: indexed(address)
@@ -90,7 +93,7 @@ MINTER: constant(address) = 0xd061D61a4d941c39E5453435B6345Dc261C2fcE0
 CRV: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
 VOTING_ESCROW: constant(address) = 0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2
 GAUGE_CONTROLLER: constant(address) = 0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB
-
+BOOST_DELEGATION: constant(address) = 0x0000000000000000000000000000000000000000  # TODO set this
 
 lp_token: public(address)
 future_epoch_time: public(uint256)
@@ -194,7 +197,7 @@ def _update_liquidity_limit(addr: address, l: uint256, L: uint256):
     @param L Total amount of liquidity (LP tokens)
     """
     # To be called after totalSupply is updated
-    voting_balance: uint256 = ERC20(VOTING_ESCROW).balanceOf(addr)
+    voting_balance: uint256 = Delegator(BOOST_DELEGATION).get_adjusted_vecrv_balance(addr, self)
     voting_total: uint256 = ERC20(VOTING_ESCROW).totalSupply()
 
     lim: uint256 = l * TOKENLESS_PRODUCTION / 100

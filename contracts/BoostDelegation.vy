@@ -129,17 +129,22 @@ def delegate_boost(
 def cancel_delegation(_delegator: address, _gauge: address) -> bool:
     """
     @notice Cancel an existing boost delegation
-    @param _delegator Address of the user delegating boost. The caller must be the
-                      delegator or the approved operator of the delegator.
+    @param _delegator Address of the user delegating boost. The caller can be the
+                      delegator, the receiver, the approved operator of the delegator
+                      or receiver. The delegator can cancel after the cancel time
+                      has passed, the receiver can cancel at any time.
     @param _gauge Address of the gauge to cancel delegattion for. Set as ZERO_ADDRESS
                   for global delegation.
     @return bool success
     """
-    assert msg.sender in [_delegator, self.operator[_delegator]], "Only owner or operator"
-
     data: uint256 = self.delegated_to[_delegator][_gauge]
     assert data != 0, "No delegation for this pool"
-    assert shift(data, 40) % 2**40 <= block.timestamp, "Not yet cancellable"
+
+    receiver: address = convert(shift(data, 96), address)
+    if msg.sender not in [receiver, self.operator[receiver]]:
+        assert msg.sender in [receiver, self.operator[receiver]], "Only owner or operator"
+        assert shift(data, 40) % 2**40 <= block.timestamp, "Not yet cancellable"
+
     self._delete_delegation_data(_delegator, _gauge, data)
 
     return True

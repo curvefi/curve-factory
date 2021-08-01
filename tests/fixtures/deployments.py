@@ -1,5 +1,6 @@
 import pytest
 from brownie import ZERO_ADDRESS, Contract, compile_source, convert
+from brownie.network import state
 from hexbytes import HexBytes
 
 # keys are keccak256(source)
@@ -17,7 +18,7 @@ def pack_values(values) -> bytes:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def address_provider(alice, AddressProvider):
+def address_provider(alice, AddressProvider, base_coins):
     return AddressProvider.deploy(alice, {"from": alice})
 
 
@@ -31,7 +32,7 @@ def registry(alice, address_provider, Registry):
 # mock base pool
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session", autouse=True)
 def base_pool(alice, CurvePool, base_coins, lp_token, registry, accounts):
     pool = CurvePool.deploy(alice, base_coins, lp_token, 200, 3000000, 5000000000, {"from": alice})
     lp_token.set_minter(pool, {"from": alice})
@@ -266,12 +267,18 @@ def meta_implementations(pool_type, meta_usd, meta_usd_rebase, meta_btc, meta_bt
 
 
 @pytest.fixture(scope="session")
-def factory(alice, frank, Factory, address_provider):
+def factory(alice, frank, Factory, address_provider, pytestconfig):
+    if factory_bytecode := pytestconfig.cache.get("factory_bytecode", False):
+        tx = alice.transfer(data=factory_bytecode)
+        return Factory.at(tx.contract_address)
+
     source = Factory._build["source"]
     new_source = source.replace(
         "0x0000000022D53366457F9d5E68Ec105046FC4383", address_provider.address
     )
-    return compile_source(new_source).Vyper.deploy(frank, {"from": alice})
+    NewFactory = compile_source(new_source).Vyper
+    pytestconfig.cache.set("factory_bytecode", NewFactory.deploy.encode_input(frank))
+    return NewFactory.deploy(frank, {"from": alice})
 
 
 # Mock contracts
@@ -314,7 +321,10 @@ def swap(
             base_pool, "Test Meta Pool", "TMP", coins[1], 200, 4000000, 0, {"from": alice}
         )
         key = convert.to_address(HexBytes(web3.eth.get_code(tx.return_value))[10:30].hex())
-        return Contract.from_abi("Meta Instance", tx.return_value, meta_contracts[key])
+        instance = Contract.from_abi("Meta Instance", tx.return_value, meta_contracts[key])
+        instance._build["language"] = "Vyper"
+        state._add_contract(instance)
+        return instance
 
 
 @pytest.fixture(scope="module")

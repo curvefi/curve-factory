@@ -15,7 +15,7 @@ def _plain_coins(alice, decimals):
     return [return_true_revert, return_true_false, return_none_revert]
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session", autouse=True)
 def lp_token(alice, CurveTokenV3):
     return CurveTokenV3.deploy("Test LP Token", "Tester", {"from": alice})
 
@@ -35,7 +35,7 @@ def rebase_coins(alice, ATokenMock, decimals, lending_pool, plain_coins):
     ]
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session", autouse=True)
 def base_coins(alice):
     return [ERC20(deployer=alice) for _ in range(3)]
 

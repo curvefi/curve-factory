@@ -88,6 +88,7 @@ def pytest_collection_modifyitems(config, items):
         path_parts = Path(item.fspath).relative_to(project._path).parts[1:-1]
         try:
             params = item.callspec.params
+            pool_size = params["plain_pool_size"]
             pool_type = params["pool_type"]
             return_type = params["return_type"]
             decimals = params["decimals"]
@@ -95,7 +96,7 @@ def pytest_collection_modifyitems(config, items):
             continue
 
         # optimized pool only supports return True/revert
-        if pool_type == 2 and return_type != "revert":
+        if pool_type == 2 and return_type != 0:
             items.remove(item)
             continue
 
@@ -103,6 +104,20 @@ def pytest_collection_modifyitems(config, items):
         if pool_type == 2 and decimals != 18:
             items.remove(item)
             continue
+
+        # meta pools we only test against 1 type no parameterization needed
+        if pool_type in [4, 5]:
+            if decimals != 18:
+                items.remove(item)
+                continue
+
+            if return_type != 0:
+                items.remove(item)
+                continue
+
+            if pool_size > 2:
+                items.remove(item)
+                continue
 
         if len(path_parts) > 1 and path_parts[1] == "rebase":
             if pool_type != 3:

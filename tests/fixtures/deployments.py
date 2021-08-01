@@ -31,7 +31,7 @@ def registry(alice, address_provider, Registry):
 
 
 @pytest.fixture(scope="session")
-def base_pool(alice, CurvePool, base_coins, lp_token, registry):
+def base_pool(alice, CurvePool, base_coins, lp_token, registry, accounts):
     pool = CurvePool.deploy(alice, base_coins, lp_token, 200, 3000000, 5000000000, {"from": alice})
     lp_token.set_minter(pool, {"from": alice})
 
@@ -40,6 +40,7 @@ def base_pool(alice, CurvePool, base_coins, lp_token, registry):
         coin._mint_for_testing(alice, amount, {"from": alice})
         coin.approve(pool, 2 ** 256 - 1, {"from": alice})
     pool.add_liquidity([amount] * 3, 0, {"from": alice})
+    lp_token.transfer(accounts[-1], lp_token.balanceOf(alice), {"from": alice})
 
     registry.add_pool_without_underlying(
         pool,
@@ -48,8 +49,15 @@ def base_pool(alice, CurvePool, base_coins, lp_token, registry):
         "0x0",
         pack_values([18, 18, 18]),
         pack_values([0, 0, 0]),
+        True,
         False,
         "Test Base Pool",
+    )
+
+    setattr(
+        lp_token,
+        "_mint_for_testing",
+        lambda _to, _amount, _tx: lp_token.transfer(_to, _amount, {"from": accounts[-1]}),
     )
 
     return pool
@@ -254,7 +262,7 @@ def swap(
         return getattr(project, plain_implementations[pool_type]._name).at(tx.return_value)
     else:
         tx = factory.deploy_metapool(
-            base_pool, "Test Meta Pool", "TMP", coins[1], 200, 3000000, 0, {"from": alice}
+            base_pool, "Test Meta Pool", "TMP", coins[1], 200, 4000000, 0, {"from": alice}
         )
         key = web3.keccak(text=meta_implementations[0]._build["source"])
         return meta_contracts[key].at(tx.return_value)

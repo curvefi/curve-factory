@@ -89,6 +89,8 @@ def delegate_boost(
     """
     assert msg.sender in [_delegator, self.operator[_delegator]], "Only owner or operator"
 
+    assert _delegator != _receiver, "Cannot delegate to self"
+    assert _pct >= 100, "Percent too low"
     assert _pct <= 10000, "Percent too high"
     assert _expire_time < 2**40, "Expiry time too high"
     assert _expire_time > block.timestamp, "Already expired"

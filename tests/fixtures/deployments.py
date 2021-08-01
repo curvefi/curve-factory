@@ -1,5 +1,6 @@
 import pytest
-from brownie import ZERO_ADDRESS, Contract, compile_source
+from brownie import ZERO_ADDRESS, Contract, compile_source, convert
+from hexbytes import HexBytes
 
 # keys are keccak256(source)
 # values are
@@ -138,35 +139,72 @@ def meta_btc(alice, MetaBTC, base_pool, base_coins, lp_token, pytestconfig):
     instance = NewMetaBTC.deploy({"from": alice})
     meta_contracts[instance.address] = NewMetaBTC.abi
 
-    pytestconfig.set("meta_btc_abi", NewMetaBTC.abi)
-    pytestconfig.set("meta_btc_bytecode", NewMetaBTC.bytecode)
+    pytestconfig.cache.set("meta_btc_abi", NewMetaBTC.abi)
+    pytestconfig.cache.set("meta_btc_bytecode", NewMetaBTC.bytecode)
+    return instance
 
 
 @pytest.fixture(scope="session")
-def meta_usd(alice, MetaUSD, base_pool, base_coins, lp_token, web3):
+def meta_usd(alice, MetaUSD, base_pool, base_coins, lp_token, pytestconfig):
+    meta_usd_abi = pytestconfig.cache.get("meta_usd_abi", False)
+    meta_usd_bytecode = pytestconfig.cache.get("meta_usd_bytecode", False)
+    if meta_usd_abi and meta_usd_bytecode:
+        tx = alice.transfer(data=meta_usd_bytecode)
+        instance = Contract.from_abi("Meta USD", tx.contract_address, meta_usd_abi)
+        meta_contracts[tx.contract_address] = meta_usd_abi
+        return instance
+
     source = MetaUSD._build["source"]
     new_source = _replace_usd(source, base_pool, base_coins, lp_token)
-    temp_project = compile_source(new_source)
-    meta_contracts[web3.keccak(text=new_source)] = temp_project.Vyper
-    return temp_project.Vyper.deploy({"from": alice})
+    NewMetaUSD = compile_source(new_source).Vyper
+    instance = NewMetaUSD.deploy({"from": alice})
+    meta_contracts[instance.address] = NewMetaUSD.abi
+
+    pytestconfig.cache.set("meta_usd_abi", NewMetaUSD.abi)
+    pytestconfig.cache.set("meta_usd_bytecode", NewMetaUSD.bytecode)
+    return instance
 
 
 @pytest.fixture(scope="session")
-def meta_btc_rebase(alice, MetaBTCBalances, base_pool, base_coins, lp_token, web3):
+def meta_btc_rebase(alice, MetaBTCBalances, base_pool, base_coins, lp_token, pytestconfig):
+    meta_btc_rebase_abi = pytestconfig.cache.get("meta_btc_rebase_abi", False)
+    meta_btc_rebase_bytecode = pytestconfig.cache.get("meta_btc_rebase_bytecode", False)
+    if meta_btc_rebase_abi and meta_btc_rebase_bytecode:
+        tx = alice.transfer(data=meta_btc_rebase_bytecode)
+        instance = Contract.from_abi("Meta BTC Rebase", tx.contract_address, meta_btc_rebase_abi)
+        meta_contracts[tx.contract_address] = meta_btc_rebase_abi
+        return instance
+
     source = MetaBTCBalances._build["source"]
     new_source = _replace_btc(source, base_pool, base_coins, lp_token)
-    temp_project = compile_source(new_source)
-    meta_contracts[web3.keccak(text=new_source)] = temp_project.Vyper
-    return temp_project.Vyper.deploy({"from": alice})
+    NewMetaBTCBalances = compile_source(new_source).Vyper
+    instance = NewMetaBTCBalances.deploy({"from": alice})
+    meta_contracts[instance.address] = NewMetaBTCBalances.abi
+
+    pytestconfig.cache.set("meta_btc_rebase_abi", NewMetaBTCBalances.abi)
+    pytestconfig.cache.set("meta_btc_rebase_bytecode", NewMetaBTCBalances.bytecode)
+    return instance
 
 
 @pytest.fixture(scope="session")
-def meta_usd_rebase(alice, MetaUSDBalances, base_pool, base_coins, lp_token, web3):
+def meta_usd_rebase(alice, MetaUSDBalances, base_pool, base_coins, lp_token, pytestconfig):
+    meta_usd_rebase_abi = pytestconfig.cache.get("meta_usd_rebase_abi", False)
+    meta_usd_rebase_bytecode = pytestconfig.cache.get("meta_usd_rebase_bytecode", False)
+    if meta_usd_rebase_abi and meta_usd_rebase_bytecode:
+        tx = alice.transfer(data=meta_usd_rebase_bytecode)
+        instance = Contract.from_abi("Meta USD Rebase", tx.contract_address, meta_usd_rebase_abi)
+        meta_contracts[tx.contract_address] = meta_usd_rebase_abi
+        return instance
+
     source = MetaUSDBalances._build["source"]
     new_source = _replace_usd(source, base_pool, base_coins, lp_token)
-    temp_project = compile_source(new_source)
-    meta_contracts[web3.keccak(text=new_source)] = temp_project.Vyper
-    return temp_project.Vyper.deploy({"from": alice})
+    NewMetaUSDBalances = compile_source(new_source).Vyper
+    instance = NewMetaUSDBalances.deploy({"from": alice})
+    meta_contracts[instance.address] = NewMetaUSDBalances.abi
+
+    pytestconfig.cache.set("meta_usd_rebase_abi", NewMetaUSDBalances.abi)
+    pytestconfig.cache.set("meta_usd_rebase_bytecode", NewMetaUSDBalances.bytecode)
+    return instance
 
 
 # gauge implementation
@@ -275,8 +313,8 @@ def swap(
         tx = factory.deploy_metapool(
             base_pool, "Test Meta Pool", "TMP", coins[1], 200, 4000000, 0, {"from": alice}
         )
-        key = web3.keccak(text=meta_implementations[0]._build["source"])
-        return meta_contracts[key].at(tx.return_value)
+        key = convert.to_address(HexBytes(web3.eth.get_code(tx.return_value))[10:30].hex())
+        return Contract.from_abi("Meta Instance", tx.return_value, meta_contracts[key])
 
 
 @pytest.fixture(scope="module")

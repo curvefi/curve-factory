@@ -14,7 +14,7 @@ def test_add_liquidity(bob, charlie, swap, initial_amounts, eth_amount):
 
 
 def test_exchange(alice, charlie, swap, coins):
-    coins[1]._mint_for_testing(alice, 10 ** 18)
+    coins[1]._mint_for_testing(alice, 10 ** 18, {"from": alice})
 
     swap.exchange(1, 0, 10 ** 18, 0, charlie, {"from": alice})
     if coins[0] == ETH_ADDRESS:

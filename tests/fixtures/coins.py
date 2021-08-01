@@ -16,8 +16,14 @@ def _plain_coins(alice, decimals):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def lp_token(alice, CurveTokenV3):
-    return CurveTokenV3.deploy("Test LP Token", "Tester", {"from": alice})
+def lp_token(alice, CurveTokenV3, accounts):
+    lp_token = CurveTokenV3.deploy("Test LP Token", "Tester", {"from": alice})
+    setattr(
+        lp_token,
+        "_mint_for_testing",
+        lambda _to, _amount, _tx: lp_token.transfer(_to, _amount, {"from": accounts[-1]}),
+    )
+    return lp_token
 
 
 @pytest.fixture(scope="session")
@@ -47,7 +53,7 @@ def coins(plain_coins, rebase_coins, is_eth_pool, is_rebase_pool, is_meta_pool, 
     elif is_rebase_pool:
         return rebase_coins
     elif is_meta_pool:
-        return [lp_token, plain_coins[0]]
+        return [plain_coins[0], lp_token]
     else:
         return plain_coins
 
@@ -57,7 +63,7 @@ def underlying_coins(plain_coins, is_rebase_pool, is_meta_pool, base_coins):
     if is_rebase_pool:
         return plain_coins
     elif is_meta_pool:
-        return base_coins + [plain_coins[0]]
+        return [plain_coins[0]] + base_coins
     else:
         return []
 

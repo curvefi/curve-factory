@@ -56,12 +56,6 @@ def base_pool(alice, CurvePool, base_coins, lp_token, registry, accounts):
         "Test Base Pool",
     )
 
-    setattr(
-        lp_token,
-        "_mint_for_testing",
-        lambda _to, _amount, _tx: lp_token.transfer(_to, _amount, {"from": accounts[-1]}),
-    )
-
     return pool
 
 
@@ -257,10 +251,8 @@ def gauge_implementation(alice, LiquidityGauge, minter, crv, voting_escrow, gaug
 def meta_implementations(pool_type, meta_usd, meta_usd_rebase, meta_btc, meta_btc_rebase):
     if pool_type == 4:
         return [meta_usd, meta_usd_rebase]
-    elif pool_type == 5:
-        return [meta_btc, meta_btc_rebase]
     else:
-        return []
+        return [meta_btc, meta_btc_rebase]
 
 
 # Factories
@@ -268,16 +260,16 @@ def meta_implementations(pool_type, meta_usd, meta_usd_rebase, meta_btc, meta_bt
 
 @pytest.fixture(scope="session")
 def factory(alice, frank, Factory, address_provider, pytestconfig):
-    if factory_bytecode := pytestconfig.cache.get("factory_bytecode", False):
-        tx = alice.transfer(data=factory_bytecode)
-        return Factory.at(tx.contract_address)
+    # if factory_bytecode := pytestconfig.cache.get("factory_bytecode", False):
+    #     tx = alice.transfer(data=factory_bytecode)
+    #     return Factory.at(tx.contract_address)
 
     source = Factory._build["source"]
     new_source = source.replace(
         "0x0000000022D53366457F9d5E68Ec105046FC4383", address_provider.address
     )
     NewFactory = compile_source(new_source).Vyper
-    pytestconfig.cache.set("factory_bytecode", NewFactory.deploy.encode_input(frank))
+    # pytestconfig.cache.set("factory_bytecode", NewFactory.deploy.encode_input(frank))
     return NewFactory.deploy(frank, {"from": alice})
 
 
@@ -318,7 +310,7 @@ def swap(
         return getattr(project, plain_implementations[pool_type]._name).at(tx.return_value)
     else:
         tx = factory.deploy_metapool(
-            base_pool, "Test Meta Pool", "TMP", coins[1], 200, 4000000, 0, {"from": alice}
+            base_pool, "Test Meta Pool", "TMP", coins[0], 200, 4000000, 0, {"from": alice}
         )
         key = convert.to_address(HexBytes(web3.eth.get_code(tx.return_value))[10:30].hex())
         instance = Contract.from_abi("Meta Instance", tx.return_value, meta_contracts[key])

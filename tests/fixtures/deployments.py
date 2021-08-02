@@ -287,7 +287,7 @@ def swap(
     base_pool,
     factory,
     plain_implementations,
-    meta_implementations,
+    meta_implementation_idx,
     coins,
     project,
     plain_pool_size,
@@ -310,7 +310,14 @@ def swap(
         return getattr(project, plain_implementations[pool_type]._name).at(tx.return_value)
     else:
         tx = factory.deploy_metapool(
-            base_pool, "Test Meta Pool", "TMP", coins[0], 200, 4000000, 0, {"from": alice}
+            base_pool,
+            "Test Meta Pool",
+            "TMP",
+            coins[0],
+            200,
+            4000000,
+            meta_implementation_idx,
+            {"from": alice},
         )
         key = convert.to_address(HexBytes(web3.eth.get_code(tx.return_value))[10:30].hex())
         instance = Contract.from_abi("Meta Instance", tx.return_value, meta_contracts[key])

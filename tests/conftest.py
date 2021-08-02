@@ -79,6 +79,13 @@ def pytest_generate_tests(metafunc):
             indirect=True,
             ids=[f"(Decimals={i})" for i in cli_options],
         )
+    if "meta_implementation_idx" in metafunc.fixturenames:
+        metafunc.parametrize(
+            "meta_implementation_idx",
+            [0, 1],
+            indirect=True,
+            ids=[f"(Meta-Implementation={i})" for i in ["Standard", "Rebase"]],
+        )
 
 
 def pytest_collection_modifyitems(config, items):
@@ -92,6 +99,7 @@ def pytest_collection_modifyitems(config, items):
             pool_type = params["pool_type"]
             return_type = params["return_type"]
             decimals = params["decimals"]
+            meta_implementation_idx = params["meta_implementation_idx"]
         except Exception:
             continue
 
@@ -116,6 +124,10 @@ def pytest_collection_modifyitems(config, items):
                 continue
 
             if pool_size > 2:
+                items.remove(item)
+                continue
+        else:
+            if meta_implementation_idx > 0:
                 items.remove(item)
                 continue
 
@@ -160,6 +172,11 @@ def is_meta_pool(pool_type):
 
 @pytest.fixture(scope="session")
 def return_type(request):
+    return request.param
+
+
+@pytest.fixture(scope="session")
+def meta_implementation_idx(request):
     return request.param
 
 

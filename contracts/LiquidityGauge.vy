@@ -651,7 +651,7 @@ def deposit_reward_token(_reward_token: address, _amount: uint256):
     response: Bytes[32] = raw_call(
         _reward_token,
         concat(
-            method_id("transferFrom(address,uint256)"),
+            method_id("transferFrom(address,address,uint256)"),
             convert(msg.sender, bytes32),
             convert(self, bytes32),
             convert(_amount, bytes32),

@@ -4,11 +4,10 @@ MAX_UINT256 = 2 ** 256 - 1
 WEEK = 7 * 86400
 
 
-def test_kick(chain, accounts, gauge, voting_escrow, token, swap):
-    alice, bob = accounts[:2]
+def test_kick(add_initial_liquidity, alice, bob, chain, gauge, voting_escrow, crv, swap):
     chain.sleep(2 * WEEK + 5)
 
-    token.approve(voting_escrow, MAX_UINT256, {"from": alice})
+    crv.approve(voting_escrow, MAX_UINT256, {"from": alice})
     voting_escrow.create_lock(10 ** 20, chain.time() + 4 * WEEK, {"from": alice})
 
     swap.approve(gauge.address, MAX_UINT256, {"from": alice})

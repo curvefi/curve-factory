@@ -1,26 +1,22 @@
 import math
 
 import pytest
-from brownie import ZERO_ADDRESS
 
 REWARD = 10 ** 20
 WEEK = 7 * 86400
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(autouse=True)
 def initial_setup(
+    add_initial_liquidity,
     alice,
     chain,
     coin_reward,
-    reward_contract,
-    token,
     swap,
     gauge,
     gauge_controller,
-    minter,
 ):
     # gauge setup
-    token.set_minter(minter, {"from": alice})
     gauge_controller.add_type(b"Liquidity", 10 ** 10, {"from": alice})
     gauge_controller.add_gauge(gauge, 0, 0, {"from": alice})
 
@@ -29,24 +25,18 @@ def initial_setup(
     gauge.deposit(10 ** 18, {"from": alice})
 
     # add rewards
-    sigs = [
-        reward_contract.stake.signature[2:],
-        reward_contract.withdraw.signature[2:],
-        reward_contract.getReward.signature[2:],
-    ]
-    sigs = f"0x{sigs[0]}{sigs[1]}{sigs[2]}{'00' * 20}"
-
-    gauge.set_rewards(reward_contract, sigs, [coin_reward] + [ZERO_ADDRESS] * 7, {"from": alice})
+    gauge.add_reward(coin_reward, alice, {"from": alice})
 
     # fund rewards
-    coin_reward._mint_for_testing(reward_contract, REWARD)
-    reward_contract.notifyRewardAmount(REWARD, {"from": alice})
+    coin_reward._mint_for_testing(alice, REWARD, {"from": alice})
+    coin_reward.approve(gauge, REWARD, {"from": alice})
+    gauge.deposit_reward_token(coin_reward, REWARD, {"from": alice})
 
     # sleep half way through the reward period
     chain.sleep(int(86400 * 3.5))
 
 
-def test_transfer_does_not_trigger_claim_for_sender(alice, bob, chain, gauge, coin_reward):
+def test_transfer_does_not_trigger_claim_for_sender(alice, bob, gauge, coin_reward):
     amount = gauge.balanceOf(alice)
 
     gauge.transfer(bob, amount, {"from": alice})

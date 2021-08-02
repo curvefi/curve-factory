@@ -52,7 +52,12 @@ def test_withdraw_one_coin(
         assert swap.balances(receiving) == coins[receiving].balanceOf(swap)
 
 
-# def test_no_fees(bob, fee_receiver, swap, base_lp_token):
-#     swap.withdraw_admin_fees({"from": bob})
+def test_no_fees(bob, fee_receiver, swap, coins):
+    pre_eth_balance = fee_receiver.balance()
+    swap.withdraw_admin_fees({"from": bob})
 
-#     assert base_lp_token.balanceOf(fee_receiver) == 0
+    for coin in coins:
+        if coin == ETH_ADDRESS:
+            assert fee_receiver.balance() == pre_eth_balance
+            continue
+        assert coin.balanceOf(fee_receiver) == 0

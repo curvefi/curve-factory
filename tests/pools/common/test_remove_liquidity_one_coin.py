@@ -5,7 +5,6 @@ from brownie import ETH_ADDRESS
 pytestmark = pytest.mark.usefixtures("add_initial_liquidity")
 
 
-# TODO: handle metapools
 @pytest.mark.parametrize("idx", range(2))
 def test_amount_received(alice, swap, coins, decimals, idx):
     decimals = decimals[idx]

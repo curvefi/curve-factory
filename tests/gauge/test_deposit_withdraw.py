@@ -2,67 +2,67 @@ import brownie
 import pytest
 
 
-@pytest.fixture(scope="module", autouse=True)
-def deposit_setup(accounts, gauge, swap):
-    swap.approve(gauge, 2 ** 256 - 1, {"from": accounts[0]})
+@pytest.fixture(autouse=True)
+def deposit_setup(alice, add_initial_liquidity, gauge, swap):
+    swap.approve(gauge, 2 ** 256 - 1, {"from": alice})
 
 
-def test_deposit(accounts, gauge, swap):
-    balance = swap.balanceOf(accounts[0])
-    gauge.deposit(100000, {"from": accounts[0]})
+def test_deposit(alice, gauge, swap):
+    balance = swap.balanceOf(alice)
+    gauge.deposit(100000, {"from": alice})
 
     assert swap.balanceOf(gauge) == 100000
-    assert swap.balanceOf(accounts[0]) == balance - 100000
+    assert swap.balanceOf(alice) == balance - 100000
     assert gauge.totalSupply() == 100000
-    assert gauge.balanceOf(accounts[0]) == 100000
+    assert gauge.balanceOf(alice) == 100000
 
 
-def test_deposit_zero(accounts, gauge, swap):
-    balance = swap.balanceOf(accounts[0])
-    gauge.deposit(0, {"from": accounts[0]})
+def test_deposit_zero(alice, gauge, swap):
+    balance = swap.balanceOf(alice)
+    gauge.deposit(0, {"from": alice})
 
     assert swap.balanceOf(gauge) == 0
-    assert swap.balanceOf(accounts[0]) == balance
+    assert swap.balanceOf(alice) == balance
     assert gauge.totalSupply() == 0
-    assert gauge.balanceOf(accounts[0]) == 0
+    assert gauge.balanceOf(alice) == 0
 
 
-def test_deposit_insufficient_balance(accounts, gauge, swap):
+def test_deposit_insufficient_balance(bob, gauge):
     with brownie.reverts():
-        gauge.deposit(100000, {"from": accounts[1]})
+        gauge.deposit(100000, {"from": bob})
 
 
-def test_withdraw(accounts, gauge, swap):
-    balance = swap.balanceOf(accounts[0])
+def test_withdraw(alice, gauge, swap):
+    balance = swap.balanceOf(alice)
 
-    gauge.deposit(100000, {"from": accounts[0]})
-    gauge.withdraw(100000, {"from": accounts[0]})
+    gauge.deposit(100000, {"from": alice})
+    gauge.withdraw(100000, {"from": alice})
 
     assert swap.balanceOf(gauge) == 0
-    assert swap.balanceOf(accounts[0]) == balance
+    assert swap.balanceOf(alice) == balance
     assert gauge.totalSupply() == 0
-    assert gauge.balanceOf(accounts[0]) == 0
+    assert gauge.balanceOf(alice) == 0
 
 
-def test_withdraw_zero(accounts, gauge, swap):
-    balance = swap.balanceOf(accounts[0])
-    gauge.deposit(100000, {"from": accounts[0]})
-    gauge.withdraw(0, {"from": accounts[0]})
+def test_withdraw_zero(alice, gauge, swap):
+    balance = swap.balanceOf(alice)
+    gauge.deposit(100000, {"from": alice})
+    gauge.withdraw(0, {"from": alice})
 
     assert swap.balanceOf(gauge) == 100000
-    assert swap.balanceOf(accounts[0]) == balance - 100000
+    assert swap.balanceOf(alice) == balance - 100000
     assert gauge.totalSupply() == 100000
-    assert gauge.balanceOf(accounts[0]) == 100000
+    assert gauge.balanceOf(alice) == 100000
 
 
-def test_withdraw_new_epoch(accounts, chain, gauge, swap):
-    balance = swap.balanceOf(accounts[0])
+def test_withdraw_new_epoch(alice, chain, gauge, swap):
+    balance = swap.balanceOf(alice)
 
-    gauge.deposit(100000, {"from": accounts[0]})
+    gauge.deposit(100000, {"from": alice})
     chain.sleep(86400 * 400)
-    gauge.withdraw(100000, {"from": accounts[0]})
+    gauge.withdraw(100000, {"from": alice})
 
     assert swap.balanceOf(gauge) == 0
-    assert swap.balanceOf(accounts[0]) == balance
+    assert swap.balanceOf(alice) == balance
     assert gauge.totalSupply() == 0
-    assert gauge.balanceOf(accounts[0]) == 0
+    assert gauge.balanceOf(alice) == 0

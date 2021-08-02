@@ -92,7 +92,8 @@ def pytest_collection_modifyitems(config, items):
     project = get_loaded_projects()[0]
 
     for item in items.copy():
-        path_parts = Path(item.fspath).relative_to(project._path).parts[1:-1]
+        path = Path(item.fspath).relative_to(project._path)
+        path_parts = path.parts[1:-1]
         try:
             params = item.callspec.params
             pool_size = params["plain_pool_size"]
@@ -150,7 +151,7 @@ def pytest_collection_modifyitems(config, items):
             items.remove(item)
             continue
 
-        if path_parts == ():
+        if "test_factory.py" not in path.parts and len(path.parts) == 2:
             if not (pool_type == 2 and pool_size == 2):
                 items.remove(item)
                 continue

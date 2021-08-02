@@ -1,10 +1,12 @@
 from math import isclose
 
-from brownie import ZERO_ADDRESS
+import pytest
 
 REWARD = 10 ** 20
 WEEK = 7 * 86400
 LP_AMOUNT = 10 ** 18
+
+pytestmark = pytest.mark.usefixtures("add_initial_liquidity")
 
 
 def test_no_approval_needed(alice, bob, gauge, swap):
@@ -14,21 +16,15 @@ def test_no_approval_needed(alice, bob, gauge, swap):
     assert gauge.balanceOf(bob) == 100_000
 
 
-def test_deposit_for_and_claim_rewards(
-    alice, bob, chain, gauge, swap, reward_contract, coin_reward
-):
+def test_deposit_for_and_claim_rewards(alice, bob, chain, gauge, swap, coin_reward):
     swap.approve(gauge, 2 ** 256 - 1, {"from": alice})
     gauge.deposit(LP_AMOUNT, bob, {"from": alice})
 
-    coin_reward._mint_for_testing(reward_contract, REWARD)
-    reward_contract.notifyRewardAmount(REWARD, {"from": alice})
+    gauge.add_reward(coin_reward, alice, {"from": alice})
 
-    gauge.set_rewards(
-        reward_contract,
-        "0xa694fc3a2e1a7d4d3d18b9120000000000000000000000000000000000000000",
-        [coin_reward] + [ZERO_ADDRESS] * 7,
-        {"from": alice},
-    )
+    coin_reward._mint_for_testing(alice, REWARD, {"from": alice})
+    coin_reward.approve(gauge, 2 ** 256 - 1, {"from": alice})
+    gauge.deposit_reward_token(coin_reward, REWARD, {"from": alice})
 
     chain.mine(timedelta=WEEK)
 

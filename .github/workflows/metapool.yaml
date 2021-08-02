@@ -49,4 +49,4 @@ jobs:
       run: pip install -r requirements.txt
 
     - name: Run Tests
-      run: brownie test tests/pools --decimals ${{ matrix.decimals }} --return-type ${{ matrix.return_type }} --plain-pool-type ${{ matrix.plain_pool_type }} --plain-pool-size ${{ matrix.pool_size }}  --cache-clear
+      run: brownie test tests/pools --decimals ${{ matrix.decimals }} --return-type ${{ matrix.return_type }} --pool-type ${{ matrix.plain_pool_type }} --plain-pool-size ${{ matrix.pool_size }}  --cache-clear

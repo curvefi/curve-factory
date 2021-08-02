@@ -49,4 +49,4 @@ jobs:
       run: pip install -r requirements.txt
 
     - name: Run Tests
-      run: brownie test tests/test_factory.py
+      run: brownie test tests/test_factory.py --cache-clear

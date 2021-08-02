@@ -1,4 +1,4 @@
-name: swaps
+name: metapool
 
 on: ["push", "pull_request"]
 

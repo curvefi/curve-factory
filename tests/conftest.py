@@ -101,7 +101,10 @@ def pytest_collection_modifyitems(config, items):
             decimals = params["decimals"]
             meta_implementation_idx = params["meta_implementation_idx"]
         except Exception:
-            continue
+            if path_parts == ():
+                if pool_type != 2:
+                    items.remove(item)
+                    continue
 
         # optimized pool only supports return True/revert
         if pool_type == 2 and return_type != 0:
@@ -146,6 +149,11 @@ def pytest_collection_modifyitems(config, items):
             # need to handle connecting to mainnet-fork
             items.remove(item)
             continue
+
+        if path_parts == ():
+            if not (pool_type == 2 and pool_size == 2):
+                items.remove(item)
+                continue
 
     # hacky magic to ensure the correct number of tests is shown in collection report
     config.pluginmanager.get_plugin("terminalreporter")._numcollected = len(items)

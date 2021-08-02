@@ -136,6 +136,12 @@ def pytest_collection_modifyitems(config, items):
                 items.remove(item)
                 continue
 
+        # only allow meta pools in the meta directory
+        if len(path_parts) > 1 and path_parts[1] == "meta":
+            if pool_type not in [4, 5]:
+                items.remove(item)
+                continue
+
         if len(path_parts) > 0 and path_parts[0] == "zaps":
             # need to handle connecting to mainnet-fork
             items.remove(item)
@@ -185,14 +191,14 @@ def decimals(plain_pool_size, request, is_eth_pool, is_meta_pool):
     if is_eth_pool:
         return [18] + [request.param] * (plain_pool_size - 1)
     elif is_meta_pool:
-        return [18] + [request.param]
+        return [request.param] + [18]
     return [request.param] * plain_pool_size
 
 
 @pytest.fixture(scope="session")
 def underlying_decimals(decimals, is_meta_pool):
     if is_meta_pool:
-        return [18] * 3 + decimals[-1:]
+        return [decimals[0]] + [18] * 3
     return decimals
 
 

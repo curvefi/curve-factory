@@ -59,13 +59,13 @@ def coins(plain_coins, rebase_coins, is_eth_pool, is_rebase_pool, is_meta_pool, 
 
 
 @pytest.fixture(scope="session")
-def underlying_coins(plain_coins, is_rebase_pool, is_meta_pool, base_coins):
+def underlying_coins(coins, plain_coins, is_rebase_pool, is_meta_pool, base_coins):
     if is_rebase_pool:
         return plain_coins
     elif is_meta_pool:
         return [plain_coins[0]] + base_coins
     else:
-        return []
+        return coins
 
 
 @pytest.fixture(scope="session")

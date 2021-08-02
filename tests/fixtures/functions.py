@@ -87,5 +87,37 @@ def approve_bob(bob, coins, swap):
 
 
 @pytest.fixture
+def mint_alice_underlying(alice, initial_amounts_underlying, underlying_coins):
+    for coin, amount in zip(underlying_coins, initial_amounts_underlying):
+        if coin == ETH_ADDRESS:
+            continue
+        coin._mint_for_testing(alice, amount, {"from": alice})
+
+
+@pytest.fixture(scope="module")
+def approve_alice_underlying(alice, underlying_coins, swap):
+    for coin in underlying_coins:
+        if coin == ETH_ADDRESS:
+            continue
+        coin.approve(swap, 2 ** 256 - 1, {"from": alice})
+
+
+@pytest.fixture
+def mint_bob_underlying(bob, initial_amounts_underlying, underlying_coins):
+    for coin, amount in zip(underlying_coins, initial_amounts_underlying):
+        if coin == ETH_ADDRESS:
+            continue
+        coin._mint_for_testing(bob, amount, {"from": bob})
+
+
+@pytest.fixture(scope="module")
+def approve_bob_underlying(bob, underlying_coins, swap):
+    for coin in underlying_coins:
+        if coin == ETH_ADDRESS:
+            continue
+        coin.approve(swap, 2 ** 256 - 1, {"from": bob})
+
+
+@pytest.fixture
 def add_initial_liquidity(alice, approve_alice, mint_alice, initial_amounts, swap, eth_amount):
     swap.add_liquidity(initial_amounts, 0, {"from": alice, "value": eth_amount(initial_amounts[0])})

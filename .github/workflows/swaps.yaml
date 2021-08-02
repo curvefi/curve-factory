@@ -17,7 +17,7 @@ jobs:
       matrix:
         decimals: [18]
         return_type: ["False"]
-        plain_pool_type: ["basic", "eth", "optimized", "rebase"]
+        plain_pool_type: ["basic", "eth", "optimized", "rebase", "meta-usd", "meta-btc"]
         pool_size: [2, 3, 4]
 
 

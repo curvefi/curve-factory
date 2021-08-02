@@ -48,4 +48,4 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run Tests
-        run: brownie test tests/gauge/ --decimals 18 --return-type revert --plain-pool-type optimized --plain-pool-size 2 --cache-clear
+        run: brownie test tests/gauge/ --decimals 18 --return-type revert --plain-pool-type basic --plain-pool-size 2 --cache-clear

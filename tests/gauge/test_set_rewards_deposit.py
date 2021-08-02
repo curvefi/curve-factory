@@ -1,8 +1,7 @@
 import brownie
 import pytest
 from brownie import ZERO_ADDRESS
-
-from tests.conftest import approx
+from pytest import approx
 
 REWARD = 10 ** 20
 WEEK = 7 * 86400

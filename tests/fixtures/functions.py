@@ -24,6 +24,11 @@ def set_plain_implementations(alice, factory, plain_implementations, plain_pool_
 
 
 @pytest.fixture(scope="session")
+def set_gauge_implementation(alice, factory, gauge_implementation):
+    factory.set_gauge_implementation(gauge_implementation, {"from": alice})
+
+
+@pytest.fixture(scope="session")
 def eth_amount(is_eth_pool):
     return lambda amount: amount if is_eth_pool else 0
 

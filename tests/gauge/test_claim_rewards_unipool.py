@@ -1,5 +1,4 @@
 import pytest
-from brownie import ZERO_ADDRESS
 from pytest import approx
 
 REWARD = 10 ** 20
@@ -7,21 +6,17 @@ WEEK = 7 * 86400
 LP_AMOUNT = 10 ** 18
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(autouse=True)
 def initial_setup(
+    add_initial_liquidity,
     alice,
     bob,
-    chain,
     coin_reward,
-    reward_contract,
-    token,
     swap,
     gauge,
     gauge_controller,
-    minter,
 ):
     # gauge setup
-    token.set_minter(minter, {"from": alice})
     gauge_controller.add_type(b"Liquidity", 10 ** 10, {"from": alice})
     gauge_controller.add_gauge(gauge, 0, 0, {"from": alice})
 
@@ -31,18 +26,12 @@ def initial_setup(
     gauge.deposit(LP_AMOUNT, {"from": bob})
 
     # add rewards
-    sigs = [
-        reward_contract.stake.signature[2:],
-        reward_contract.withdraw.signature[2:],
-        reward_contract.getReward.signature[2:],
-    ]
-    sigs = f"0x{sigs[0]}{sigs[1]}{sigs[2]}{'00' * 20}"
-
-    gauge.set_rewards(reward_contract, sigs, [coin_reward] + [ZERO_ADDRESS] * 7, {"from": alice})
+    gauge.add_reward(coin_reward, alice, {"from": alice})
 
     # fund rewards
-    coin_reward._mint_for_testing(reward_contract, REWARD)
-    reward_contract.notifyRewardAmount(REWARD, {"from": alice})
+    coin_reward._mint_for_testing(alice, REWARD, {"from": alice})
+    coin_reward.approve(gauge, REWARD, {"from": alice})
+    gauge.deposit_reward_token(coin_reward, REWARD, {"from": alice})
 
 
 def test_claim_one_lp(bob, chain, gauge, coin_reward):
@@ -77,7 +66,7 @@ def test_claim_for_other_no_reward(bob, charlie, chain, gauge, coin_reward):
     assert coin_reward.balanceOf(charlie) == 0
 
 
-def test_claim_two_lp(alice, bob, chain, gauge, swap, coin_reward, no_call_coverage):
+def test_claim_two_lp(alice, bob, chain, gauge, swap, coin_reward):
 
     # Deposit
     swap.approve(gauge, LP_AMOUNT, {"from": alice})
@@ -88,7 +77,7 @@ def test_claim_two_lp(alice, bob, chain, gauge, swap, coin_reward, no_call_cover
 
     # Calculate rewards
     claimable_rewards = [
-        gauge.claimable_reward_write.call(acc, coin_reward, {"from": acc}) for acc in (alice, bob)
+        gauge.claimable_reward.call(acc, coin_reward, {"from": acc}) for acc in (alice, bob)
     ]
 
     # Claim rewards
@@ -104,19 +93,3 @@ def test_claim_two_lp(alice, bob, chain, gauge, swap, coin_reward, no_call_cover
     assert sum(rewards) <= REWARD
     assert approx(sum(rewards), REWARD, 1.001 / WEEK)  # ganache-cli jitter of 1 s
     assert approx(rewards[0], rewards[1], 2.002 * WEEK)
-
-
-def test_claimable_rewards_write_retrieves_rewards(
-    alice, chain, gauge, swap, coin_reward, no_call_coverage
-):
-
-    # Deposit
-    swap.approve(gauge, LP_AMOUNT, {"from": alice})
-    gauge.deposit(LP_AMOUNT, {"from": alice})
-
-    chain.sleep(WEEK)
-    chain.mine()
-
-    before = coin_reward.balanceOf(gauge)
-    gauge.claimable_reward_write(alice, coin_reward, {"from": alice})
-    assert before < coin_reward.balanceOf(gauge)

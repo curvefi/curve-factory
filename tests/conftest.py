@@ -12,7 +12,7 @@ pytest_plugins = [
     "fixtures.functions",
 ]
 
-pool_types = {"basic": 0, "eth": 1, "optimized": 2, "rebase": 3}
+pool_types = {"basic": 0, "eth": 1, "optimized": 2, "rebase": 3, "meta-usd": 4, "meta-btc": 5}
 return_types = {"revert": 0, "False": 1, "None": 2}
 
 
@@ -24,10 +24,10 @@ def pytest_addoption(parser):
         help="comma-separated list of plain pool sizes to test against",
     )
     parser.addoption(
-        "--plain-pool-type",
+        "--pool-type",
         action="store",
-        default="basic,eth,optimized,rebase",
-        help="comma-separated list of plain pool sizes to test against",
+        default="basic,eth,optimized,rebase,meta-usd,meta-btc",
+        help="comma-separated list of pool types to test against",
     )
     parser.addoption(
         "--return-type",
@@ -53,11 +53,11 @@ def pytest_generate_tests(metafunc):
             indirect=True,
             ids=[f"(PoolSize={i})" for i in cli_options],
         )
-    if "plain_pool_type" in metafunc.fixturenames:
-        cli_options = metafunc.config.getoption("plain_pool_type").split(",")
+    if "pool_type" in metafunc.fixturenames:
+        cli_options = metafunc.config.getoption("pool_type").split(",")
         pool_type_ids = [pool_types[v] for v in cli_options]
         metafunc.parametrize(
-            "plain_pool_type",
+            "pool_type",
             pool_type_ids,
             indirect=True,
             ids=[f"(PoolType={i})" for i in cli_options],
@@ -79,23 +79,36 @@ def pytest_generate_tests(metafunc):
             indirect=True,
             ids=[f"(Decimals={i})" for i in cli_options],
         )
+    if "meta_implementation_idx" in metafunc.fixturenames:
+        metafunc.parametrize(
+            "meta_implementation_idx",
+            [0, 1],
+            indirect=True,
+            ids=[f"(Meta-Implementation={i})" for i in ["Standard", "Rebase"]],
+        )
 
 
 def pytest_collection_modifyitems(config, items):
     project = get_loaded_projects()[0]
 
     for item in items.copy():
-        path_parts = Path(item.fspath).relative_to(project._path).parts[1:-1]
+        path = Path(item.fspath).relative_to(project._path)
+        path_parts = path.parts[1:-1]
         try:
             params = item.callspec.params
-            pool_type = params["plain_pool_type"]
+            pool_size = params["plain_pool_size"]
+            pool_type = params["pool_type"]
             return_type = params["return_type"]
             decimals = params["decimals"]
+            meta_implementation_idx = params["meta_implementation_idx"]
         except Exception:
-            continue
+            if path_parts == ():
+                if pool_type != 2:
+                    items.remove(item)
+                    continue
 
         # optimized pool only supports return True/revert
-        if pool_type == 2 and return_type != "revert":
+        if pool_type == 2 and return_type != 0:
             items.remove(item)
             continue
 
@@ -104,8 +117,32 @@ def pytest_collection_modifyitems(config, items):
             items.remove(item)
             continue
 
+        # meta pools we only test against 1 type no parameterization needed
+        if pool_type in [4, 5]:
+            if decimals != 18:
+                items.remove(item)
+                continue
+
+            if return_type != 0:
+                items.remove(item)
+                continue
+
+            if pool_size > 2:
+                items.remove(item)
+                continue
+        else:
+            if meta_implementation_idx > 0:
+                items.remove(item)
+                continue
+
         if len(path_parts) > 1 and path_parts[1] == "rebase":
             if pool_type != 3:
+                items.remove(item)
+                continue
+
+        # only allow meta pools in the meta directory
+        if len(path_parts) > 1 and path_parts[1] == "meta":
+            if pool_type not in [4, 5]:
                 items.remove(item)
                 continue
 
@@ -113,6 +150,11 @@ def pytest_collection_modifyitems(config, items):
             # need to handle connecting to mainnet-fork
             items.remove(item)
             continue
+
+        if "test_factory.py" not in path.parts and len(path.parts) == 2:
+            if not (pool_type == 2 and pool_size == 2):
+                items.remove(item)
+                continue
 
     # hacky magic to ensure the correct number of tests is shown in collection report
     config.pluginmanager.get_plugin("terminalreporter")._numcollected = len(items)
@@ -124,18 +166,23 @@ def plain_pool_size(request):
 
 
 @pytest.fixture(scope="session")
-def plain_pool_type(request):
+def pool_type(request):
     return request.param
 
 
 @pytest.fixture(scope="session")
-def is_eth_pool(plain_pool_type):
-    return plain_pool_type == 1
+def is_eth_pool(pool_type):
+    return pool_type == 1
 
 
 @pytest.fixture(scope="session")
-def is_rebase_pool(plain_pool_type):
-    return plain_pool_type == 3
+def is_rebase_pool(pool_type):
+    return pool_type == 3
+
+
+@pytest.fixture(scope="session")
+def is_meta_pool(pool_type):
+    return pool_type in [4, 5]
 
 
 @pytest.fixture(scope="session")
@@ -144,10 +191,24 @@ def return_type(request):
 
 
 @pytest.fixture(scope="session")
-def decimals(plain_pool_size, request, is_eth_pool):
+def meta_implementation_idx(request):
+    return request.param
+
+
+@pytest.fixture(scope="session")
+def decimals(plain_pool_size, request, is_eth_pool, is_meta_pool):
     if is_eth_pool:
         return [18] + [request.param] * (plain_pool_size - 1)
+    elif is_meta_pool:
+        return [request.param] + [18]
     return [request.param] * plain_pool_size
+
+
+@pytest.fixture(scope="session")
+def underlying_decimals(decimals, is_meta_pool):
+    if is_meta_pool:
+        return [decimals[0]] + [18] * 3
+    return decimals
 
 
 @pytest.fixture(scope="session")

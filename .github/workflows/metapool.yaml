@@ -1,14 +1,6 @@
-name: factory
+name: metapool
 
-on:
-  pull_request:
-    paths:
-    - 'tests/test_factory.py'
-    - 'contracts/Factory.vy'
-  push:
-    paths:
-    - 'tests/test_factory.py'
-    - 'contracts/Factory.vy'
+on: ["push", "pull_request"]
 
 env:
   ETHERSCAN_TOKEN: 9MKURTHE8FNA9NRUUJBHMUEVY6IQ5K1EGY
@@ -20,6 +12,14 @@ jobs:
 
   unitary:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        decimals: [18]
+        return_type: ["revert"]
+        plain_pool_type: ["meta-usd", "meta-btc"]
+        pool_size: [2]
+
 
     steps:
     - uses: actions/checkout@v2
@@ -49,4 +49,4 @@ jobs:
       run: pip install -r requirements.txt
 
     - name: Run Tests
-      run: brownie test tests/test_factory.py --cache-clear
+      run: brownie test tests/pools --decimals ${{ matrix.decimals }} --return-type ${{ matrix.return_type }} --pool-type ${{ matrix.plain_pool_type }} --plain-pool-size ${{ matrix.pool_size }}  --cache-clear

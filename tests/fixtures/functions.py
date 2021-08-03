@@ -17,9 +17,27 @@ def deploy_plain_implementation(alice, project):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def set_plain_implementations(alice, factory, plain_implementations, plain_pool_size):
+def set_plain_implementations(
+    alice, factory, plain_implementations, plain_pool_size, mod_isolation
+):
     factory.set_plain_implementations(
         plain_pool_size, plain_implementations + [ZERO_ADDRESS] * 6, {"from": alice}
+    )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def set_meta_implementations(
+    alice, factory, base_pool, meta_implementations, pool_type, fee_receiver, mod_isolation
+):
+    if pool_type not in [4, 5]:
+        return
+    asset_type = 0 if pool_type == 4 else 2 if pool_type == 5 else 3
+    factory.add_base_pool(
+        base_pool,
+        fee_receiver,
+        asset_type,
+        meta_implementations + [ZERO_ADDRESS] * 8,
+        {"from": alice},
     )
 
 
@@ -63,6 +81,38 @@ def mint_bob(bob, initial_amounts, coins):
 @pytest.fixture(scope="module")
 def approve_bob(bob, coins, swap):
     for coin in coins:
+        if coin == ETH_ADDRESS:
+            continue
+        coin.approve(swap, 2 ** 256 - 1, {"from": bob})
+
+
+@pytest.fixture
+def mint_alice_underlying(alice, initial_amounts_underlying, underlying_coins):
+    for coin, amount in zip(underlying_coins, initial_amounts_underlying):
+        if coin == ETH_ADDRESS:
+            continue
+        coin._mint_for_testing(alice, amount, {"from": alice})
+
+
+@pytest.fixture(scope="module")
+def approve_alice_underlying(alice, underlying_coins, swap):
+    for coin in underlying_coins:
+        if coin == ETH_ADDRESS:
+            continue
+        coin.approve(swap, 2 ** 256 - 1, {"from": alice})
+
+
+@pytest.fixture
+def mint_bob_underlying(bob, initial_amounts_underlying, underlying_coins):
+    for coin, amount in zip(underlying_coins, initial_amounts_underlying):
+        if coin == ETH_ADDRESS:
+            continue
+        coin._mint_for_testing(bob, amount, {"from": bob})
+
+
+@pytest.fixture(scope="module")
+def approve_bob_underlying(bob, underlying_coins, swap):
+    for coin in underlying_coins:
         if coin == ETH_ADDRESS:
             continue
         coin.approve(swap, 2 ** 256 - 1, {"from": bob})

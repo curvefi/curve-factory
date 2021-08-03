@@ -15,6 +15,17 @@ def _plain_coins(alice, decimals):
     return [return_true_revert, return_true_false, return_none_revert]
 
 
+@pytest.fixture(scope="session", autouse=True)
+def lp_token(alice, CurveTokenV3, accounts):
+    lp_token = CurveTokenV3.deploy("Test LP Token", "Tester", {"from": alice})
+    setattr(
+        lp_token,
+        "_mint_for_testing",
+        lambda _to, _amount, _tx: lp_token.transfer(_to, _amount, {"from": accounts[-1]}),
+    )
+    return lp_token
+
+
 @pytest.fixture(scope="session")
 def plain_coins(_plain_coins, return_type):
     return _plain_coins[return_type]
@@ -30,19 +41,31 @@ def rebase_coins(alice, ATokenMock, decimals, lending_pool, plain_coins):
     ]
 
 
+@pytest.fixture(scope="session", autouse=True)
+def base_coins(alice):
+    return [ERC20(deployer=alice) for _ in range(3)]
+
+
 @pytest.fixture(scope="session")
-def coins(plain_coins, rebase_coins, is_eth_pool, is_rebase_pool):
+def coins(plain_coins, rebase_coins, is_eth_pool, is_rebase_pool, is_meta_pool, lp_token):
     if is_eth_pool:
         return [ETH_ADDRESS] + plain_coins[1:]
     elif is_rebase_pool:
         return rebase_coins
+    elif is_meta_pool:
+        return [plain_coins[0], lp_token]
     else:
         return plain_coins
 
 
 @pytest.fixture(scope="session")
-def underlying_coins(plain_coins, is_rebase_pool):
-    return plain_coins if is_rebase_pool else []
+def underlying_coins(coins, plain_coins, is_rebase_pool, is_meta_pool, base_coins):
+    if is_rebase_pool:
+        return plain_coins
+    elif is_meta_pool:
+        return [plain_coins[0]] + base_coins
+    else:
+        return coins
 
 
 @pytest.fixture(scope="session")

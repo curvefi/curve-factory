@@ -49,4 +49,4 @@ jobs:
       run: pip install -r requirements.txt
 
     - name: Run Tests
-      run: brownie test tests/test_owner_proxy.py --decimals 18 --return-type revert --plain-pool-type optimized --plain-pool-size 2
+      run: brownie test tests/test_owner_proxy.py

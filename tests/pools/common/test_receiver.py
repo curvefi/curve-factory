@@ -14,7 +14,7 @@ def test_add_liquidity(bob, charlie, swap, initial_amounts, eth_amount):
 
 
 def test_exchange(alice, charlie, swap, coins):
-    coins[1]._mint_for_testing(alice, 10 ** 18)
+    coins[1]._mint_for_testing(alice, 10 ** 18, {"from": alice})
 
     swap.exchange(1, 0, 10 ** 18, 0, charlie, {"from": alice})
     if coins[0] == ETH_ADDRESS:
@@ -23,15 +23,6 @@ def test_exchange(alice, charlie, swap, coins):
     else:
         assert coins[0].balanceOf(charlie) > 0
         assert coins[0].balanceOf(alice) == 0
-
-
-# TODO: fix for metapools
-# def test_exchange_underlying(alice, charlie, swap, underlying_coins):
-#     underlying_coins[1]._mint_for_testing(alice, 10 ** 18)
-
-#     swap.exchange_underlying(1, 0, 10 ** 18, 0, charlie, {"from": alice})
-#     assert underlying_coins[0].balanceOf(charlie) > 0
-#     assert underlying_coins[0].balanceOf(alice) == 0
 
 
 def test_remove_liquidity(alice, swap, charlie, coins, initial_amounts, plain_pool_size):

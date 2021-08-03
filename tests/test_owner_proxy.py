@@ -3,6 +3,13 @@ import math
 import brownie
 import pytest
 from brownie import ETH_ADDRESS, ZERO_ADDRESS
+from brownie_tokens import ERC20
+
+
+def pack_values(values) -> bytes:
+    """Stolen from curvefi/curve-pool-registry"""
+    assert max(values) < 256
+    return sum(i << c * 8 for c, i in enumerate(values))
 
 
 @pytest.fixture(autouse=True)
@@ -14,6 +21,27 @@ def setup(alice, factory, owner_proxy):
 @pytest.fixture
 def new_factory(Factory, alice):
     return Factory.deploy(alice, {"from": alice})
+
+
+@pytest.fixture
+def new_base_pool(alice, CurveTokenV3, CurvePool, registry):
+    lp_token = CurveTokenV3.deploy("Test LP Token", "Tester", {"from": alice})
+    base_coins = [ERC20() for _ in range(3)]
+    pool = CurvePool.deploy(alice, base_coins, lp_token, 200, 3000000, 5000000000, {"from": alice})
+    lp_token.set_minter(pool, {"from": alice})
+
+    registry.add_pool_without_underlying(
+        pool,
+        3,
+        lp_token,
+        "0x0",
+        pack_values([18, 18, 18]),
+        pack_values([0, 0, 0]),
+        True,
+        False,
+        "Test Base Pool",
+    )
+    return pool
 
 
 def test_commit_ownership_transfer(factory, owner_proxy, alice, bob):
@@ -113,24 +141,20 @@ def test_stop_ramp_A_guarded(owner_proxy, swap, chain, alice, bob):
         owner_proxy.stop_ramp_A(swap, {"from": bob})
 
 
-@pytest.mark.skip
-def test_add_base_pool(owner_proxy, new_factory, base_pool_btc, implementation_btc, alice):
-    new_factory.commit_transfer_ownership(owner_proxy, {"from": alice})
-    owner_proxy.accept_transfer_ownership(new_factory, {"from": alice})
+def test_add_base_pool(owner_proxy, factory, new_base_pool, meta_implementations, alice):
 
     owner_proxy.add_base_pool(
-        new_factory,
-        base_pool_btc,
-        ETH_ADDRESS,
+        factory,
+        new_base_pool,
+        alice,
         2,
-        [implementation_btc] + [ZERO_ADDRESS] * 9,
+        meta_implementations + [ZERO_ADDRESS] * 8,
         {"from": alice},
     )
 
-    assert new_factory.base_pool_list(0) == base_pool_btc
+    assert factory.base_pool_list(0) == new_base_pool
 
 
-@pytest.mark.skip
 def test_add_base_pool_guarded(owner_proxy, bob):
     with brownie.reverts("Access denied"):
         owner_proxy.add_base_pool(
@@ -138,18 +162,28 @@ def test_add_base_pool_guarded(owner_proxy, bob):
         )
 
 
-@pytest.mark.skip
-def test_set_metapool_implementations(alice, owner_proxy, factory, base_pool_btc):
-    impls = [ETH_ADDRESS] + [ZERO_ADDRESS] * 9
-    owner_proxy.set_metapool_implementations(factory, base_pool_btc, impls, {"from": alice})
-    assert factory.metapool_implementations(base_pool_btc) == impls
+def test_set_metapool_implementations(
+    alice, owner_proxy, factory, new_base_pool, meta_implementations
+):
+    impls = meta_implementations + [ZERO_ADDRESS] * 8
+    owner_proxy.add_base_pool(
+        factory,
+        new_base_pool,
+        ETH_ADDRESS,
+        2,
+        [ZERO_ADDRESS] * 10,
+        {"from": alice},
+    )
+    owner_proxy.set_metapool_implementations(factory, new_base_pool, impls, {"from": alice})
+    assert factory.metapool_implementations(new_base_pool) == impls
 
 
-@pytest.mark.skip
-def test_set_metapool_implementations_guarded(bob, owner_proxy, factory, base_pool_btc):
-    impls = [ETH_ADDRESS] + [ZERO_ADDRESS] * 9
+def test_set_metapool_implementations_guarded(
+    bob, owner_proxy, factory, base_pool, meta_implementations
+):
+    impls = meta_implementations + [ZERO_ADDRESS] * 8
     with brownie.reverts("Access denied"):
-        owner_proxy.set_metapool_implementations(factory, base_pool_btc, impls, {"from": bob})
+        owner_proxy.set_metapool_implementations(factory, base_pool, impls, {"from": bob})
 
 
 def test_set_plain_implementation(

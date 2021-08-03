@@ -1,5 +1,5 @@
 import pytest
-from brownie import ZERO_ADDRESS
+from brownie import ZERO_ADDRESS, compile_source
 
 # implementation contracts - paramaterized by pool size
 
@@ -52,6 +52,51 @@ def meta_usd_rebase(alice, MetaUSDBalances):
     return MetaUSDBalances.deploy({"from": alice})
 
 
+# gauge implementation
+
+
+@pytest.fixture(scope="session")
+def crv(alice, pm):
+    ERC20CRV = pm("curvefi/curve-dao-contracts@1.1.0").ERC20CRV
+    return ERC20CRV.deploy("Dummy CRV", "CRV", 18, {"from": alice})
+
+
+@pytest.fixture(scope="session")
+def voting_escrow(alice, crv, pm):
+    VotingEscrow = pm("curvefi/curve-dao-contracts@1.1.0").VotingEscrow
+    return VotingEscrow.deploy(crv, "veCRV", "veCRV", 1, {"from": alice})
+
+
+@pytest.fixture(scope="session")
+def gauge_controller(alice, pm, crv, voting_escrow):
+    GaugeController = pm("curvefi/curve-dao-contracts@1.1.0").GaugeController
+    return GaugeController.deploy(crv, voting_escrow, {"from": alice})
+
+
+@pytest.fixture(scope="session")
+def minter(alice, crv, pm, gauge_controller):
+    Minter = pm("curvefi/curve-dao-contracts@1.1.0").Minter
+    minter = Minter.deploy(crv, gauge_controller, {"from": alice})
+    crv.set_minter(minter, {"from": alice})
+    return minter
+
+
+@pytest.fixture(scope="session")
+def gauge_implementation(alice, LiquidityGauge, minter, crv, voting_escrow, gauge_controller):
+    source = LiquidityGauge._build["source"]
+    old_addrs = [
+        "0xd061D61a4d941c39E5453435B6345Dc261C2fcE0",  # minter
+        "0xD533a949740bb3306d119CC777fa900bA034cd52",  # crv
+        "0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2",  # voting escrow
+        "0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB",  # gauge controller
+    ]
+    for old, new in zip(old_addrs, [minter, crv, voting_escrow, gauge_controller]):
+        source = source.replace(old, new.address)
+
+    NewLiquidityGauge = compile_source(source).Vyper
+    return NewLiquidityGauge.deploy({"from": alice})
+
+
 # Factories
 
 
@@ -95,3 +140,9 @@ def swap(
 @pytest.fixture(scope="module")
 def owner_proxy(alice, OwnerProxy):
     return OwnerProxy.deploy(alice, alice, alice, {"from": alice})
+
+
+@pytest.fixture(scope="module")
+def gauge(alice, factory, swap, LiquidityGauge, set_gauge_implementation):
+    tx = factory.deploy_gauge(swap, {"from": alice})
+    return LiquidityGauge.at(tx.return_value)

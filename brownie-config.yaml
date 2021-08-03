@@ -4,3 +4,5 @@ networks:
   development:
     cmd_settings:
       default_balance: 1_000_000_000
+
+dependencies: curvefi/curve-dao-contracts@1.1.0

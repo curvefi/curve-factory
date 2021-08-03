@@ -48,3 +48,18 @@ def underlying_coins(plain_coins, is_rebase_pool):
 @pytest.fixture(scope="session")
 def underlying_decimals(decimals):
     return decimals
+
+
+@pytest.fixture(scope="session", autouse=True)
+def coin_a():
+    return ERC20()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def coin_b():
+    return ERC20()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def coin_reward():
+    return ERC20()

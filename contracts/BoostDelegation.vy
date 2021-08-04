@@ -123,7 +123,7 @@ def _delete_delegation_data(_delegator: address, _gauge: address, _delegation_da
     self.delegated_to[_delegator][_gauge] = 0
     self.delegation_count[_delegator] -= 1
 
-    receiver: address = convert(shift(_delegation_data, 96), address)
+    receiver: address = convert(shift(_delegation_data, -96), address)
     length: uint256 = self.delegation_data[receiver][_gauge].length
 
     # delete record for the receiver
@@ -134,6 +134,8 @@ def _delete_delegation_data(_delegator: address, _gauge: address, _delegation_da
         if self.delegation_data[receiver][_gauge].data[i] == _delegation_data:
             self.delegation_data[receiver][_gauge].data[i] = self.delegation_data[receiver][_gauge].data[length-1]
             self.delegation_data[receiver][_gauge].data[length-1] = 0
+
+    self.delegation_data[receiver][_gauge].length -= 1
 
 
 @external

@@ -292,7 +292,7 @@ def update_delegation_records(_user: address, _gauge: address) -> bool:
         data: uint256 = self.delegation_data[_user][_gauge].data[idx]
         if data % 2**40 <= block.timestamp:
             # delete record for the delegator
-            delegator: address = convert(shift(data, 96), address)
+            delegator: address = convert(shift(data, -96), address)
             self.delegated_to[delegator][_gauge] = 0
             self.delegation_count[delegator] -= 1
 
@@ -301,7 +301,7 @@ def update_delegation_records(_user: address, _gauge: address) -> bool:
                 self.delegation_data[_user][_gauge].data[idx] = 0
             else:
                 self.delegation_data[_user][_gauge].data[idx] = self.delegation_data[_user][_gauge].data[adjusted_length]
-            adjusted_length -= 1
+                adjusted_length -= 1
 
     return True
 

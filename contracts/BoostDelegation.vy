@@ -94,9 +94,9 @@ def get_delegation_data(
     """
     data: uint256 = self.delegation_data[_receiver][_gauge].data[_idx]
     return (
-        convert(shift(data, 96), address),
-        shift(data, 80) % 2**16,
-        shift(data, 40) % 2**40,
+        convert(shift(data, -96), address),
+        shift(data, -80) % 2**16,
+        shift(data, -40) % 2**40,
         data % 2**40
     )
 

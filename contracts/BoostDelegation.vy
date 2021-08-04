@@ -68,9 +68,9 @@ def get_delegated_to(_delegator: address, _gauge: address) -> (address, uint256,
     """
     data: uint256 = self.delegated_to[_delegator][_gauge]
     return (
-        convert(shift(data, 96), address),
-        shift(data, 80) % 2**16,
-        shift(data, 40) % 2**40,
+        convert(shift(data, -96), address),
+        shift(data, -80) % 2**16,
+        shift(data, -40) % 2**40,
         data % 2**40
     )
 

@@ -20,19 +20,19 @@ def pytest_addoption(parser):
     parser.addoption(
         "--plain-pool-size",
         action="store",
-        default="2,3,4",
+        default="2",
         help="comma-separated list of plain pool sizes to test against",
     )
     parser.addoption(
         "--plain-pool-type",
         action="store",
-        default="basic,eth,optimized,rebase",
+        default="basic",
         help="comma-separated list of plain pool sizes to test against",
     )
     parser.addoption(
         "--return-type",
         action="store",
-        default="revert,False,None",
+        default="revert",
         help="comma-separated list of ERC20 token return types to test against",
     )
     parser.addoption(

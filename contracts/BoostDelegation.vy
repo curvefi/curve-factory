@@ -190,6 +190,7 @@ def delegate_boost(
     self.delegation_data[_receiver][_gauge].data[idx] = data + shift(convert(_delegator, uint256), -96)
     self.delegated_to[_delegator][_gauge] = data + shift(convert(_receiver, uint256), -96)
     self.delegation_data[_receiver][_gauge].length = idx + 1
+    self.delegation_count[_delegator] += 1
 
     log NewDelegation(_delegator, _gauge, _receiver, _pct, _cancel_time, _expire_time)
     return True

@@ -9,6 +9,21 @@
 from vyper.interfaces import ERC20
 
 
+event NewDelegation:
+    delegator: indexed(address)
+    gauge: indexed(address)
+    receiver: indexed(address)
+    pct: uint256
+    cancel_time: uint256
+    expire_time: uint256
+
+event CancelledDelegation:
+    delegator: indexed(address)
+    gauge: indexed(address)
+    receiver: indexed(address)
+    cancelled_by: address
+
+
 struct ReceivedBoost:
     length: uint256
     data: uint256[10]
@@ -176,6 +191,7 @@ def delegate_boost(
     self.delegated_to[_delegator][_gauge] = data + shift(convert(_receiver, uint256), -96)
     self.delegation_data[_receiver][_gauge].length = idx + 1
 
+    log NewDelegation(_delegator, _gauge, _receiver, _pct, _cancel_time, _expire_time)
     return True
 
 
@@ -201,6 +217,7 @@ def cancel_delegation(_delegator: address, _gauge: address) -> bool:
 
     self._delete_delegation_data(_delegator, _gauge, data)
 
+    log CancelledDelegation(_delegator, _gauge, receiver, msg.sender)
     return True
 
 

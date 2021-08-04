@@ -18,17 +18,17 @@ admin: public(address)
 future_admin: public(address)
 is_killed: public(bool)
 
-# user -> data on global boosts delegated to user
-# delegation data is tightly packed as [address][uint16 pct][uint40 cancel time][uint40 expire time]
-delegation_count: HashMap[address, uint256]
+# user -> number of active boost delegations
+delegation_count: public(HashMap[address, uint256])
 
-# user -> pool -> data on per-pool boosts delegated to user
+# user -> gauge -> data on boosts delegated to user
+# tightly packed as [address][uint16 pct][uint40 cancel time][uint40 expire time]
 delegation_data: HashMap[address, HashMap[address, ReceivedBoost]]
 
-# user -> pool -> address that user has delegated boost to for this pool
-delegated_to: public(HashMap[address, HashMap[address, uint256]])
+# user -> gauge -> data about delegation user has made for this gauge
+delegated_to: HashMap[address, HashMap[address, uint256]]
 
-operator: HashMap[address, address]
+operator_of: public(HashMap[address, address])
 
 VOTING_ESCROW: constant(address) = 0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2
 MIN_VECRV: constant(uint256) = 2500 * 10**18
@@ -37,6 +37,53 @@ MIN_VECRV: constant(uint256) = 2500 * 10**18
 @external
 def __init__(_admin: address):
     self.admin = _admin
+
+
+@view
+@external
+def get_delegated_to(_delegator: address, _gauge: address) -> (address, uint256, uint256, uint256):
+    """
+    @notice Get data about an accounts's boost delegation
+    @param _delegator Address to query delegation data for
+    @param _gauge Gauge address to query. Use ZERO_ADDRESS for global delegation.
+    @return address receiving the delegated boost
+            delegated boost pct (out of 10000)
+            cancellable timestamp
+            expiry timestamp
+    """
+    data: uint256 = self.delegated_to[_delegator][_gauge]
+    return (
+        convert(shift(data, 96), address),
+        shift(data, 80) % 2**16,
+        shift(data, 40) % 2**40,
+        data % 2**40
+    )
+
+
+@view
+@external
+def get_delegation_data(
+    _receiver: address,
+    _gauge: address,
+    _idx: uint256
+) -> (address, uint256, uint256, uint256):
+    """
+    @notice Get data delegation toward an account
+    @param _receiver Address to query delegation data for
+    @param _gauge Gauge address to query. Use ZERO_ADDRESS for global delegation.
+    @param _idx Data index. Each account can receive a max of 10 delegations per pool.
+    @return address of the delegator
+            delegated boost pct (out of 10000)
+            cancellable timestamp
+            expiry timestamp
+    """
+    data: uint256 = self.delegation_data[_receiver][_gauge].data[_idx]
+    return (
+        convert(shift(data, 96), address),
+        shift(data, 80) % 2**16,
+        shift(data, 40) % 2**40,
+        data % 2**40
+    )
 
 
 @external
@@ -51,7 +98,7 @@ def set_operator(_operator: address) -> bool:
                      the currently active approval.
     @return bool success
     """
-    self.operator[msg.sender] = _operator
+    self.operator_of[msg.sender] = _operator
     return True
 
 
@@ -97,7 +144,7 @@ def delegate_boost(
     @return bool success
     """
     assert not self.is_killed, "Is killed"
-    assert msg.sender in [_delegator, self.operator[_delegator]], "Only owner or operator"
+    assert msg.sender in [_delegator, self.operator_of[_delegator]], "Only owner or operator"
 
     assert _delegator != _receiver, "Cannot delegate to self"
     assert _pct >= 100, "Percent too low"
@@ -153,8 +200,8 @@ def cancel_delegation(_delegator: address, _gauge: address) -> bool:
     assert data != 0, "No delegation for this pool"
 
     receiver: address = convert(shift(data, 96), address)
-    if msg.sender not in [receiver, self.operator[receiver]]:
-        assert msg.sender in [receiver, self.operator[receiver]], "Only owner or operator"
+    if msg.sender not in [receiver, self.operator_of[receiver]]:
+        assert msg.sender in [receiver, self.operator_of[receiver]], "Only owner or operator"
         assert shift(data, 40) % 2**40 <= block.timestamp, "Not yet cancellable"
 
     self._delete_delegation_data(_delegator, _gauge, data)

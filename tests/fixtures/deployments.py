@@ -154,4 +154,4 @@ def boost_delegation(alice, BoostDelegation, voting_escrow):
     source = source.replace("0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2", voting_escrow.address)
 
     NewBoostDelegation = compile_source(source).Vyper
-    return NewBoostDelegation.deploy({"from": alice})
+    return NewBoostDelegation.deploy(alice, {"from": alice})

@@ -14,6 +14,10 @@ struct ReceivedBoost:
     data: uint256[10]
 
 
+admin: public(address)
+future_admin: public(address)
+is_killed: public(bool)
+
 # user -> data on global boosts delegated to user
 # delegation data is tightly packed as [address][uint16 pct][uint40 cancel time][uint40 expire time]
 delegation_count: HashMap[address, uint256]
@@ -28,6 +32,11 @@ operator: HashMap[address, address]
 
 VOTING_ESCROW: constant(address) = 0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2
 MIN_VECRV: constant(uint256) = 2500 * 10**18
+
+
+@external
+def __init__(_admin: address):
+    self.admin = _admin
 
 
 @external
@@ -87,6 +96,7 @@ def delegate_boost(
     @param _expire_time Delegation automatically expires at this time.
     @return bool success
     """
+    assert not self.is_killed, "Is killed"
     assert msg.sender in [_delegator, self.operator[_delegator]], "Only owner or operator"
 
     assert _delegator != _receiver, "Cannot delegate to self"
@@ -164,6 +174,10 @@ def get_adjusted_vecrv_balance(_user: address, _gauge: address) -> uint256:
     # query the initial vecrv balance for `_user`
     voting_balance: uint256 = ERC20(VOTING_ESCROW).balanceOf(_user)
 
+    # if the contract has been killed, return veCRV without applying any delegation
+    if self.is_killed:
+        return voting_balance
+
     # check if the user has delegated any vecrv and reduce the voting balance
     delegation_count: uint256 = self.delegation_count[_user]
     if delegation_count != 0:
@@ -228,3 +242,39 @@ def update_delegation_records(_user: address, _gauge: address) -> bool:
             adjusted_length -= 1
 
     return True
+
+
+@external
+def set_killed(_is_killed: bool):
+    """
+    @notice Set the killed status for this contract
+    @dev When killed, all delegation is disabled
+    @param _is_killed Killed status to set
+    """
+    assert msg.sender == self.admin  # dev: only owner
+
+    self.is_killed = _is_killed
+
+
+@external
+def commit_transfer_ownership(_addr: address):
+    """
+    @notice Transfer ownership of this contract to `addr`
+    @param _addr Address of the new owner
+    """
+    assert msg.sender == self.admin  # dev: admin only
+
+    self.future_admin = _addr
+
+
+@external
+def accept_transfer_ownership():
+    """
+    @notice Accept a pending ownership transfer
+    @dev Only callable by the new owner
+    """
+    _admin: address = self.future_admin
+    assert msg.sender == _admin  # dev: future admin only
+
+    self.admin = _admin
+    self.future_admin = ZERO_ADDRESS

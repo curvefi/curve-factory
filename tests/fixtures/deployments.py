@@ -146,3 +146,12 @@ def owner_proxy(alice, OwnerProxy):
 def gauge(alice, factory, swap, LiquidityGauge, set_gauge_implementation):
     tx = factory.deploy_gauge(swap, {"from": alice})
     return LiquidityGauge.at(tx.return_value)
+
+
+@pytest.fixture(scope="session")
+def boost_delegation(alice, BoostDelegation, voting_escrow):
+    source = BoostDelegation._build["source"]
+    source = source.replace("0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2", voting_escrow.address)
+
+    NewBoostDelegation = compile_source(source).Vyper
+    return NewBoostDelegation.deploy({"from": alice})

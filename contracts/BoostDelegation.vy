@@ -169,16 +169,11 @@ def delegate_boost(
 
     # tightly pack the delegation data
     # [address][uint16 pct][uint40 cancel time][uint40 expire time]
-    data = (
-        shift(convert(_receiver, uint256), -96) +
-        shift(_pct, -80) +
-        shift(_cancel_time, -40) +
-        _expire_time
-    )
+    data = shift(_pct, -80) + shift(_cancel_time, -40) + _expire_time
     idx: uint256 = self.delegation_data[_receiver][_gauge].length
 
-    self.delegation_data[_receiver][_gauge].data[idx] = data
-    self.delegated_to[_delegator][_gauge] = data
+    self.delegation_data[_receiver][_gauge].data[idx] = data + shift(convert(_delegator, uint256), -96)
+    self.delegated_to[_delegator][_gauge] = data + shift(convert(_receiver, uint256), -96)
     self.delegation_data[_receiver][_gauge].length = idx + 1
 
     return True

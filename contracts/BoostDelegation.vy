@@ -213,10 +213,10 @@ def cancel_delegation(_delegator: address, _gauge: address) -> bool:
     data: uint256 = self.delegated_to[_delegator][_gauge]
     assert data != 0, "No delegation for this pool"
 
-    receiver: address = convert(shift(data, 96), address)
+    receiver: address = convert(shift(data, -96), address)
     if msg.sender not in [receiver, self.operator_of[receiver]]:
-        assert msg.sender in [receiver, self.operator_of[receiver]], "Only owner or operator"
-        assert shift(data, 40) % 2**40 <= block.timestamp, "Not yet cancellable"
+        assert msg.sender in [_delegator, self.operator_of[_delegator]], "Only delegator or delegator's operator"
+        assert shift(data, -40) % 2**40 <= block.timestamp, "Not yet cancellable"
 
     self._delete_delegation_data(_delegator, _gauge, data)
 

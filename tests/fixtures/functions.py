@@ -71,3 +71,10 @@ def approve_bob(bob, coins, swap):
 @pytest.fixture
 def add_initial_liquidity(alice, approve_alice, mint_alice, initial_amounts, swap, eth_amount):
     swap.add_liquidity(initial_amounts, 0, {"from": alice, "value": eth_amount(initial_amounts[0])})
+
+
+@pytest.fixture
+def lock_crv(alice, crv, voting_escrow, chain):
+    amount = crv.balanceOf(alice) // 2
+    crv.approve(voting_escrow, amount, {"from": alice})
+    voting_escrow.create_lock(amount, chain.time() + 86400 * 365 * 4, {"from": alice})

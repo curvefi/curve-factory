@@ -125,16 +125,18 @@ def _delete_delegation_data(_delegator: address, _gauge: address, _delegation_da
 
     receiver: address = convert(shift(_delegation_data, -96), address)
     length: uint256 = self.delegation_data[receiver][_gauge].length
-    delegation_data: uint256 = shift(convert(receiver, uint256), -96) + (_delegation_data % 2 ** 96)
+    # this is the correct data we have to match
+    data: uint256 = shift(convert(_delegator, uint256), 96) + (_delegation_data % 2 ** 96)
 
     # delete record for the receiver
     for i in range(10):
         if i == length - 1:
             self.delegation_data[receiver][_gauge].data[i] = 0
             break
-        if self.delegation_data[receiver][_gauge].data[i] == delegation_data:
+        if self.delegation_data[receiver][_gauge].data[i] == data:
             self.delegation_data[receiver][_gauge].data[i] = self.delegation_data[receiver][_gauge].data[length-1]
             self.delegation_data[receiver][_gauge].data[length-1] = 0
+            break
 
     self.delegation_data[receiver][_gauge].length -= 1
 

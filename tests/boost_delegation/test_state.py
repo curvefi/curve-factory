@@ -4,6 +4,7 @@ from typing import DefaultDict, Dict, List, Tuple
 
 import brownie
 from brownie import ZERO_ADDRESS, Contract, chain, convert
+from brownie.test import contract_strategy, strategy
 from dataclassy import dataclass
 
 
@@ -160,3 +161,93 @@ class BoostDelegationLogic:
 
     def set_is_killed(self, killed: bool):
         self.is_killed = killed
+
+
+class StateMachine:
+
+    st_account = strategy("address")
+    st_gauge = contract_strategy("LiquidityGauge")
+    st_percentage = strategy("uint16")
+    st_time = strategy("uint40")
+
+    def __init__(cls, accounts, boost_delegation, voting_escrow) -> None:
+        cls.accounts = accounts
+        cls.boost_delegation = boost_delegation
+        cls.voting_escrow = voting_escrow
+
+    def setup(self):
+        brownie.multicall.deploy({"from": self.accounts[0]})
+        self._state = BoostDelegationLogic(self.voting_escrow)
+
+    def initialize(self):
+        self.boost_delegation.set_killed(True, {"from": self.boost_delegation.admin()})
+        self._state.set_is_killed(True)
+
+    def rule_delegate_boost(
+        self,
+        delegator="st_account",
+        gauge="st_gauge",
+        receiver="st_account",
+        pct="st_percentage",
+        cancel_time="st_time",
+        expire_time="st_time",
+        msg_sender="st_account",
+    ):
+        try:
+            self._state.delegate_boost(
+                delegator.address,
+                gauge.address,
+                receiver.address,
+                pct,
+                cancel_time,
+                expire_time,
+                {"from": msg_sender.address},
+            )
+        except AssertionError:
+            with brownie.reverts():
+                self.boost_delegation.delegate_boost(
+                    delegator, gauge, receiver, pct, cancel_time, expire_time, {"from": msg_sender}
+                )
+        else:
+            self.boost_delegation.delegate_boost(
+                delegator, gauge, receiver, pct, cancel_time, expire_time, {"from": msg_sender}
+            )
+
+    def rule_set_operator(self, account="st_account", operator="st_account"):
+        self._state.set_operator(operator.address, {"from": account.address})
+        self.boost_delegation.set_operator(operator, {"from": account})
+
+    def rule_cancel_delegation(
+        self, delegator="st_account", gauge="st_gauge", msg_sender="st_account"
+    ):
+        try:
+            self._state.cancel_delegation(
+                delegator.address, gauge.address, {"from": msg_sender.address}
+            )
+        except AssertionError:
+            with brownie.reverts():
+                self.boost_delegation.cancel_delegation(delegator, gauge, {"from": msg_sender})
+        else:
+            self.boost_delegation.cancel_delegation(delegator, gauge, {"from": msg_sender})
+
+    def rule_update_delegation_records(
+        self, user="st_account", gauge="st_gauge", msg_sender="st_account"
+    ):
+        try:
+            self._state.update_delegation_records(
+                user.address, gauge.address, {"from": msg_sender.address}
+            )
+        except AssertionError:
+            with brownie.reverts():
+                self.boost_delegation.update_delegation_records(user, gauge, {"from": msg_sender})
+        else:
+            self.boost_delegation.update_delegation_records(user, gauge, {"from": msg_sender})
+
+    def invariant_delegation_data():
+        pass
+
+    def invariant_delegated_to():
+        pass
+
+    def invariant_adjusted_vecrv_balance():
+        pass

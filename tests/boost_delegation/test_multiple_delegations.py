@@ -61,13 +61,40 @@ def test_receive_multiple_delegations_expire(
         multiplier = 0 if idx < num_expired else 1
         adjusted_vecrv_balance += multiplier * voting_escrow.balanceOf(data[0]) * data[3] // 10_000
 
-    assert (
-        boost_delegation.get_adjusted_vecrv_balance(dave, delegation_data[0][1])
-        == adjusted_vecrv_balance
+    assert math.isclose(
+        boost_delegation.get_adjusted_vecrv_balance(dave, delegation_data[0][1]),
+        adjusted_vecrv_balance,
+        rel_tol=0.001,
     )
 
     boost_delegation.update_delegation_records(dave, delegation_data[0][1], {"from": dave})
 
     for idx, data in enumerate(delegation_data[num_expired:][::-1]):
+        on_chain_delegation_data = boost_delegation.get_delegation_data(data[2], data[1], idx)
+        assert on_chain_delegation_data == [data[0]] + data[3:]
+
+
+@pytest.mark.parametrize("num_cancel", [1, 2, 3])
+def test_receive_multiple_delegations_cancel(
+    boost_delegation, delegation_data, dave, num_cancel, voting_escrow
+):
+    for data in delegation_data:
+        boost_delegation.delegate_boost(*data, {"from": data[0]})
+
+    # after all have been delegated we start cancelling
+    adjusted_vecrv_balance = 0
+    for idx, data in enumerate(delegation_data):
+        multiplier = 0 if idx < num_cancel else 1
+        if not multiplier:
+            boost_delegation.cancel_delegation(data[0], data[1], {"from": dave})
+        adjusted_vecrv_balance += multiplier * voting_escrow.balanceOf(data[0]) * data[3] // 10_000
+
+    assert math.isclose(
+        boost_delegation.get_adjusted_vecrv_balance(dave, delegation_data[0][1]),
+        adjusted_vecrv_balance,
+        rel_tol=0.001,
+    )
+
+    for idx, data in enumerate(delegation_data[num_cancel:][::-1]):
         on_chain_delegation_data = boost_delegation.get_delegation_data(data[2], data[1], idx)
         assert on_chain_delegation_data == [data[0]] + data[3:]

@@ -1,4 +1,6 @@
 import copy
+import itertools as it
+import math
 from collections import defaultdict
 from typing import DefaultDict, Dict, List, Tuple
 
@@ -170,9 +172,10 @@ class StateMachine:
     st_percentage = strategy("uint16")
     st_time = strategy("uint40")
 
-    def __init__(cls, accounts, boost_delegation, voting_escrow) -> None:
+    def __init__(cls, accounts, boost_delegation, gauges, voting_escrow) -> None:
         cls.accounts = accounts
         cls.boost_delegation = boost_delegation
+        cls.gauges = gauges
         cls.voting_escrow = voting_escrow
 
     def setup(self):
@@ -234,20 +237,86 @@ class StateMachine:
         self, user="st_account", gauge="st_gauge", msg_sender="st_account"
     ):
         try:
-            self._state.update_delegation_records(
-                user.address, gauge.address, {"from": msg_sender.address}
-            )
+            self._state.update_delegation_records(user.address, gauge.address)
         except AssertionError:
             with brownie.reverts():
                 self.boost_delegation.update_delegation_records(user, gauge, {"from": msg_sender})
         else:
             self.boost_delegation.update_delegation_records(user, gauge, {"from": msg_sender})
 
-    def invariant_delegation_data():
-        pass
+    def invariant_delegation_data(self):
+        collected_data = defaultdict(lambda: defaultdict(list))
+        with brownie.multicall(block_identifier=chain.height):
+            # batch all the calls into one using multicall
+            for account, gauge, idx in it.product(self.accounts, self.gauges, range(10)):
+                collected_data[account.address][gauge.address].append(
+                    self.boost_delegation.get_delegation_data(account, gauge, idx)
+                )
 
-    def invariant_delegated_to():
-        pass
+        for account, gauge, idx in it.product(self.accounts, self.gauges, range(10)):
+            # then make assertions about the data
+            on_chain_data = collected_data[account.address][gauge.address][idx]
+            expected_data = self._state.get_delegation_data(account.address, gauge.address, idx)
+            assert tuple(on_chain_data) == tuple(expected_data)
 
-    def invariant_adjusted_vecrv_balance():
-        pass
+    def invariant_delegated_to(self):
+        collected_data = defaultdict(lambda: defaultdict(lambda: Data()))
+        with brownie.multicall(block_identifier=chain.height):
+            for account, gauge in it.product(self.accounts, self.gauges):
+                collected_data[account.address][
+                    gauge.address
+                ] = self.boost_delegation.get_delegated_to(account, gauge)
+
+        for account, gauge in it.product(self.accounts, self.gauges):
+            on_chain_data = collected_data[account.address][gauge.address]
+            expected_data = self._state.get_delegated_to(account.address, gauge.address)
+            assert tuple(on_chain_data) == tuple(expected_data)
+
+    def invariant_adjusted_vecrv_balance(self):
+        collected_data = defaultdict(lambda: defaultdict(lambda: 0))
+        with brownie.multicall(block_identifier=chain.height):
+            for account, gauge in it.product(self.accounts, self.gauges):
+                collected_data[account.address][
+                    gauge.address
+                ] = self.boost_delegation.get_adjusted_vecrv_balance(account, gauge)
+
+        for account, gauge in it.product(self.accounts, self.gauges):
+            on_chain_data = collected_data[account.address][gauge.address]
+            expected_data = self._state.get_adjusted_vecrv_balance(
+                account.address, gauge.address, chain.height
+            )
+            assert math.isclose(on_chain_data, expected_data, rel_tol=0.00001)
+
+
+def test_state_machine(
+    state_machine,
+    alice,
+    accounts,
+    boost_delegation,
+    LiquidityGauge,
+    crv,
+    voting_escrow,
+):
+    total_accounts = len(accounts)
+    total_crv = crv.balanceOf(alice)
+    amount = total_crv // total_accounts
+    # fund accounts to be used in the test
+    for acct in accounts:
+        crv.transfer(acct, amount, {"from": alice})
+        crv.approve(voting_escrow, amount, {"from": acct})
+        voting_escrow.create_lock(amount, chain.time() + 86400 * 365 * 4, {"from": acct})
+
+    # deploy some mock gauges
+    gauges = [LiquidityGauge.deploy({"from": alice}) for _ in range(5)]
+
+    # because this is a simple state machine, we use more steps than normal
+    settings = {"stateful_step_count": 25, "max_examples": 30}
+
+    state_machine(
+        StateMachine,
+        accounts,
+        boost_delegation,
+        gauges,
+        voting_escrow,
+        settings=settings,
+    )

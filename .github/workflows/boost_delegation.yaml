@@ -20,7 +20,10 @@ jobs:
 
   unitary:
     runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        stateful: [true, false]
     steps:
     - uses: actions/checkout@v2
 
@@ -49,4 +52,4 @@ jobs:
       run: pip install -r requirements.txt
 
     - name: Run Tests
-      run: brownie test tests/boost_delegation/
+      run: brownie test tests/boost_delegation/ --stateful ${{ matrix.stateful }}

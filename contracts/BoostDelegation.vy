@@ -248,13 +248,13 @@ def get_adjusted_vecrv_balance(_user: address, _gauge: address) -> uint256:
         if delegation_count == 1:
             data: uint256 = self.delegated_to[_user][ZERO_ADDRESS]
             if data % 2**40 > block.timestamp:
-                voting_balance = voting_balance * (10000 - shift(data, 80) % 2**16) / 10000
+                voting_balance = voting_balance * (10000 - shift(data, -80) % 2**16) / 10000
                 is_global = True
         # apply pool-specific delegation
         if not is_global:
             data: uint256 = self.delegated_to[_user][_gauge]
             if data % 2**40 > block.timestamp:
-                voting_balance = voting_balance * (10000 - shift(data, 80) % 2**16) / 10000
+                voting_balance = voting_balance * (10000 - shift(data, -80) % 2**16) / 10000
 
     # check for other vecrv delegated to `_user` and increase the voting balance
     for target in [_gauge, ZERO_ADDRESS]:
@@ -265,9 +265,11 @@ def get_adjusted_vecrv_balance(_user: address, _gauge: address) -> uint256:
                     break
                 data: uint256 = self.delegation_data[_user][target].data[i]
                 if data % 2**40 > block.timestamp:
-                    delegator: address = convert(shift(data, 96), address)
+                    delegator: address = convert(shift(data, -96), address)
                     delegator_balance: uint256 = ERC20(VOTING_ESCROW).balanceOf(delegator)
-                    voting_balance += delegator_balance * (shift(data, 80) % 2**16) / 10000
+                    voting_balance += delegator_balance * (shift(data, -80) % 2**16) / 10000
+        if target == ZERO_ADDRESS:
+            break
 
     return voting_balance
 

@@ -36,6 +36,9 @@ interface VotingEscrow:
     def user_point_epoch(addr: address) -> uint256: view
     def user_point_history__ts(addr: address, epoch: uint256) -> uint256: view
 
+interface VotingEscrowBoost:
+    def adjusted_balance_of(_account: address) -> uint256: view
+
 interface ERC20Extended:
     def symbol() -> String[26]: view
 
@@ -200,6 +203,10 @@ def _update_liquidity_limit(addr: address, l: uint256, L: uint256):
     # To be called after totalSupply is updated
     voting_balance: uint256 = ERC20(VOTING_ESCROW).balanceOf(addr)
     voting_total: uint256 = ERC20(VOTING_ESCROW).totalSupply()
+
+    veboost: address = AddressProvider(ADDR_PROVIDER).get_address(__VEBOOST_ID__)
+    if veboost != ZERO_ADDRESS:
+        voting_balance = VotingEscrowBoost(veboost).adjusted_balance_of(addr)
 
     lim: uint256 = l * TOKENLESS_PRODUCTION / 100
     if voting_total > 0:

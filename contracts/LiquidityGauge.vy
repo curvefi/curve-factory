@@ -11,6 +11,9 @@ from vyper.interfaces import ERC20
 implements: ERC20
 
 
+interface AddressProvider:
+    def get_address(_id: uint256) -> address: view
+
 interface CRV20:
     def future_epoch_time_write() -> uint256: nonpayable
     def rate() -> uint256: view
@@ -86,6 +89,7 @@ TOKENLESS_PRODUCTION: constant(uint256) = 40
 WEEK: constant(uint256) = 604800
 CLAIM_FREQUENCY: constant(uint256) = 3600
 
+ADDR_PROVIDER: constant(address) = 0x0000000022D53366457F9d5E68Ec105046FC4383
 MINTER: constant(address) = 0xd061D61a4d941c39E5453435B6345Dc261C2fcE0
 CRV: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
 VOTING_ESCROW: constant(address) = 0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2

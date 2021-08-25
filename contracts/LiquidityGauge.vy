@@ -11,9 +11,6 @@ from vyper.interfaces import ERC20
 implements: ERC20
 
 
-interface AddressProvider:
-    def get_address(_id: uint256) -> address: view
-
 interface CRV20:
     def future_epoch_time_write() -> uint256: nonpayable
     def rate() -> uint256: view
@@ -92,11 +89,11 @@ TOKENLESS_PRODUCTION: constant(uint256) = 40
 WEEK: constant(uint256) = 604800
 CLAIM_FREQUENCY: constant(uint256) = 3600
 
-ADDR_PROVIDER: constant(address) = 0x0000000022D53366457F9d5E68Ec105046FC4383
 MINTER: constant(address) = 0xd061D61a4d941c39E5453435B6345Dc261C2fcE0
 CRV: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
 VOTING_ESCROW: constant(address) = 0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2
 GAUGE_CONTROLLER: constant(address) = 0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB
+VEBOOT_PROXY: constant(address) = 0x0000000000000000000000000000000000000000
 
 
 lp_token: public(address)
@@ -201,12 +198,8 @@ def _update_liquidity_limit(addr: address, l: uint256, L: uint256):
     @param L Total amount of liquidity (LP tokens)
     """
     # To be called after totalSupply is updated
-    voting_balance: uint256 = ERC20(VOTING_ESCROW).balanceOf(addr)
+    voting_balance: uint256 = VotingEscrowBoost(VEBOOT_PROXY).adjusted_balance_of(addr)
     voting_total: uint256 = ERC20(VOTING_ESCROW).totalSupply()
-
-    veboost: address = AddressProvider(ADDR_PROVIDER).get_address(__VEBOOST_ID__)
-    if veboost != ZERO_ADDRESS:
-        voting_balance = VotingEscrowBoost(veboost).adjusted_balance_of(addr)
 
     lim: uint256 = l * TOKENLESS_PRODUCTION / 100
     if voting_total > 0:

@@ -246,7 +246,7 @@ def gauge_implementation(
         "0xD533a949740bb3306d119CC777fa900bA034cd52",  # crv
         "0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2",  # voting escrow
         "0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB",  # gauge controller
-        "0x0000000000000000000000000000000000000000",  # veboost proxy
+        "0x8E0c00ed546602fD9927DF742bbAbF726D5B0d16",  # veboost proxy
     ]
     for old, new in zip(
         old_addrs, [minter, crv, voting_escrow, gauge_controller, mock_veboost_proxy]

@@ -11,6 +11,7 @@ voting_escrow: public(address)
 @external
 def __init__(voting_escrow: address, _delegation: address):
     self.delegation = _delegation
+    self.voting_escrow = voting_escrow
 
 
 @view

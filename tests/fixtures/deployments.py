@@ -29,6 +29,11 @@ def registry(alice, address_provider, Registry):
     return registry
 
 
+@pytest.fixture(scope="session")
+def mock_veboost_proxy(alice, MockBoostDelegationProxy, voting_escrow):
+    return MockBoostDelegationProxy.deploy(voting_escrow, ZERO_ADDRESS, {"from": alice})
+
+
 # mock base pool
 
 
@@ -232,15 +237,20 @@ def minter(alice, crv, pm, gauge_controller):
 
 
 @pytest.fixture(scope="session")
-def gauge_implementation(alice, LiquidityGauge, minter, crv, voting_escrow, gauge_controller):
+def gauge_implementation(
+    alice, LiquidityGauge, minter, crv, voting_escrow, gauge_controller, mock_veboost_proxy
+):
     source = LiquidityGauge._build["source"]
     old_addrs = [
         "0xd061D61a4d941c39E5453435B6345Dc261C2fcE0",  # minter
         "0xD533a949740bb3306d119CC777fa900bA034cd52",  # crv
         "0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2",  # voting escrow
         "0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB",  # gauge controller
+        "0x8E0c00ed546602fD9927DF742bbAbF726D5B0d16",  # veboost proxy
     ]
-    for old, new in zip(old_addrs, [minter, crv, voting_escrow, gauge_controller]):
+    for old, new in zip(
+        old_addrs, [minter, crv, voting_escrow, gauge_controller, mock_veboost_proxy]
+    ):
         source = source.replace(old, new.address)
 
     NewLiquidityGauge = compile_source(source).Vyper

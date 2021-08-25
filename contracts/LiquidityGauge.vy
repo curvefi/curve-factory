@@ -93,7 +93,7 @@ MINTER: constant(address) = 0xd061D61a4d941c39E5453435B6345Dc261C2fcE0
 CRV: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
 VOTING_ESCROW: constant(address) = 0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2
 GAUGE_CONTROLLER: constant(address) = 0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB
-VEBOOT_PROXY: constant(address) = 0x0000000000000000000000000000000000000000
+VEBOOST_PROXY: constant(address) = 0x0000000000000000000000000000000000000000
 
 
 lp_token: public(address)
@@ -198,7 +198,7 @@ def _update_liquidity_limit(addr: address, l: uint256, L: uint256):
     @param L Total amount of liquidity (LP tokens)
     """
     # To be called after totalSupply is updated
-    voting_balance: uint256 = VotingEscrowBoost(VEBOOT_PROXY).adjusted_balance_of(addr)
+    voting_balance: uint256 = VotingEscrowBoost(VEBOOST_PROXY).adjusted_balance_of(addr)
     voting_total: uint256 = ERC20(VOTING_ESCROW).totalSupply()
 
     lim: uint256 = l * TOKENLESS_PRODUCTION / 100

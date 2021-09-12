@@ -64,6 +64,12 @@ def base_pool(alice, CurvePool, base_coins, lp_token, registry, accounts):
     return pool
 
 
+@pytest.fixture(scope="session")
+def base_gauge(alice, pm, lp_token):
+    RewardsOnlyGauge = pm("curvefi/curve-dao-contracts@1.3.0").RewardsOnlyGauge
+    return RewardsOnlyGauge.deploy(lp_token, alice, {"from": alice})
+
+
 # implementation contracts - paramaterized by pool size
 
 

@@ -261,7 +261,10 @@ def approve(_spender : address, _value : uint256) -> bool:
 def _balances() -> uint256[N_COINS]:
     result: uint256[N_COINS] = empty(uint256[N_COINS])
     for i in range(N_COINS):
-        result[i] = ERC20(self.coins[i]).balanceOf(self) - self.admin_balances[i]
+        coin: address = self.coins[i]
+        if i == MAX_COIN:
+            coin = BASE_GAUGE
+        result[i] = ERC20(coin).balanceOf(self) - self.admin_balances[i]
     return result
 
 
@@ -500,6 +503,9 @@ def add_liquidity(
 
     assert mint_amount >= _min_mint_amount
 
+    # Deposit into the base gauge
+    Gauge(BASE_GAUGE).deposit(_amounts[MAX_COIN])
+
     # Mint pool tokens
     total_supply += mint_amount
     self.balanceOf[_receiver] += mint_amount
@@ -685,6 +691,11 @@ def exchange(
     dy = (dy - dy_fee) * PRECISION / rates[j]
     assert dy >= _min_dy
 
+    if i == MAX_COIN:
+        Gauge(BASE_GAUGE).deposit(_dx)
+    else:
+        Gauge(BASE_GAUGE).withdraw(dy)
+
     self.admin_balances[j] += (dy_fee * ADMIN_FEE / FEE_DENOMINATOR) * PRECISION / rates[j]
 
     response = raw_call(
@@ -776,6 +787,7 @@ def exchange_underlying(
             x = dx_w_fee * rates[MAX_COIN] / PRECISION
             # Adding number of pool tokens
             x += xp[MAX_COIN]
+            Gauge(BASE_GAUGE).deposit(dx_w_fee)
 
         y: uint256 = self.get_y(meta_i, meta_j, x, xp)
 
@@ -795,6 +807,7 @@ def exchange_underlying(
         # Withdraw from the base pool if needed
         if j > 0:
             out_amount: uint256 = ERC20(output_coin).balanceOf(self)
+            Gauge(BASE_GAUGE).withdraw(dy)
             Curve(BASE_POOL).remove_liquidity_one_coin(dy, base_j, 0)
             dy = ERC20(output_coin).balanceOf(self) - out_amount
 
@@ -842,6 +855,8 @@ def remove_liquidity(
         value: uint256 = balances[i] * _burn_amount / total_supply
         assert value >= _min_amounts[i]
         amounts[i] = value
+        if i == MAX_COIN:
+            Gauge(BASE_GAUGE).withdraw(value)
         response: Bytes[32] = raw_call(
             self.coins[i],
             _abi_encode(_receiver, value, method_id=method_id("transfer(address,uint256)")),
@@ -881,6 +896,8 @@ def remove_liquidity_imbalance(
     new_balances: uint256[N_COINS] = old_balances
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
+        if i == MAX_COIN:
+            Gauge(BASE_GAUGE).withdraw(amount)
         if amount != 0:
             new_balances[i] -= amount
             response: Bytes[32] = raw_call(
@@ -1040,6 +1057,9 @@ def remove_liquidity_one_coin(
     self.balanceOf[msg.sender] -= _burn_amount
     log Transfer(msg.sender, ZERO_ADDRESS, _burn_amount)
 
+    if i == MAX_COIN:
+        Gauge(BASE_GAUGE).withdraw(dy[0])
+
     response: Bytes[32] = raw_call(
         self.coins[i],
         _abi_encode(_receiver, dy[0], method_id=method_id("transfer(address,uint256)")),
@@ -1111,6 +1131,7 @@ def withdraw_admin_fees():
 
     # transfer coin 1 to the receiver
     amount = self.admin_balances[1]
+    Gauge(BASE_GAUGE).withdraw(amount)
 
     if amount > 0:
         self.admin_balances[1] = 0

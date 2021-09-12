@@ -420,11 +420,11 @@ def add_liquidity(
         else:
             response: Bytes[32] = raw_call(
                 self.coins[i],
-                concat(
-                    method_id("transferFrom(address,address,uint256)"),
-                    convert(msg.sender, bytes32),
-                    convert(self, bytes32),
-                    convert(amount, bytes32),
+                _abi_encode(
+                    msg.sender,
+                    self,
+                    amount,
+                    method_id=method_id("transferFrom(address,address,uint256)")
                 ),
                 max_outsize=32,
             )
@@ -646,11 +646,8 @@ def exchange(
 
     response: Bytes[32] = raw_call(
         self.coins[i],
-        concat(
-            method_id("transferFrom(address,address,uint256)"),
-            convert(msg.sender, bytes32),
-            convert(self, bytes32),
-            convert(_dx, bytes32),
+        _abi_encode(
+            msg.sender, self, _dx, method_id=method_id("transferFrom(address,address,uint256)")
         ),
         max_outsize=32,
     )
@@ -659,11 +656,7 @@ def exchange(
 
     response = raw_call(
         self.coins[j],
-        concat(
-            method_id("transfer(address,uint256)"),
-            convert(_receiver, bytes32),
-            convert(dy, bytes32),
-        ),
+        _abi_encode(_receiver, dy, method_id=method_id("transfer(address,uint256)")),
         max_outsize=32,
     )
     if len(response) > 0:
@@ -722,11 +715,8 @@ def exchange_underlying(
 
     response: Bytes[32] = raw_call(
         input_coin,
-        concat(
-            method_id("transferFrom(address,address,uint256)"),
-            convert(msg.sender, bytes32),
-            convert(self, bytes32),
-            convert(_dx, bytes32),
+        _abi_encode(
+            msg.sender, self, _dx, method_id=method_id("transferFrom(address,address,uint256)")
         ),
         max_outsize=32,
     )
@@ -787,11 +777,7 @@ def exchange_underlying(
 
     response = raw_call(
         output_coin,
-        concat(
-            method_id("transfer(address,uint256)"),
-            convert(_receiver, bytes32),
-            convert(dy, bytes32),
-        ),
+        _abi_encode(_receiver, dy, method_id=method_id("transfer(address,uint256)")),
         max_outsize=32,
     )
     if len(response) > 0:
@@ -828,11 +814,7 @@ def remove_liquidity(
         amounts[i] = value
         response: Bytes[32] = raw_call(
             self.coins[i],
-            concat(
-                method_id("transfer(address,uint256)"),
-                convert(_receiver, bytes32),
-                convert(value, bytes32),
-            ),
+            _abi_encode(_receiver, value, method_id=method_id("transfer(address,uint256)")),
             max_outsize=32,
         )
         if len(response) > 0:
@@ -875,11 +857,7 @@ def remove_liquidity_imbalance(
             new_balances[i] -= amount
             response: Bytes[32] = raw_call(
                 self.coins[i],
-                concat(
-                    method_id("transfer(address,uint256)"),
-                    convert(_receiver, bytes32),
-                    convert(amount, bytes32),
-                ),
+                _abi_encode(_receiver, amount, method_id=method_id("transfer(address,uint256)")),
                 max_outsize=32,
             )
             if len(response) > 0:
@@ -1036,11 +1014,7 @@ def remove_liquidity_one_coin(
 
     response: Bytes[32] = raw_call(
         self.coins[i],
-        concat(
-            method_id("transfer(address,uint256)"),
-            convert(_receiver, bytes32),
-            convert(dy[0], bytes32),
-        ),
+        _abi_encode(_receiver, dy[0], method_id=method_id("transfer(address,uint256)")),
         max_outsize=32,
     )
     if len(response) > 0:
@@ -1103,11 +1077,7 @@ def withdraw_admin_fees():
     if amount > 0:
         response: Bytes[32] = raw_call(
             coin,
-            concat(
-                method_id("transfer(address,uint256)"),
-                convert(factory, bytes32),
-                convert(amount, bytes32),
-            ),
+            _abi_encode(factory, amount, method_id=method_id("transfer(address,uint256)")),
             max_outsize=32,
         )
         if len(response) > 0:
@@ -1121,11 +1091,7 @@ def withdraw_admin_fees():
         receiver: address = Factory(factory).get_fee_receiver(self)
         response: Bytes[32] = raw_call(
             coin,
-            concat(
-                method_id("transfer(address,uint256)"),
-                convert(receiver, bytes32),
-                convert(amount, bytes32),
-            ),
+            _abi_encode(receiver, amount, method_id=method_id("transfer(address,uint256)")),
             max_outsize=32,
         )
         if len(response) > 0:

@@ -1,0 +1,182 @@
+# @version 0.2.16
+"""
+@title Curve Factory Metapool Gauge Extension
+@author Curve.Fi
+@license Copyright (c) Curve.Fi, 2020-2021 - all rights reserved
+"""
+from vyper.interfaces import ERC20
+
+
+interface BaseGauge:
+    def claim_rewards(_addr: address): nonpayable
+    def reward_tokens(_i: uint256) -> address: view
+
+
+BASE_GAUGE: constant(address) = 0x0000000000000000000000000000000000000000
+MAX_REWARDS: constant(uint256) = 8
+
+
+pool: public(address)
+
+# For tracking external rewards
+reward_tokens: public(address[MAX_REWARDS])
+reward_balances: public(HashMap[address, uint256])
+# claimant -> default reward receiver
+rewards_receiver: public(HashMap[address, address])
+
+claim_sig: public(Bytes[4])
+
+# reward token -> integral
+reward_integral: public(HashMap[address, uint256])
+
+# reward token -> claiming address -> integral
+reward_integral_for: public(HashMap[address, HashMap[address, uint256]])
+
+# user -> [uint128 claimable amount][uint128 claimed amount]
+claim_data: HashMap[address, HashMap[address, uint256]]
+
+admin: public(address)
+future_admin: public(address)  # Can and will be a smart contract
+
+
+@external
+def __init__():
+    self.pool = 0x000000000000000000000000000000000000dEaD
+
+
+@external
+def initialize():
+    assert self.pool == ZERO_ADDRESS
+    self.pool = msg.sender
+
+
+@internal
+def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _receiver: address):
+    """
+    @notice Claim pending rewards and checkpoint rewards for a user
+    """
+    # claim from base gauge
+    BaseGauge(BASE_GAUGE).claim_rewards(self.pool)
+
+    receiver: address = _receiver
+    if _claim and receiver == ZERO_ADDRESS:
+        # if receiver is not explicitly declared, check for default receiver
+        receiver = self.rewards_receiver[_user]
+        if receiver == ZERO_ADDRESS:
+            # direct claims to user if no default receiver is set
+            receiver = _user
+
+    # calculate new user reward integral and transfer any owed rewards
+    user_balance: uint256 = ERC20(self.pool).balanceOf(_user)
+    for i in range(MAX_REWARDS):
+        token: address = BaseGauge(BASE_GAUGE).reward_tokens(i)
+        if token == ZERO_ADDRESS:
+            break
+        dI: uint256 = 0
+        if _total_supply != 0:
+            token_balance: uint256 = ERC20(token).balanceOf(self)
+            dI = 10**18 * (token_balance - self.reward_balances[token]) / _total_supply
+            self.reward_balances[token] = token_balance
+            if _user == ZERO_ADDRESS:
+                if dI != 0:
+                    self.reward_integral[token] += dI
+                continue
+
+        integral: uint256 = self.reward_integral[token] + dI
+        if dI != 0:
+            self.reward_integral[token] = integral
+
+        integral_for: uint256 = self.reward_integral_for[token][_user]
+        new_claimable: uint256 = 0
+        if integral_for < integral:
+            self.reward_integral_for[token][_user] = integral
+            new_claimable = user_balance * (integral - integral_for) / 10**18
+
+        claim_data: uint256 = self.claim_data[_user][token]
+        total_claimable: uint256 = shift(claim_data, -128) + new_claimable
+        if total_claimable > 0:
+            total_claimed: uint256 = claim_data % 2 ** 128
+            if _claim:
+                response: Bytes[32] = raw_call(
+                    token,
+                    _abi_encode(
+                        receiver, total_claimable, method_id=method_id("transfer(address,uint256)")
+                    ),
+                    max_outsize=32,
+                )
+                if len(response) != 0:
+                    assert convert(response, bool)
+                self.reward_balances[token] -= total_claimable
+                # update amount claimed (lower order bytes)
+                self.claim_data[_user][token] = total_claimed + total_claimable
+            elif new_claimable > 0:
+                # update total_claimable (higher order bytes)
+                self.claim_data[_user][token] = total_claimed + shift(total_claimable, 128)
+
+
+@view
+@external
+def claimed_reward(_addr: address, _token: address) -> uint256:
+    """
+    @notice Get the number of already-claimed reward tokens for a user
+    @param _addr Account to get reward amount for
+    @param _token Token to get reward amount for
+    @return uint256 Total amount of `_token` already claimed by `_addr`
+    """
+    return self.claim_data[_addr][_token] % 2**128
+
+
+@view
+@external
+def claimable_reward(_addr: address, _token: address) -> uint256:
+    """
+    @notice Get the number of claimable reward tokens for a user
+    @dev This call does not consider pending claimable amount in `reward_contract`.
+         Off-chain callers should instead use `claimable_rewards_write` as a
+         view method.
+    @param _addr Account to get reward amount for
+    @param _token Token to get reward amount for
+    @return uint256 Claimable reward token amount
+    """
+    return shift(self.claim_data[_addr][_token], -128)
+
+
+@external
+@nonreentrant('lock')
+def claimable_reward_write(_addr: address, _token: address) -> uint256:
+    """
+    @notice Get the number of claimable reward tokens for a user
+    @dev This function should be manually changed to "view" in the ABI
+         Calling it via a transaction will claim available reward tokens
+    @param _addr Account to get reward amount for
+    @param _token Token to get reward amount for
+    @return uint256 Claimable reward token amount
+    """
+    if self.reward_tokens[0] != ZERO_ADDRESS:
+        self._checkpoint_rewards(_addr, ERC20(self.pool).totalSupply(), False, ZERO_ADDRESS)
+    return shift(self.claim_data[_addr][_token], -128)
+
+
+@external
+def set_rewards_receiver(_receiver: address):
+    """
+    @notice Set the default reward receiver for the caller.
+    @dev When set to ZERO_ADDRESS, rewards are sent to the caller
+    @param _receiver Receiver address for any rewards claimed via `claim_rewards`
+    """
+    self.rewards_receiver[msg.sender] = _receiver
+
+
+@external
+@nonreentrant('lock')
+def claim_rewards(_addr: address = msg.sender, _receiver: address = ZERO_ADDRESS):
+    """
+    @notice Claim available reward tokens for `_addr`
+    @param _addr Address to claim for
+    @param _receiver Address to transfer rewards to - if set to
+                     ZERO_ADDRESS, uses the default reward receiver
+                     for the caller
+    """
+    if _receiver != ZERO_ADDRESS:
+        assert _addr == msg.sender  # dev: cannot redirect when claiming for another user
+    self._checkpoint_rewards(_addr, ERC20(self.pool).totalSupply(), True, _receiver)

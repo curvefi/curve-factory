@@ -11,6 +11,9 @@ interface BaseGauge:
     def claim_rewards(_addr: address): nonpayable
     def reward_tokens(_i: uint256) -> address: view
 
+interface Factory:
+    def admin() -> address: view
+
 
 struct Reward:
     token: address
@@ -23,8 +26,11 @@ struct Reward:
 
 BASE_GAUGE: constant(address) = 0x0000000000000000000000000000000000000000
 MAX_REWARDS: constant(uint256) = 8
+FACTORY: constant(address) = 0x0000000000000000000000000000000000000000
+WEEK: constant(uint256) = 86400 * 7
 
 
+deployer: public(address)
 pool: public(address)
 
 # For tracking external rewards
@@ -46,9 +52,7 @@ reward_tokens: public(address[MAX_REWARDS])
 
 reward_data: public(HashMap[address, Reward])
 
-admin: public(address)
-future_admin: public(address)  # Can and will be a smart contract
-
+is_killed: public(bool)
 
 @external
 def __init__():
@@ -59,6 +63,7 @@ def __init__():
 def initialize():
     assert self.pool == ZERO_ADDRESS
     self.pool = msg.sender
+    self.deployer = tx.origin
 
 
 @internal
@@ -241,3 +246,71 @@ def claim_rewards(_addr: address = msg.sender, _receiver: address = ZERO_ADDRESS
     if _receiver != ZERO_ADDRESS:
         assert _addr == msg.sender  # dev: cannot redirect when claiming for another user
     self._checkpoint_rewards(_addr, ERC20(self.pool).totalSupply(), True, _receiver)
+
+
+@external
+def add_reward(_reward_token: address, _distributor: address):
+    """
+    @notice Set the active reward contract
+    """
+    assert msg.sender == Factory(FACTORY).admin() or msg.sender == self.deployer  # dev: only owner
+
+    reward_count: uint256 = self.reward_count
+    assert reward_count < MAX_REWARDS
+    assert self.reward_data[_reward_token].distributor == ZERO_ADDRESS
+
+    self.reward_data[_reward_token].distributor = _distributor
+    self.reward_tokens[reward_count] = _reward_token
+    self.reward_count = reward_count + 1
+
+
+@external
+def set_reward_distributor(_reward_token: address, _distributor: address):
+    current_distributor: address = self.reward_data[_reward_token].distributor
+
+    assert msg.sender == current_distributor or msg.sender == Factory(FACTORY).admin() or msg.sender == self.deployer
+    assert current_distributor != ZERO_ADDRESS
+    assert _distributor != ZERO_ADDRESS
+
+    self.reward_data[_reward_token].distributor = _distributor
+
+
+@external
+@nonreentrant("lock")
+def deposit_reward_token(_reward_token: address, _amount: uint256):
+    assert msg.sender == self.reward_data[_reward_token].distributor
+
+    self._checkpoint_rewards(ZERO_ADDRESS, ERC20(self.pool).totalSupply(), False, ZERO_ADDRESS)
+
+    response: Bytes[32] = raw_call(
+        _reward_token,
+        _abi_encode(
+            msg.sender, self, _amount, method_id=method_id("transferFrom(address,address,uint256)")
+        ),
+        max_outsize=32,
+    )
+    if len(response) != 0:
+        assert convert(response, bool)
+
+    period_finish: uint256 = self.reward_data[_reward_token].period_finish
+    if block.timestamp >= period_finish:
+        self.reward_data[_reward_token].rate = _amount / WEEK
+    else:
+        remaining: uint256 = period_finish - block.timestamp
+        leftover: uint256 = remaining * self.reward_data[_reward_token].rate
+        self.reward_data[_reward_token].rate = (_amount + leftover) / WEEK
+
+    self.reward_data[_reward_token].last_update = block.timestamp
+    self.reward_data[_reward_token].period_finish = block.timestamp + WEEK
+
+
+@external
+def set_killed(_is_killed: bool):
+    """
+    @notice Set the killed status for this contract
+    @dev When killed, the gauge always yields a rate of 0 and so cannot mint CRV
+    @param _is_killed Killed status to set
+    """
+    assert msg.sender == Factory(FACTORY).admin()  # dev: only owner
+
+    self.is_killed = _is_killed

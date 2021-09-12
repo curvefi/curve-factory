@@ -50,7 +50,7 @@ def deploy_meta_implementation(_implementation_source: str):
 
     source = _implementation_source
     for addr in [BASE_POOL, BASE_LP_TOKEN, BASE_GAUGE, GAUGE_EXTENSION_IMPL]:
-        source = source.replace(ZERO_ADDRESS, addr, 1)
+        source = source.replace(f"= {ZERO_ADDRESS}", f"= {addr}", 1)
     source = source.replace("69", str(len(BASE_COINS)), 1)
     source = source.replace(f"[{', '.join([ZERO_ADDRESS] * 69)}]", f"[{', '.join(BASE_COINS)}]")
 

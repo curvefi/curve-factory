@@ -335,7 +335,7 @@ def gauge_implementation(
 def sidechain_meta_gauge(alice, GaugeExtension, factory, base_gauge):
     source = GaugeExtension._build["source"]
     for contra in [base_gauge, factory]:
-        source.replace(ZERO_ADDRESS, contra.address, 1)
+        source = source.replace("0x0000000000000000000000000000000000000000", contra.address, 1)
     return compile_source(source).Vyper.deploy({"from": alice})
 
 

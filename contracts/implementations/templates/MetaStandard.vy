@@ -22,6 +22,11 @@ interface Curve:
     def add_liquidity(amounts: uint256[BASE_N_COINS], min_mint_amount: uint256): nonpayable
     def remove_liquidity_one_coin(_token_amount: uint256, i: int128, min_amount: uint256): nonpayable
 
+interface Gauge:
+    def claim_rewards(): nonpayable
+    def deposit(_value: uint256): nonpayable
+    def withdraw(_value: uint256): nonpayable
+
 interface Factory:
     def convert_metapool_fees() -> bool: nonpayable
     def get_fee_receiver(_pool: address) -> address: view
@@ -96,6 +101,7 @@ BASE_COINS: constant(address[3]) = [
     0x0000000000000000000000000000000000000000,  # USDT
 ]
 BASE_LP_TOKEN: constant(address) = 0x0000000000000000000000000000000000000000
+BASE_GAUGE: constant(address) = 0x0000000000000000000000000000000000000000
 
 N_COINS: constant(int128) = 2
 MAX_COIN: constant(int128) = N_COINS - 1
@@ -171,6 +177,8 @@ def initialize(
 
     for coin in BASE_COINS:
         ERC20(coin).approve(BASE_POOL, MAX_UINT256)
+    
+    ERC20(BASE_LP_TOKEN).approve(BASE_GAUGE, MAX_UINT256)
 
     # fire a transfer event so block explorers identify the contract as an ERC20
     log Transfer(ZERO_ADDRESS, self, 0)

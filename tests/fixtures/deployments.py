@@ -332,8 +332,10 @@ def gauge_implementation(
 
 
 @pytest.fixture(scope="session")
-def sidechain_meta_gauge(alice, MetaLiquidityGauge, factory):
-    source = MetaLiquidityGauge._build["source"].replace("ZERO_ADDRESS", factory.address, 1)
+def sidechain_meta_gauge(alice, GaugeExtension, factory, base_gauge):
+    source = GaugeExtension._build["source"]
+    for contra in [base_gauge, factory]:
+        source.replace(ZERO_ADDRESS, contra.address, 1)
     return compile_source(source).Vyper.deploy({"from": alice})
 
 
@@ -435,3 +437,8 @@ def owner_proxy(alice, OwnerProxy):
 def gauge(alice, factory, swap, LiquidityGauge, set_gauge_implementation):
     tx = factory.deploy_gauge(swap, {"from": alice})
     return LiquidityGauge.at(tx.return_value)
+
+
+@pytest.fixture(scope="module")
+def meta_gauge(swap, GaugeExtension):
+    return Contract.from_abi("Meta Liquidity Gauge", swap.rewards_receiver(), GaugeExtension.abi)

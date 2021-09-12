@@ -100,11 +100,9 @@ event StopRampA:
 
 
 BASE_POOL: constant(address) = 0x0000000000000000000000000000000000000000
-BASE_COINS: constant(address[3]) = [
-    0x0000000000000000000000000000000000000000,  # DAI
-    0x0000000000000000000000000000000000000000,  # USDC
-    0x0000000000000000000000000000000000000000,  # USDT
-]
+BASE_N_COINS: constant(int128) = ___BASE_N_COINS___
+BASE_COINS: constant(address[BASE_N_COINS]) = ___BASE_COINS___
+
 BASE_LP_TOKEN: constant(address) = 0x0000000000000000000000000000000000000000
 BASE_GAUGE: constant(address) = 0x0000000000000000000000000000000000000000
 
@@ -112,7 +110,6 @@ GAUGE_EXTENSION_IMPL: constant(address) = 0x000000000000000000000000000000000000
 
 N_COINS: constant(int128) = 2
 MAX_COIN: constant(int128) = N_COINS - 1
-BASE_N_COINS: constant(int128) = 3
 PRECISION: constant(uint256) = 10 ** 18
 
 FEE_DENOMINATOR: constant(uint256) = 10 ** 10
@@ -755,7 +752,7 @@ def exchange_underlying(
     rates: uint256[N_COINS] = [self.rate_multiplier, Curve(BASE_POOL).get_virtual_price()]
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
-    base_coins: address[3] = BASE_COINS
+    base_coins: address[BASE_N_COINS] = BASE_COINS
 
     dy: uint256 = 0
     base_i: int128 = 0

@@ -23,9 +23,13 @@ interface Curve:
     def remove_liquidity_one_coin(_token_amount: uint256, i: int128, min_amount: uint256): nonpayable
 
 interface Gauge:
-    def claim_rewards(): nonpayable
+    def set_rewards_receiver(_receiver: address): nonpayable
     def deposit(_value: uint256): nonpayable
     def withdraw(_value: uint256): nonpayable
+
+interface GaugeExtension:
+    def initialize(): nonpayable
+    def checkpoint_rewards(_addr: address): nonpayable
 
 interface Factory:
     def convert_metapool_fees() -> bool: nonpayable
@@ -103,6 +107,8 @@ BASE_COINS: constant(address[3]) = [
 BASE_LP_TOKEN: constant(address) = 0x0000000000000000000000000000000000000000
 BASE_GAUGE: constant(address) = 0x0000000000000000000000000000000000000000
 
+GAUGE_EXTENSION_IMPL: constant(address) = 0x0000000000000000000000000000000000000000
+
 N_COINS: constant(int128) = 2
 MAX_COIN: constant(int128) = N_COINS - 1
 BASE_N_COINS: constant(int128) = 3
@@ -135,6 +141,8 @@ symbol: public(String[32])
 balanceOf: public(HashMap[address, uint256])
 allowance: public(HashMap[address, HashMap[address, uint256]])
 totalSupply: public(uint256)
+
+rewards_receiver: public(address)
 
 
 @external
@@ -175,6 +183,13 @@ def initialize(
     self.name = concat("Curve.fi Factory USD Metapool: ", _name)
     self.symbol = concat(_symbol, "3CRV-f")
 
+    receiver: address = create_forwarder_to(GAUGE_EXTENSION_IMPL)
+    GaugeExtension(receiver).initialize()
+    
+    self.rewards_receiver = receiver
+
+    Gauge(BASE_GAUGE).set_rewards_receiver(receiver)
+
     for coin in BASE_COINS:
         ERC20(coin).approve(BASE_POOL, MAX_UINT256)
     
@@ -201,7 +216,12 @@ def decimals() -> uint256:
 def _transfer(_from: address, _to: address, _value: uint256):
     # # NOTE: vyper does not allow underflows
     # #       so the following subtraction would revert on insufficient balance
+    receiver: address = self.rewards_receiver
+    
+    GaugeExtension(receiver).checkpoint_rewards(_from)
     self.balanceOf[_from] -= _value
+
+    GaugeExtension(receiver).checkpoint_rewards(_to)
     self.balanceOf[_to] += _value
 
     log Transfer(_from, _to, _value)
@@ -474,6 +494,8 @@ def add_liquidity(
     # RewardsOnlyGauge and Factory LiquidityGauge allow
     # calling deposit with a value of 0
     Gauge(BASE_GAUGE).deposit(_amounts[MAX_COIN])
+
+    GaugeExtension(self.rewards_receiver).checkpoint_rewards(_receiver)
 
     # Mint pool tokens
     total_supply += mint_amount
@@ -843,6 +865,8 @@ def remove_liquidity(
             assert convert(response, bool)
 
 
+    GaugeExtension(self.rewards_receiver).checkpoint_rewards(msg.sender)
+
     total_supply -= _burn_amount
     self.balanceOf[msg.sender] -= _burn_amount
     self.totalSupply = total_supply
@@ -907,6 +931,8 @@ def remove_liquidity_imbalance(
     burn_amount: uint256 = ((D0 - D2) * total_supply / D0) + 1
     assert burn_amount > 1  # dev: zero tokens burned
     assert burn_amount <= _max_burn_amount
+
+    GaugeExtension(self.rewards_receiver).checkpoint_rewards(msg.sender)
 
     total_supply -= burn_amount
     self.totalSupply = total_supply
@@ -1031,6 +1057,9 @@ def remove_liquidity_one_coin(
     assert dy[0] >= _min_received
 
     self.balances[i] -= (dy[0] + dy[1] * ADMIN_FEE / FEE_DENOMINATOR)
+
+    GaugeExtension(self.rewards_receiver).checkpoint_rewards(msg.sender)
+
     total_supply: uint256 = self.totalSupply - _burn_amount
     self.totalSupply = total_supply
     self.balanceOf[msg.sender] -= _burn_amount

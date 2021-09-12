@@ -215,17 +215,26 @@ def meta_usd_rebase(alice, MetaUSDBalances, base_pool, base_coins, lp_token, pyt
 
 @pytest.fixture(scope="session")
 def meta_sidechain(
-    alice, Meta, sidechain_meta_gauge, base_gauge, base_pool, base_coins, lp_token, pytestconfig
+    alice,
+    MetaStandard,
+    sidechain_meta_gauge,
+    base_gauge,
+    base_pool,
+    base_coins,
+    lp_token,
+    pytestconfig,
 ):
     meta_sidechain_abi = pytestconfig.cache.get("meta_sidechain_abi", False)
     meta_sidechain_bytecode = pytestconfig.cache.get("meta_sidechain_bytecode", False)
     if meta_sidechain_abi and meta_sidechain_bytecode:
         tx = alice.transfer(data=meta_sidechain_bytecode)
-        instance = Contract.from_abi("Meta Sidechain", tx.contract_address, meta_sidechain_abi)
+        instance = Contract.from_abi(
+            "MetaStandard Sidechain", tx.contract_address, meta_sidechain_abi
+        )
         meta_contracts[tx.contract_address] = meta_sidechain_abi
         return instance
 
-    source = Meta._build["source"]
+    source = MetaStandard._build["source"]
     for repl in [base_pool, *base_coins, lp_token, base_gauge, sidechain_meta_gauge]:
         source = source.replace(ZERO_ADDRESS, repl.address, 1)
 
@@ -320,6 +329,12 @@ def gauge_implementation(
 
     NewLiquidityGauge = compile_source(source).Vyper
     return NewLiquidityGauge.deploy({"from": alice})
+
+
+@pytest.fixture(scope="session")
+def sidechain_meta_gauge(alice, MetaLiquidityGauge, factory):
+    source = MetaLiquidityGauge._build["source"].replace("ZERO_ADDRESS", factory.address, 1)
+    return compile_source(source).Vyper.deploy({"from": alice})
 
 
 @pytest.fixture(scope="session")

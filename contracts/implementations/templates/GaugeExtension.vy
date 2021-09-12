@@ -182,6 +182,8 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
 
 @external
 def checkpoint_rewards(_addr: address):
+    if self.is_killed:
+        return
     self._checkpoint_rewards(_addr, ERC20(self.pool).totalSupply(), False, ZERO_ADDRESS)
 
 

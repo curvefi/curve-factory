@@ -159,6 +159,10 @@ def pytest_collection_modifyitems(config, items):
             items.remove(item)
             continue
 
+        if pool_type != 6 and "test_sidechain_rewards.py" in path.parts:
+            items.remove(item)
+            continue
+
         if "test_factory.py" not in path.parts and len(path.parts) == 2:
             if not (pool_type == 2 and pool_size == 2):
                 items.remove(item)

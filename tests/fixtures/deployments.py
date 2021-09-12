@@ -212,25 +212,25 @@ def meta_usd_rebase(alice, MetaUSDBalances, base_pool, base_coins, lp_token, pyt
 
 @pytest.fixture(scope="session")
 def crv(alice, pm):
-    ERC20CRV = pm("curvefi/curve-dao-contracts@1.1.0").ERC20CRV
+    ERC20CRV = pm("curvefi/curve-dao-contracts@1.3.0").ERC20CRV
     return ERC20CRV.deploy("Dummy CRV", "CRV", 18, {"from": alice})
 
 
 @pytest.fixture(scope="session")
 def voting_escrow(alice, crv, pm):
-    VotingEscrow = pm("curvefi/curve-dao-contracts@1.1.0").VotingEscrow
+    VotingEscrow = pm("curvefi/curve-dao-contracts@1.3.0").VotingEscrow
     return VotingEscrow.deploy(crv, "veCRV", "veCRV", 1, {"from": alice})
 
 
 @pytest.fixture(scope="session")
 def gauge_controller(alice, pm, crv, voting_escrow):
-    GaugeController = pm("curvefi/curve-dao-contracts@1.1.0").GaugeController
+    GaugeController = pm("curvefi/curve-dao-contracts@1.3.0").GaugeController
     return GaugeController.deploy(crv, voting_escrow, {"from": alice})
 
 
 @pytest.fixture(scope="session")
 def minter(alice, crv, pm, gauge_controller):
-    Minter = pm("curvefi/curve-dao-contracts@1.1.0").Minter
+    Minter = pm("curvefi/curve-dao-contracts@1.3.0").Minter
     minter = Minter.deploy(crv, gauge_controller, {"from": alice})
     crv.set_minter(minter, {"from": alice})
     return minter

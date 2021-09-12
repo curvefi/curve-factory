@@ -12,6 +12,15 @@ interface BaseGauge:
     def reward_tokens(_i: uint256) -> address: view
 
 
+struct Reward:
+    token: address
+    distributor: address
+    period_finish: uint256
+    rate: uint256
+    last_update: uint256
+    integral: uint256
+
+
 BASE_GAUGE: constant(address) = 0x0000000000000000000000000000000000000000
 MAX_REWARDS: constant(uint256) = 8
 
@@ -19,12 +28,9 @@ MAX_REWARDS: constant(uint256) = 8
 pool: public(address)
 
 # For tracking external rewards
-reward_tokens: public(address[MAX_REWARDS])
 reward_balances: public(HashMap[address, uint256])
 # claimant -> default reward receiver
 rewards_receiver: public(HashMap[address, address])
-
-claim_sig: public(Bytes[4])
 
 # reward token -> integral
 reward_integral: public(HashMap[address, uint256])
@@ -34,6 +40,11 @@ reward_integral_for: public(HashMap[address, HashMap[address, uint256]])
 
 # user -> [uint128 claimable amount][uint128 claimed amount]
 claim_data: HashMap[address, HashMap[address, uint256]]
+
+reward_count: public(uint256)
+reward_tokens: public(address[MAX_REWARDS])
+
+reward_data: public(HashMap[address, Reward])
 
 admin: public(address)
 future_admin: public(address)  # Can and will be a smart contract
@@ -58,6 +69,8 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
     # claim from base gauge
     BaseGauge(BASE_GAUGE).claim_rewards(self.pool)
 
+    checkpointed: address[MAX_REWARDS] = empty(address[MAX_REWARDS])
+
     receiver: address = _receiver
     if _claim and receiver == ZERO_ADDRESS:
         # if receiver is not explicitly declared, check for default receiver
@@ -72,6 +85,7 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
         token: address = BaseGauge(BASE_GAUGE).reward_tokens(i)
         if token == ZERO_ADDRESS:
             break
+        checkpointed[i] = token
         dI: uint256 = 0
         if _total_supply != 0:
             token_balance: uint256 = ERC20(token).balanceOf(self)
@@ -112,6 +126,53 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
             elif new_claimable > 0:
                 # update total_claimable (higher order bytes)
                 self.claim_data[_user][token] = total_claimed + shift(total_claimable, 128)
+
+    reward_count: uint256 = self.reward_count
+    for i in range(MAX_REWARDS):
+        if i == reward_count:
+            break
+        token: address = self.reward_tokens[i]
+        if token in checkpointed:
+            # if token is apart of base rewards
+            # skip it
+            continue
+
+        integral: uint256 = self.reward_data[token].integral
+        last_update: uint256 = min(block.timestamp, self.reward_data[token].period_finish)
+        duration: uint256 = last_update - self.reward_data[token].last_update
+        if duration != 0:
+            self.reward_data[token].last_update = last_update
+            if _total_supply != 0:
+                integral += duration * self.reward_data[token].rate * 10**18 / _total_supply
+                self.reward_data[token].integral = integral
+
+        if _user != ZERO_ADDRESS:
+            integral_for: uint256 = self.reward_integral_for[token][_user]
+            new_claimable: uint256 = 0
+
+            if integral_for < integral:
+                self.reward_integral_for[token][_user] = integral
+                new_claimable = user_balance * (integral - integral_for) / 10**18
+
+            claim_data: uint256 = self.claim_data[_user][token]
+            total_claimable: uint256 = shift(claim_data, -128) + new_claimable
+            if total_claimable > 0:
+                total_claimed: uint256 = claim_data % 2**128
+                if _claim:
+                    response: Bytes[32] = raw_call(
+                        token,
+                        _abi_encode(
+                            receiver,
+                            total_claimable,
+                            method_id=method_id("transfer(address,uint256)")
+                        ),
+                        max_outsize=32,
+                    )
+                    if len(response) != 0:
+                        assert convert(response, bool)
+                    self.claim_data[_user][token] = total_claimed + total_claimable
+                elif new_claimable > 0:
+                    self.claim_data[_user][token] = total_claimed + shift(total_claimable, 128)
 
 
 @view

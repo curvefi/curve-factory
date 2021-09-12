@@ -1,6 +1,6 @@
-# @version 0.2.8
+# @version 0.2.16
 """
-@title "Zap" Depositer for permissionless USD metapools
+@title "Zap" Depositer for permissionless factory metapools
 @author Curve.Fi
 @license Copyright (c) Curve.Fi, 2021 - all rights reserved
 """
@@ -32,21 +32,22 @@ interface CurveBase:
     def fee() -> uint256: view
 
 
+BASE_N_COINS: constant(int128) = 3
+BASE_POOL: constant(address) = 0x0000000000000000000000000000000000000000
+BASE_LP_TOKEN: constant(address) = 0x0000000000000000000000000000000000000000
+BASE_COINS: constant(address[BASE_N_COINS]) = [
+    0x0000000000000000000000000000000000000000,
+    0x0000000000000000000000000000000000000000,
+    0x0000000000000000000000000000000000000000
+]
+
 N_COINS: constant(int128) = 2
 MAX_COIN: constant(int128) = N_COINS-1
-BASE_N_COINS: constant(int128) = 3
 N_ALL_COINS: constant(int128) = N_COINS + BASE_N_COINS - 1
 
 FEE_DENOMINATOR: constant(uint256) = 10 ** 10
 FEE_IMPRECISION: constant(uint256) = 100 * 10 ** 8  # % of the fee
 
-BASE_POOL: constant(address) = 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7
-BASE_LP_TOKEN: constant(address) = 0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490
-BASE_COINS: constant(address[3]) = [
-    0x6B175474E89094C44Da98b954EedeAC495271d0F,  # DAI
-    0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,  # USDC
-    0xdAC17F958D2ee523a2206206994597C13D831ec7,  # USDT
-]
 
 # coin -> pool -> is approved to transfer?
 is_approved: HashMap[address, HashMap[address, bool]]
@@ -57,8 +58,7 @@ def __init__():
     """
     @notice Contract constructor
     """
-    base_coins: address[3] = BASE_COINS
-    for coin in base_coins:
+    for coin in BASE_COINS:
         ERC20(coin).approve(BASE_POOL, MAX_UINT256)
 
 
@@ -80,7 +80,7 @@ def add_liquidity(
     meta_amounts: uint256[N_COINS] = empty(uint256[N_COINS])
     base_amounts: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
     deposit_base: bool = False
-    base_coins: address[3] = BASE_COINS
+    base_coins: address[BASE_N_COINS] = BASE_COINS
 
     if _deposit_amounts[0] != 0:
         coin: address = CurveMeta(_pool).coins(0)
@@ -148,7 +148,7 @@ def remove_liquidity(
     # Withdraw from base
     for i in range(BASE_N_COINS):
         min_amounts_base[i] = _min_amounts[MAX_COIN+i]
-    CurveBase(BASE_POOL).remove_liquidity(meta_received[1], min_amounts_base)
+    CurveBase(BASE_POOL).remove_liquidity(meta_received[MAX_COIN], min_amounts_base)
 
     # Transfer all coins out
     coin: address = CurveMeta(_pool).coins(0)

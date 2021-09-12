@@ -213,6 +213,65 @@ def meta_usd_rebase(alice, MetaUSDBalances, base_pool, base_coins, lp_token, pyt
     return instance
 
 
+@pytest.fixture(scope="session")
+def meta_sidechain(
+    alice, Meta, sidechain_meta_gauge, base_gauge, base_pool, base_coins, lp_token, pytestconfig
+):
+    meta_sidechain_abi = pytestconfig.cache.get("meta_sidechain_abi", False)
+    meta_sidechain_bytecode = pytestconfig.cache.get("meta_sidechain_bytecode", False)
+    if meta_sidechain_abi and meta_sidechain_bytecode:
+        tx = alice.transfer(data=meta_sidechain_bytecode)
+        instance = Contract.from_abi("Meta Sidechain", tx.contract_address, meta_sidechain_abi)
+        meta_contracts[tx.contract_address] = meta_sidechain_abi
+        return instance
+
+    source = Meta._build["source"]
+    for repl in [base_pool, *base_coins, lp_token, base_gauge, sidechain_meta_gauge]:
+        source = source.replace(ZERO_ADDRESS, repl.address, 1)
+
+    NewMeta = compile_source(source).Vyper
+    instance = NewMeta.deploy({"from": alice})
+    meta_contracts[instance.address] = NewMeta.abi
+
+    pytestconfig.cache.set("meta_sidechain_abi", NewMeta.abi)
+    pytestconfig.cache.set("meta_sidechain_bytecode", NewMeta.bytecode)
+    return instance
+
+
+@pytest.fixture(scope="session")
+def meta_sidechain_rebase(
+    alice,
+    MetaBalances,
+    sidechain_meta_gauge,
+    base_gauge,
+    base_pool,
+    base_coins,
+    lp_token,
+    pytestconfig,
+):
+    meta_sidechain_rebase_abi = pytestconfig.cache.get("meta_sidechain_rebase_abi", False)
+    meta_sidechain_rebase_bytecode = pytestconfig.cache.get("meta_sidechain_rebase_bytecode", False)
+    if meta_sidechain_rebase_abi and meta_sidechain_rebase_bytecode:
+        tx = alice.transfer(data=meta_sidechain_rebase_bytecode)
+        instance = Contract.from_abi(
+            "MetaBalances Sidechain", tx.contract_address, meta_sidechain_rebase_abi
+        )
+        meta_contracts[tx.contract_address] = meta_sidechain_rebase_abi
+        return instance
+
+    source = MetaBalances._build["source"]
+    for repl in [base_pool, *base_coins, lp_token, base_gauge, sidechain_meta_gauge]:
+        source = source.replace(ZERO_ADDRESS, repl.address, 1)
+
+    NewMeta = compile_source(source).Vyper
+    instance = NewMeta.deploy({"from": alice})
+    meta_contracts[instance.address] = NewMeta.abi
+
+    pytestconfig.cache.set("meta_sidechain_rebase_abi", NewMeta.abi)
+    pytestconfig.cache.set("meta_sidechain_rebase_bytecode", NewMeta.bytecode)
+    return instance
+
+
 # gauge implementation
 
 

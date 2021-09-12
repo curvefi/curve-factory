@@ -180,6 +180,11 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
                     self.claim_data[_user][token] = total_claimed + shift(total_claimable, 128)
 
 
+@external
+def checkpoint_rewards(_addr: address):
+    self._checkpoint_rewards(_addr, ERC20(self.pool).totalSupply(), False, ZERO_ADDRESS)
+
+
 @view
 @external
 def claimed_reward(_addr: address, _token: address) -> uint256:

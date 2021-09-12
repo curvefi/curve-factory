@@ -6,10 +6,7 @@
 """
 
 interface ERC20:
-    def transfer(_receiver: address, _amount: uint256): nonpayable
-    def transferFrom(_sender: address, _receiver: address, _amount: uint256): nonpayable
     def approve(_spender: address, _amount: uint256): nonpayable
-    def decimals() -> uint256: view
     def balanceOf(_owner: address) -> uint256: view
 
 interface CurveMeta:
@@ -87,7 +84,18 @@ def add_liquidity(
         if not self.is_approved[coin][_pool]:
             ERC20(coin).approve(_pool, MAX_UINT256)
             self.is_approved[coin][_pool] = True
-        ERC20(coin).transferFrom(msg.sender, self, _deposit_amounts[0])
+        response: Bytes[32] = raw_call(
+            coin,
+            _abi_encode(
+                msg.sender,
+                self,
+                _deposit_amounts[0],
+                method_id=method_id("transferFrom(address,address,uint256)"),
+            ),
+            max_outsize=32
+        )
+        if len(response) != 0:
+            assert convert(response, bool)
         meta_amounts[0] = _deposit_amounts[0]
 
     for i in range(1, N_ALL_COINS):
@@ -98,7 +106,19 @@ def add_liquidity(
         base_idx: uint256 = i - 1
         coin: address = base_coins[base_idx]
 
-        ERC20(coin).transferFrom(msg.sender, self, amount)
+        response: Bytes[32] = raw_call(
+            coin,
+            _abi_encode(
+                msg.sender,
+                self,
+                amount,
+                method_id=method_id("transferFrom(address,address,uint256)"),
+            ),
+            max_outsize=32
+        )
+        if len(response) != 0:
+            assert convert(response, bool)
+
         # Handle potential Tether fees
         if i == N_ALL_COINS - 1:
             base_amounts[base_idx] = ERC20(coin).balanceOf(self)
@@ -134,7 +154,19 @@ def remove_liquidity(
     @param _receiver Address that receives the LP tokens
     @return List of amounts of underlying coins that were withdrawn
     """
-    ERC20(_pool).transferFrom(msg.sender, self, _burn_amount)
+    response: Bytes[32] = raw_call(
+        _pool,
+        _abi_encode(
+            msg.sender,
+            self,
+            _burn_amount,
+            method_id=method_id("transferFrom(address,address,uint256)"),
+        ),
+        max_outsize=32
+    )
+    if len(response) != 0:
+        assert convert(response, bool)
+
 
     min_amounts_base: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
     amounts: uint256[N_ALL_COINS] = empty(uint256[N_ALL_COINS])
@@ -152,14 +184,36 @@ def remove_liquidity(
 
     # Transfer all coins out
     coin: address = CurveMeta(_pool).coins(0)
-    ERC20(coin).transfer(_receiver, meta_received[0])
+    response = raw_call(
+        coin,
+        _abi_encode(
+            _receiver,
+            meta_received[0],
+            method_id=method_id("transfer(address,uint256)"),
+        ),
+        max_outsize=32
+    )
+    if len(response) != 0:
+        assert convert(response, bool)
+
     amounts[0] = meta_received[0]
 
     base_coins: address[BASE_N_COINS] = BASE_COINS
     for i in range(1, N_ALL_COINS):
         coin = base_coins[i-1]
         amounts[i] = ERC20(coin).balanceOf(self)
-        ERC20(coin).transfer(_receiver, amounts[i])
+        response = raw_call(
+            coin,
+            _abi_encode(
+                _receiver,
+                amounts[i],
+                method_id=method_id("transfer(address,uint256)"),
+            ),
+            max_outsize=32
+        )
+        if len(response) != 0:
+            assert convert(response, bool)
+
 
     return amounts
 
@@ -181,7 +235,19 @@ def remove_liquidity_one_coin(
     @param _receiver Address that receives the LP tokens
     @return Amount of underlying coin received
     """
-    ERC20(_pool).transferFrom(msg.sender, self, _burn_amount)
+    response: Bytes[32] = raw_call(
+        _pool,
+        _abi_encode(
+            msg.sender,
+            self,
+            _burn_amount,
+            method_id=method_id("transferFrom(address,address,uint256)"),
+        ),
+        max_outsize=32
+    )
+    if len(response) != 0:
+        assert convert(response, bool)
+
 
     coin_amount: uint256 = 0
     if i == 0:
@@ -193,7 +259,18 @@ def remove_liquidity_one_coin(
         coin_amount = CurveMeta(_pool).remove_liquidity_one_coin(_burn_amount, MAX_COIN, 0, self)
         CurveBase(BASE_POOL).remove_liquidity_one_coin(coin_amount, i-MAX_COIN, _min_amount)
         coin_amount = ERC20(coin).balanceOf(self)
-        ERC20(coin).transfer(_receiver, coin_amount)
+        response = raw_call(
+            coin,
+            _abi_encode(
+                _receiver,
+                coin_amount,
+                method_id=method_id("transfer(address,uint256)"),
+            ),
+            max_outsize=32
+        )
+        if len(response) != 0:
+            assert convert(response, bool)
+
 
     return coin_amount
 
@@ -217,7 +294,19 @@ def remove_liquidity_imbalance(
     fee += fee * FEE_IMPRECISION / FEE_DENOMINATOR  # Overcharge to account for imprecision
 
     # Transfer the LP token in
-    ERC20(_pool).transferFrom(msg.sender, self, _max_burn_amount)
+    response: Bytes[32] = raw_call(
+        _pool,
+        _abi_encode(
+            msg.sender,
+            self,
+            _max_burn_amount,
+            method_id=method_id("transferFrom(address,address,uint256)"),
+        ),
+        max_outsize=32
+    )
+    if len(response) != 0:
+        assert convert(response, bool)
+
 
     withdraw_base: bool = False
     amounts_base: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
@@ -238,7 +327,18 @@ def remove_liquidity_imbalance(
 
     # withdraw from metapool and return the remaining LP tokens
     burn_amount: uint256 = CurveMeta(_pool).remove_liquidity_imbalance(amounts_meta, _max_burn_amount)
-    ERC20(_pool).transfer(msg.sender, _max_burn_amount - burn_amount)
+    response = raw_call(
+        _pool,
+        _abi_encode(
+            msg.sender,
+            _max_burn_amount - burn_amount,
+            method_id=method_id("transfer(address,uint256)"),
+        ),
+        max_outsize=32
+    )
+    if len(response) != 0:
+        assert convert(response, bool)
+
 
     # withdraw from base pool
     if withdraw_base:
@@ -256,12 +356,34 @@ def remove_liquidity_imbalance(
         # transfer withdrawn base pool tokens to caller
         base_coins: address[BASE_N_COINS] = BASE_COINS
         for i in range(BASE_N_COINS):
-            ERC20(base_coins[i]).transfer(_receiver, amounts_base[i])
+            response = raw_call(
+                base_coins[i],
+                _abi_encode(
+                    _receiver,
+                    amounts_base[i],
+                    method_id=method_id("transfer(address,uint256)"),
+                ),
+                max_outsize=32
+            )
+            if len(response) != 0:
+                assert convert(response, bool)
+
 
     # transfer withdrawn metapool tokens to caller
     if _amounts[0] > 0:
         coin: address = CurveMeta(_pool).coins(0)
-        ERC20(coin).transfer(_receiver, _amounts[0])
+        response = raw_call(
+            coin,
+            _abi_encode(
+                _receiver,
+                _amounts[0],
+                method_id=method_id("transfer(address,uint256)"),
+            ),
+            max_outsize=32
+        )
+        if len(response) != 0:
+            assert convert(response, bool)
+
 
     return burn_amount
 

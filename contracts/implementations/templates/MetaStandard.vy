@@ -1121,7 +1121,10 @@ def stop_ramp_A():
 @view
 @external
 def admin_balances(i: uint256) -> uint256:
-    return ERC20(self.coins[i]).balanceOf(self) - self.balances[i]
+    coin: address = self.coins[i]
+    if i == MAX_COIN:
+        coin = BASE_GAUGE
+    return ERC20(coin).balanceOf(self) - self.balances[i]
 
 
 @external

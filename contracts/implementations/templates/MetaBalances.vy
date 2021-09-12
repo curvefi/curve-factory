@@ -1162,6 +1162,7 @@ def withdraw_admin_fees():
     # transfer coin 1 to the receiver
     amount = self.admin_balances[1]
     Gauge(BASE_GAUGE).withdraw(amount)
+    amount = ERC20(BASE_LP_TOKEN).balanceOf(self)
 
     if amount > 0:
         self.admin_balances[1] = 0

@@ -323,11 +323,21 @@ def gauge_implementation(
 
 
 @pytest.fixture(scope="session")
-def meta_implementations(pool_type, meta_usd, meta_usd_rebase, meta_btc, meta_btc_rebase):
+def meta_implementations(
+    pool_type,
+    meta_usd,
+    meta_usd_rebase,
+    meta_btc,
+    meta_btc_rebase,
+    meta_sidechain,
+    meta_sidechain_rebase,
+):
     if pool_type == 4:
         return [meta_usd, meta_usd_rebase]
-    else:
+    elif pool_type == 5:
         return [meta_btc, meta_btc_rebase]
+    else:
+        return [meta_sidechain, meta_sidechain_rebase]
 
 
 # Factories

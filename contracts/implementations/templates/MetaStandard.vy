@@ -1,4 +1,4 @@
-# @version 0.2.15
+# @version 0.2.16
 """
 @title StableSwap
 @author Curve.Fi
@@ -89,12 +89,13 @@ event StopRampA:
     t: uint256
 
 
-BASE_POOL: constant(address) = 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7
+BASE_POOL: constant(address) = 0x0000000000000000000000000000000000000000
 BASE_COINS: constant(address[3]) = [
-    0x6B175474E89094C44Da98b954EedeAC495271d0F,  # DAI
-    0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,  # USDC
-    0xdAC17F958D2ee523a2206206994597C13D831ec7,  # USDT
+    0x0000000000000000000000000000000000000000,  # DAI
+    0x0000000000000000000000000000000000000000,  # USDC
+    0x0000000000000000000000000000000000000000,  # USDT
 ]
+BASE_LP_TOKEN: constant(address) = 0x0000000000000000000000000000000000000000
 
 N_COINS: constant(int128) = 2
 MAX_COIN: constant(int128) = N_COINS - 1
@@ -158,7 +159,7 @@ def initialize(
     assert self.fee == 0
 
     A: uint256 = _A * A_PRECISION
-    self.coins = [_coin, 0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490]
+    self.coins = [_coin, BASE_LP_TOKEN]
     self.rate_multiplier = _rate_multiplier
     self.initial_A = A
     self.future_A = A

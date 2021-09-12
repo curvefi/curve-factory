@@ -3,7 +3,7 @@ Deploy gauge extension and metapool implementation contracts.
 
 Constants should be set here for substitution in the contracts.
 """
-
+from pathlib import Path
 
 from brownie import (
     ZERO_ADDRESS,
@@ -15,6 +15,9 @@ from brownie import (
 )
 
 DEPLOYER = accounts.at("0x7EeAC6CDdbd1D0B8aF061742D41877D7F707289a", force=True)
+
+# where we will store the modified source files
+Path("tmp").mkdir(parents=True, exist_ok=True)
 
 
 # CHANGE PRIOR TO DEPLOYMENT
@@ -38,7 +41,11 @@ def deploy_gauge_extension(_base_gauge: str, _factory: str):
         source = source.replace(ZERO_ADDRESS, addr, 1)
 
     MetaGaugeExtension = compile_source(source).Vyper
-    return MetaGaugeExtension.deploy({"from": DEPLOYER})
+    deployment = MetaGaugeExtension.deploy({"from": DEPLOYER})
+
+    with open(f"tmp/{deployment.address}", "w") as f:
+        f.write(source)
+    return deployment
 
 
 def deploy_meta_implementation(_implementation_source: str):
@@ -56,20 +63,23 @@ def deploy_meta_implementation(_implementation_source: str):
 
     META = compile_source(source).Vyper
     meta = META.deploy({"from": DEPLOYER})
+
+    with open(f"tmp/{meta.address}", "w") as f:
+        f.write(source)
+
     return meta.address, GAUGE_EXTENSION_IMPL
 
 
 def main():
-    with open("deployments.txt", "a") as f:
+    with open("tmp/deployments.txt", "a") as f:
         f.write(f"Base Pool Templates - {BASE_POOL}\n")
 
     for implementation in [MetaStandard, MetaBalances]:
         source = implementation._build["source"]
         meta_impl, gauge_extension_impl = deploy_meta_implementation(source)
-        print(f"{implementation._name} deployed at - {meta_impl}")
-        print(f"Gauge Extension - {gauge_extension_impl}")
 
-        with open("deployments.txt", "a") as f:
+        with open("tmp/deployments.txt", "a") as f:
             f.write(f"{implementation._name} deployed at - {meta_impl}\n")
-    with open("deployments.txt", "a") as f:
+
+    with open("tmp/deployments.txt", "a") as f:
         f.write(f"Gauge Extension - {gauge_extension_impl}\n")

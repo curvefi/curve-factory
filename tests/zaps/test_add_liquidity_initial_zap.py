@@ -1,7 +1,7 @@
 import brownie
 import pytest
 
-pytestmark = pytest.mark.usefixtures("mint_bob", "approve_zap")
+pytestmark = pytest.mark.usefixtures("mint_bob_underlying", "approve_zap")
 
 
 def test_lp_token_balances(bob, zap, swap, initial_amounts_underlying):
@@ -11,25 +11,21 @@ def test_lp_token_balances(bob, zap, swap, initial_amounts_underlying):
     assert swap.totalSupply() == swap.balanceOf(bob)
 
 
-def test_underlying_balances(
-    bob, zap, swap, underlying_coins, wrapped_coins, initial_amounts_underlying
-):
+def test_underlying_balances(bob, zap, swap, underlying_coins, coins, initial_amounts_underlying):
     zap.add_liquidity(swap, initial_amounts_underlying, 0, {"from": bob})
 
     for coin, amount in zip(underlying_coins, initial_amounts_underlying):
         assert coin.balanceOf(zap) == 0
-        if coin in wrapped_coins:
+        if coin in coins:
             assert coin.balanceOf(swap) == amount
         else:
             assert coin.balanceOf(swap) == 0
 
 
-def test_wrapped_balances(
-    bob, zap, swap, wrapped_coins, initial_amounts_underlying, initial_amounts
-):
+def test_wrapped_balances(bob, zap, swap, coins, initial_amounts_underlying, initial_amounts):
     zap.add_liquidity(swap, initial_amounts_underlying, 0, {"from": bob})
 
-    for coin, amount in zip(wrapped_coins, initial_amounts):
+    for coin, amount in zip(coins, initial_amounts):
         assert coin.balanceOf(zap) == 0
         assert 0.9999 < coin.balanceOf(swap) / amount <= 1
 

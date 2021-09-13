@@ -64,6 +64,12 @@ def base_pool(alice, CurvePool, base_coins, lp_token, registry, accounts):
     return pool
 
 
+@pytest.fixture(scope="session")
+def base_gauge(alice, pm, lp_token):
+    RewardsOnlyGauge = pm("curvefi/curve-dao-contracts@1.3.0").RewardsOnlyGauge
+    return RewardsOnlyGauge.deploy(lp_token, alice, {"from": alice})
+
+
 # implementation contracts - paramaterized by pool size
 
 
@@ -207,30 +213,98 @@ def meta_usd_rebase(alice, MetaUSDBalances, base_pool, base_coins, lp_token, pyt
     return instance
 
 
+@pytest.fixture(scope="session")
+def meta_sidechain(
+    alice,
+    MetaStandard,
+    sidechain_meta_gauge,
+    base_gauge,
+    base_pool,
+    base_coins,
+    lp_token,
+    pytestconfig,
+):
+    meta_sidechain_abi = pytestconfig.cache.get("meta_sidechain_abi", False)
+    meta_sidechain_bytecode = pytestconfig.cache.get("meta_sidechain_bytecode", False)
+    if meta_sidechain_abi and meta_sidechain_bytecode:
+        tx = alice.transfer(data=meta_sidechain_bytecode)
+        instance = Contract.from_abi(
+            "MetaStandard Sidechain", tx.contract_address, meta_sidechain_abi
+        )
+        meta_contracts[tx.contract_address] = meta_sidechain_abi
+        return instance
+
+    source = MetaStandard._build["source"]
+    for repl in [base_pool, *base_coins, lp_token, base_gauge, sidechain_meta_gauge]:
+        source = source.replace(ZERO_ADDRESS, repl.address, 1)
+
+    NewMeta = compile_source(source).Vyper
+    instance = NewMeta.deploy({"from": alice})
+    meta_contracts[instance.address] = NewMeta.abi
+
+    pytestconfig.cache.set("meta_sidechain_abi", NewMeta.abi)
+    pytestconfig.cache.set("meta_sidechain_bytecode", NewMeta.bytecode)
+    return instance
+
+
+@pytest.fixture(scope="session")
+def meta_sidechain_rebase(
+    alice,
+    MetaBalances,
+    sidechain_meta_gauge,
+    base_gauge,
+    base_pool,
+    base_coins,
+    lp_token,
+    pytestconfig,
+):
+    meta_sidechain_rebase_abi = pytestconfig.cache.get("meta_sidechain_rebase_abi", False)
+    meta_sidechain_rebase_bytecode = pytestconfig.cache.get("meta_sidechain_rebase_bytecode", False)
+    if meta_sidechain_rebase_abi and meta_sidechain_rebase_bytecode:
+        tx = alice.transfer(data=meta_sidechain_rebase_bytecode)
+        instance = Contract.from_abi(
+            "MetaBalances Sidechain", tx.contract_address, meta_sidechain_rebase_abi
+        )
+        meta_contracts[tx.contract_address] = meta_sidechain_rebase_abi
+        return instance
+
+    source = MetaBalances._build["source"]
+    for repl in [base_pool, *base_coins, lp_token, base_gauge, sidechain_meta_gauge]:
+        source = source.replace(ZERO_ADDRESS, repl.address, 1)
+
+    NewMeta = compile_source(source).Vyper
+    instance = NewMeta.deploy({"from": alice})
+    meta_contracts[instance.address] = NewMeta.abi
+
+    pytestconfig.cache.set("meta_sidechain_rebase_abi", NewMeta.abi)
+    pytestconfig.cache.set("meta_sidechain_rebase_bytecode", NewMeta.bytecode)
+    return instance
+
+
 # gauge implementation
 
 
 @pytest.fixture(scope="session")
 def crv(alice, pm):
-    ERC20CRV = pm("curvefi/curve-dao-contracts@1.1.0").ERC20CRV
+    ERC20CRV = pm("curvefi/curve-dao-contracts@1.3.0").ERC20CRV
     return ERC20CRV.deploy("Dummy CRV", "CRV", 18, {"from": alice})
 
 
 @pytest.fixture(scope="session")
 def voting_escrow(alice, crv, pm):
-    VotingEscrow = pm("curvefi/curve-dao-contracts@1.1.0").VotingEscrow
+    VotingEscrow = pm("curvefi/curve-dao-contracts@1.3.0").VotingEscrow
     return VotingEscrow.deploy(crv, "veCRV", "veCRV", 1, {"from": alice})
 
 
 @pytest.fixture(scope="session")
 def gauge_controller(alice, pm, crv, voting_escrow):
-    GaugeController = pm("curvefi/curve-dao-contracts@1.1.0").GaugeController
+    GaugeController = pm("curvefi/curve-dao-contracts@1.3.0").GaugeController
     return GaugeController.deploy(crv, voting_escrow, {"from": alice})
 
 
 @pytest.fixture(scope="session")
 def minter(alice, crv, pm, gauge_controller):
-    Minter = pm("curvefi/curve-dao-contracts@1.1.0").Minter
+    Minter = pm("curvefi/curve-dao-contracts@1.3.0").Minter
     minter = Minter.deploy(crv, gauge_controller, {"from": alice})
     crv.set_minter(minter, {"from": alice})
     return minter
@@ -258,11 +332,29 @@ def gauge_implementation(
 
 
 @pytest.fixture(scope="session")
-def meta_implementations(pool_type, meta_usd, meta_usd_rebase, meta_btc, meta_btc_rebase):
+def sidechain_meta_gauge(alice, GaugeExtension, factory, base_gauge):
+    source = GaugeExtension._build["source"]
+    for contra in [base_gauge, factory]:
+        source = source.replace("0x0000000000000000000000000000000000000000", contra.address, 1)
+    return compile_source(source).Vyper.deploy({"from": alice})
+
+
+@pytest.fixture(scope="session")
+def meta_implementations(
+    pool_type,
+    meta_usd,
+    meta_usd_rebase,
+    meta_btc,
+    meta_btc_rebase,
+    meta_sidechain,
+    meta_sidechain_rebase,
+):
     if pool_type == 4:
         return [meta_usd, meta_usd_rebase]
-    else:
+    elif pool_type == 5:
         return [meta_btc, meta_btc_rebase]
+    else:
+        return [meta_sidechain, meta_sidechain_rebase]
 
 
 # Factories
@@ -345,3 +437,25 @@ def owner_proxy(alice, OwnerProxy):
 def gauge(alice, factory, swap, LiquidityGauge, set_gauge_implementation):
     tx = factory.deploy_gauge(swap, {"from": alice})
     return LiquidityGauge.at(tx.return_value)
+
+
+@pytest.fixture(scope="module")
+def meta_gauge(swap, GaugeExtension):
+    return Contract.from_abi("Meta Liquidity Gauge", swap.rewards_receiver(), GaugeExtension.abi)
+
+
+@pytest.fixture(scope="module")
+def zap(alice, base_coins, base_pool, lp_token, DepositZap):
+    source = DepositZap._build["source"]
+
+    source = source.replace("69", str(len(base_coins)), 1)
+
+    base_coin_addrs = [coin.address for coin in base_coins]
+    source = source.replace(
+        f"= [{', '.join([ZERO_ADDRESS] * 3)}]", f"= [{', '.join(base_coin_addrs)}]"
+    )
+
+    for token in [base_pool, lp_token]:
+        source = source.replace(f"= {ZERO_ADDRESS}", f"= {token.address}", 1)
+
+    return compile_source(source).Vyper.deploy({"from": alice})

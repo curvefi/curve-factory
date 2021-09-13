@@ -6,9 +6,9 @@ pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "approve_zap")
 
 @pytest.mark.parametrize("idx", range(4))
 @pytest.mark.parametrize("divisor", [10, 50, 100])
-def test_remove_one(alice, bob, zap, underlying_coins, wrapped_coins, swap, idx, divisor):
+def test_remove_one(alice, bob, zap, underlying_coins, coins, swap, idx, divisor):
     underlying = underlying_coins[idx]
-    wrapped = wrapped_coins[min(idx, 1)]
+    wrapped = coins[min(idx, 1)]
 
     initial_amount = swap.balanceOf(alice)
     amount = initial_amount // divisor

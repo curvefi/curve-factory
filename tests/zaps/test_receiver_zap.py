@@ -1,7 +1,7 @@
 import pytest
 
 pytestmark = pytest.mark.usefixtures(
-    "add_initial_liquidity", "mint_bob", "approve_bob", "approve_zap"
+    "add_initial_liquidity", "mint_bob_underlying", "approve_bob", "approve_zap"
 )
 
 
@@ -32,7 +32,7 @@ def test_remove_imbalanced(
         assert coin.balanceOf(zap) == 0
 
 
-def test_remove_one_coin(alice, charlie, dave, zap, underlying_coins, wrapped_coins, swap):
+def test_remove_one_coin(alice, charlie, dave, zap, underlying_coins, coins, swap):
     underlying = underlying_coins[1]
 
     initial_balance = swap.balanceOf(alice)

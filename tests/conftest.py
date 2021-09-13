@@ -12,7 +12,15 @@ pytest_plugins = [
     "fixtures.functions",
 ]
 
-pool_types = {"basic": 0, "eth": 1, "optimized": 2, "rebase": 3, "meta-usd": 4, "meta-btc": 5}
+pool_types = {
+    "basic": 0,
+    "eth": 1,
+    "optimized": 2,
+    "rebase": 3,
+    "meta-usd": 4,
+    "meta-btc": 5,
+    "meta-side": 6,
+}
 return_types = {"revert": 0, "False": 1, "None": 2}
 
 
@@ -118,7 +126,7 @@ def pytest_collection_modifyitems(config, items):
             continue
 
         # meta pools we only test against 1 type no parameterization needed
-        if pool_type in [4, 5]:
+        if pool_type in [4, 5, 6]:
             if decimals != 18:
                 items.remove(item)
                 continue
@@ -130,8 +138,17 @@ def pytest_collection_modifyitems(config, items):
             if pool_size > 2:
                 items.remove(item)
                 continue
+
         else:
             if meta_implementation_idx > 0:
+                items.remove(item)
+                continue
+
+            if "zaps" in path_parts:
+                # zap tests only apply to the meta implementations
+                # and we only use the template zap DepositZap.vy
+                # all the zaps are essentially copies of this with
+                # constants set appropriately
                 items.remove(item)
                 continue
 
@@ -142,12 +159,11 @@ def pytest_collection_modifyitems(config, items):
 
         # only allow meta pools in the meta directory
         if len(path_parts) > 1 and path_parts[1] == "meta":
-            if pool_type not in [4, 5]:
+            if pool_type not in [4, 5, 6]:
                 items.remove(item)
                 continue
 
-        if len(path_parts) > 0 and path_parts[0] == "zaps":
-            # need to handle connecting to mainnet-fork
+        if pool_type != 6 and "test_sidechain_rewards.py" in path.parts:
             items.remove(item)
             continue
 
@@ -182,7 +198,7 @@ def is_rebase_pool(pool_type):
 
 @pytest.fixture(scope="session")
 def is_meta_pool(pool_type):
-    return pool_type in [4, 5]
+    return pool_type in [4, 5, 6]
 
 
 @pytest.fixture(scope="session")

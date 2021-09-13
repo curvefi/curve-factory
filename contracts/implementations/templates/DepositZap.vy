@@ -11,7 +11,7 @@ interface ERC20:
 
 interface CurveMeta:
     def add_liquidity(amounts: uint256[N_COINS], min_mint_amount: uint256, _receiver: address) -> uint256: nonpayable
-    def remove_liquidity(_amount: uint256, min_amounts: uint256[N_COINS]) -> uint256[N_COINS]: nonpayable
+    def remove_liquidity(_amount: uint256, min_amounts: uint256[N_COINS]): nonpayable
     def remove_liquidity_one_coin(_token_amount: uint256, i: int128, min_amount: uint256, _receiver: address) -> uint256: nonpayable
     def remove_liquidity_imbalance(amounts: uint256[N_COINS], max_burn_amount: uint256) -> uint256: nonpayable
     def calc_withdraw_one_coin(_token_amount: uint256, i: int128) -> uint256: view
@@ -169,10 +169,15 @@ def remove_liquidity(
     amounts: uint256[N_ALL_COINS] = empty(uint256[N_ALL_COINS])
 
     # Withdraw from meta
-    meta_received: uint256[N_COINS] = CurveMeta(_pool).remove_liquidity(
-        _burn_amount,
-        [_min_amounts[0], convert(0, uint256)]
-    )
+    meta_received: uint256[N_COINS] = empty(uint256[N_COINS])
+    CurveMeta(_pool).remove_liquidity(_burn_amount, [_min_amounts[0], convert(0, uint256)])
+
+    coins: address[N_COINS] = empty(address[N_COINS])
+    for i in range(N_COINS):
+        coin: address = CurveMeta(_pool).coins(i)
+        coins[i] = coin
+        # Handle fee on transfer for the first coin
+        meta_received[i] = ERC20(coin).balanceOf(self)
 
     # Withdraw from base
     for i in range(BASE_N_COINS):
@@ -180,9 +185,8 @@ def remove_liquidity(
     CurveBase(BASE_POOL).remove_liquidity(meta_received[MAX_COIN], min_amounts_base)
 
     # Transfer all coins out
-    coin: address = CurveMeta(_pool).coins(0)
     response = raw_call(
-        coin,
+        coins[0],  # metapool coin 0
         _abi_encode(
             _receiver,
             meta_received[0],
@@ -197,7 +201,8 @@ def remove_liquidity(
 
     base_coins: address[BASE_N_COINS] = BASE_COINS
     for i in range(1, N_ALL_COINS):
-        coin = base_coins[i-1]
+        coin: address = base_coins[i-1]
+        # handle potential fee on transfer
         amounts[i] = ERC20(coin).balanceOf(self)
         response = raw_call(
             coin,

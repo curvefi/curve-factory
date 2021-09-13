@@ -121,3 +121,10 @@ def approve_bob_underlying(bob, underlying_coins, swap):
 @pytest.fixture
 def add_initial_liquidity(alice, approve_alice, mint_alice, initial_amounts, swap, eth_amount):
     swap.add_liquidity(initial_amounts, 0, {"from": alice, "value": eth_amount(initial_amounts[0])})
+
+
+@pytest.fixture
+def approve_zap(alice, bob, coins, base_coins, swap, zap):
+    for token in [*coins, *base_coins, swap]:
+        token.approve(zap, 2 ** 256 - 1, {"from": alice})
+        token.approve(zap, 2 ** 256 - 1, {"from": bob})

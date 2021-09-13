@@ -27,7 +27,7 @@ def test_wrapped_balances(
     swap,
     zap,
     underlying_coins,
-    wrapped_coins,
+    coins,
     initial_amounts,
     divisor,
 ):
@@ -36,7 +36,7 @@ def test_wrapped_balances(
     min_amounts = [0] * len(underlying_coins)
     zap.remove_liquidity(swap, withdraw_amount, min_amounts, {"from": bob})
 
-    for coin, initial in zip(wrapped_coins, initial_amounts):
+    for coin, initial in zip(coins, initial_amounts):
         assert coin.balanceOf(zap) == 0
         assert abs(coin.balanceOf(swap) - (initial - (initial // divisor))) <= 1
 
@@ -47,7 +47,7 @@ def test_underlying_balances(
     swap,
     zap,
     underlying_coins,
-    wrapped_coins,
+    coins,
     initial_amounts_underlying,
     divisor,
 ):

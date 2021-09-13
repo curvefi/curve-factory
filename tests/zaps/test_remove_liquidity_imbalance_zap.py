@@ -28,7 +28,7 @@ def test_wrapped_balances(
     swap,
     zap,
     underlying_coins,
-    wrapped_coins,
+    coins,
     initial_amounts,
     initial_amounts_underlying,
     divisor,
@@ -36,7 +36,7 @@ def test_wrapped_balances(
     amounts = [i // divisor for i in initial_amounts_underlying]
     zap.remove_liquidity_imbalance(swap, amounts, swap.balanceOf(bob), {"from": bob})
 
-    for coin, initial in zip(wrapped_coins[1:], initial_amounts[1:]):
+    for coin, initial in zip(coins[1:], initial_amounts[1:]):
         assert coin.balanceOf(zap) == 0
         assert coin.balanceOf(bob) == 0
 
@@ -49,7 +49,7 @@ def test_underlying_balances(
     swap,
     zap,
     underlying_coins,
-    wrapped_coins,
+    coins,
     initial_amounts_underlying,
     divisor,
     idx,
@@ -64,7 +64,7 @@ def test_underlying_balances(
     zap.remove_liquidity_imbalance(swap, amounts, swap.balanceOf(bob), {"from": bob})
 
     for coin, amount, initial in zip(underlying_coins, amounts, initial_amounts_underlying):
-        if coin not in wrapped_coins:
+        if coin not in coins:
             assert coin.balanceOf(swap) == 0
         else:
             assert coin.balanceOf(swap) == initial - amount

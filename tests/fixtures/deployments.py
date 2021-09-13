@@ -442,3 +442,20 @@ def gauge(alice, factory, swap, LiquidityGauge, set_gauge_implementation):
 @pytest.fixture(scope="module")
 def meta_gauge(swap, GaugeExtension):
     return Contract.from_abi("Meta Liquidity Gauge", swap.rewards_receiver(), GaugeExtension.abi)
+
+
+@pytest.fixture(scope="module")
+def zap(alice, base_coins, base_pool, lp_token, DepositZap):
+    source = DepositZap._build["source"]
+
+    source = source.replace("69", str(len(base_coins)), 1)
+
+    base_coin_addrs = [coin.address for coin in base_coins]
+    source = source.replace(
+        f"= [{', '.join([ZERO_ADDRESS] * 3)}]", f"= [{', '.join(base_coin_addrs)}]"
+    )
+
+    for token in [base_pool, lp_token]:
+        source = source.replace(f"= {ZERO_ADDRESS}", f"= {token.address}", 1)
+
+    return compile_source(source).Vyper.deploy({"from": alice})

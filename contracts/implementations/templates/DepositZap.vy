@@ -309,7 +309,6 @@ def remove_liquidity_imbalance(
     if len(response) != 0:
         assert convert(response, bool)
 
-
     withdraw_base: bool = False
     amounts_base: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
     amounts_meta: uint256[N_COINS] = empty(uint256[N_COINS])
@@ -362,7 +361,7 @@ def remove_liquidity_imbalance(
                 base_coins[i],
                 _abi_encode(
                     _receiver,
-                    amounts_base[i],
+                    ERC20(base_coins[i]).balanceOf(self),  # handle potential transfer fees
                     method_id=method_id("transfer(address,uint256)"),
                 ),
                 max_outsize=32
@@ -378,7 +377,7 @@ def remove_liquidity_imbalance(
             coin,
             _abi_encode(
                 _receiver,
-                _amounts[0],
+                ERC20(coin).balanceOf(self),  # handle potential fees
                 method_id=method_id("transfer(address,uint256)"),
             ),
             max_outsize=32

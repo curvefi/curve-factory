@@ -96,7 +96,8 @@ def add_liquidity(
         )
         if len(response) != 0:
             assert convert(response, bool)
-        meta_amounts[0] = _deposit_amounts[0]
+        # hand fee on transfer
+        meta_amounts[0] = ERC20(coin).balanceOf(self)
 
     for i in range(1, N_ALL_COINS):
         amount: uint256 = _deposit_amounts[i]
@@ -119,11 +120,8 @@ def add_liquidity(
         if len(response) != 0:
             assert convert(response, bool)
 
-        # Handle potential Tether fees
-        if i == N_ALL_COINS - 1:
-            base_amounts[base_idx] = ERC20(coin).balanceOf(self)
-        else:
-            base_amounts[base_idx] = amount
+        # Handle potential transfer fees (i.e. Tether/renBTC)
+        base_amounts[base_idx] = ERC20(coin).balanceOf(self)
 
     # Deposit to the base pool
     if deposit_base:
@@ -166,7 +164,6 @@ def remove_liquidity(
     )
     if len(response) != 0:
         assert convert(response, bool)
-
 
     min_amounts_base: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
     amounts: uint256[N_ALL_COINS] = empty(uint256[N_ALL_COINS])

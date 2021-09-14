@@ -128,7 +128,7 @@ base_pool_data: HashMap[address, BasePoolArray]
 plain_implementations: public(HashMap[uint256, address[10]])
 
 # fee receiver for plain pools
-fee_receiver: address
+fee_receiver: public(address)
 
 gauge_implementation: public(address)
 

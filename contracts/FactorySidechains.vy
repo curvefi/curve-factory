@@ -1,6 +1,6 @@
 # @version 0.2.16
 """
-@title Curve Factory
+@title Curve Sidechain/L2 Factory
 @license MIT
 @author Curve.Fi
 @notice Permissionless pool deployer and registry
@@ -795,6 +795,15 @@ def set_gauge_implementation(_gauge_implementation: address):
     assert msg.sender == self.admin  # dev: admin-only function
 
     self.gauge_implementation = _gauge_implementation
+
+
+@external
+def set_gauge(_pool: address, _gauge: address):
+    assert msg.sender == self.admin  # dev: admin-only function
+    assert self.pool_data[_pool].coins[0] != ZERO_ADDRESS, "Unknown pool"
+
+    self.pool_data[_pool].liquidity_gauge = _gauge
+    log LiquidityGaugeDeployed(_pool, _gauge)
 
 
 @external

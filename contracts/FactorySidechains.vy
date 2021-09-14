@@ -109,7 +109,6 @@ event LiquidityGaugeDeployed:
 MAX_COINS: constant(int128) = 8
 MAX_PLAIN_COINS: constant(int128) = 4  # max coins in a plain pool
 ADDRESS_PROVIDER: constant(address) = 0x0000000022D53366457F9d5E68Ec105046FC4383
-OLD_FACTORY: constant(address) = 0x0959158b6040D32d04c301A72CBFD6b39E21c9AE
 
 admin: public(address)
 future_admin: public(address)
@@ -878,73 +877,4 @@ def convert_metapool_fees() -> bool:
     receiver: address = self.base_pool_data[base_pool].fee_receiver
 
     CurvePool(msg.sender).exchange(0, 1, amount, 0, receiver)
-    return True
-
-
-# <--- Pool Migration --->
-
-@external
-def add_existing_metapools(_pools: address[10]) -> bool:
-    """
-    @notice Add existing metapools from the old factory
-    @dev Base pools that are used by the pools to be added must
-         be added separately with `add_base_pool`
-    @param _pools Addresses of existing pools to add
-    """
-
-    length: uint256 = self.pool_count
-    for pool in _pools:
-        if pool == ZERO_ADDRESS:
-            break
-
-        assert self.pool_data[pool].coins[0] == ZERO_ADDRESS  # dev: pool already exists
-
-        coins: address[2] = OldFactory(OLD_FACTORY).get_coins(pool)
-        assert coins[0] != ZERO_ADDRESS # dev: pool not in old factory
-
-        # add pool to pool list
-        self.pool_list[length] = pool
-        length += 1
-
-        base_pool: address = ZERO_ADDRESS
-        implementation: address = ZERO_ADDRESS
-
-        if coins[1] == 0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490:
-            # 3pool
-            base_pool = 0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7
-            implementation = 0x5F890841f657d90E081bAbdB532A05996Af79Fe6
-        elif coins[1] == 0x075b1bb99792c9E1041bA13afEf80C91a1e70fB3:
-            # sbtc
-            base_pool = 0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714
-            implementation = 0x2f956eEe002B0dEbD468CF2E0490d1aEc65e027F
-            self.pool_data[pool].asset_type = 2
-        else:
-            raise
-
-        # update pool data
-        self.pool_data[pool].decimals[0] = ERC20(coins[0]).decimals()
-        self.pool_data[pool].base_pool = base_pool
-        meta_coin: address = CurveFactoryMetapool(pool).coins(0)
-        self.pool_data[pool].coins[0] = coins[0]
-        self.pool_data[pool].coins[1] = coins[1]
-        self.pool_data[pool].implementation = implementation
-
-        base_pool_coins: address[MAX_COINS] = self.base_pool_data[base_pool].coins
-        assert base_pool_coins[0] != ZERO_ADDRESS # dev: unknown base pool
-
-        is_finished: bool = False
-        for i in range(MAX_COINS):
-            swappable_coin: address = base_pool_coins[i]
-            if swappable_coin == ZERO_ADDRESS:
-                is_finished = True
-                swappable_coin = coins[1]
-
-            key: uint256 = bitwise_xor(convert(meta_coin, uint256), convert(swappable_coin, uint256))
-            market_idx: uint256 = self.market_counts[key]
-            self.markets[key][market_idx] = pool
-            self.market_counts[key] = market_idx + 1
-            if is_finished:
-                break
-
-    self.pool_count = length
     return True

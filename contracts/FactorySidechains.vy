@@ -123,9 +123,6 @@ base_pool_list: public(address[4294967296])   # master list of pools
 base_pool_count: public(uint256)         # actual length of pool_list
 base_pool_data: HashMap[address, BasePoolArray]
 
-# asset -> is used in a metapool?
-base_pool_assets: public(HashMap[address, bool])
-
 # number of coins -> implementation addresses
 # for "plain pools" (as opposed to metapools), implementation contracts
 # are organized according to the number of coins in the pool
@@ -546,7 +543,6 @@ def deploy_plain_pool(
             assert i > 1, "Insufficient coins"
             n_coins = i
             break
-        assert self.base_pool_assets[coin] == False, "Invalid asset, deploy a metapool"
 
         if _coins[i] == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
             assert i == 0, "ETH must be first coin"
@@ -748,7 +744,6 @@ def add_base_pool(
             break
         coin: address = coins[i]
         self.base_pool_data[_base_pool].coins[i] = coin
-        self.base_pool_assets[coin] = True
         decimals += shift(ERC20(coin).decimals(), convert(i*8, int128))
     self.base_pool_data[_base_pool].decimals = decimals
 

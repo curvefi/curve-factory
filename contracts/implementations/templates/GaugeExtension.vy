@@ -24,7 +24,6 @@ struct Reward:
     integral: uint256
 
 
-BASE_GAUGE: constant(address) = 0x0000000000000000000000000000000000000000
 MAX_REWARDS: constant(uint256) = 8
 FACTORY: constant(address) = 0x0000000000000000000000000000000000000000
 WEEK: constant(uint256) = 86400 * 7
@@ -54,15 +53,18 @@ reward_data: public(HashMap[address, Reward])
 
 is_killed: public(bool)
 
+base_gauge: public(address)
+
 @external
 def __init__():
     self.pool = 0x000000000000000000000000000000000000dEaD
 
 
 @external
-def initialize():
+def initialize(_base_gauge: address):
     assert self.pool == ZERO_ADDRESS
     self.pool = msg.sender
+    self.base_gauge = _base_gauge
     self.deployer = tx.origin
 
 
@@ -72,7 +74,8 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
     @notice Claim pending rewards and checkpoint rewards for a user
     """
     # claim from base gauge
-    BaseGauge(BASE_GAUGE).claim_rewards(self.pool)
+    gauge: address = self.base_gauge
+    BaseGauge(gauge).claim_rewards(self.pool)
 
     checkpointed: address[MAX_REWARDS] = empty(address[MAX_REWARDS])
 
@@ -87,7 +90,7 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
     # calculate new user reward integral and transfer any owed rewards
     user_balance: uint256 = ERC20(self.pool).balanceOf(_user)
     for i in range(MAX_REWARDS):
-        token: address = BaseGauge(BASE_GAUGE).reward_tokens(i)
+        token: address = BaseGauge(gauge).reward_tokens(i)
         if token == ZERO_ADDRESS:
             break
         checkpointed[i] = token

@@ -28,7 +28,7 @@ interface Gauge:
     def withdraw(_value: uint256): nonpayable
 
 interface GaugeExtension:
-    def initialize(): nonpayable
+    def initialize(_base_gauge: address): nonpayable
     def checkpoint_rewards(_addr: address): nonpayable
 
 interface Factory:
@@ -181,7 +181,7 @@ def initialize(
     self.symbol = concat(_symbol, "3CRV-f")
 
     receiver: address = create_forwarder_to(GAUGE_EXTENSION_IMPL)
-    GaugeExtension(receiver).initialize()
+    GaugeExtension(receiver).initialize(BASE_GAUGE)
     
     self.rewards_receiver = receiver
 

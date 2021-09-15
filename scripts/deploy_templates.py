@@ -32,13 +32,13 @@ BASE_COINS = [
     ZERO_ADDRESS,
 ]
 BASE_LP_TOKEN = ZERO_ADDRESS
-GAUGE_EXTENSION_IMPL = None  # change this if one is already deployed
+# only one gauge extension per factory deployment is necessary
+GAUGE_EXTENSION_IMPL = None  # change this if one is already deployed for the current factory
 
 
-def deploy_gauge_extension(_base_gauge: str, _factory: str):
+def deploy_gauge_extension(_factory: str):
     source = GaugeExtension._build["source"]
-    for addr in [_base_gauge, _factory]:
-        source = source.replace(ZERO_ADDRESS, addr, 1)
+    source = source.replace(ZERO_ADDRESS, _factory, 1)
 
     MetaGaugeExtension = compile_source(source).Vyper
     deployment = MetaGaugeExtension.deploy({"from": DEPLOYER})
@@ -53,13 +53,13 @@ def deploy_meta_implementation(_implementation_source: str):
     global GAUGE_EXTENSION_IMPL
 
     if GAUGE_EXTENSION_IMPL is None:
-        GAUGE_EXTENSION_IMPL = deploy_gauge_extension(BASE_GAUGE, FACTORY).address
+        GAUGE_EXTENSION_IMPL = deploy_gauge_extension(FACTORY).address
 
     source = _implementation_source
-    for addr in [BASE_POOL, BASE_LP_TOKEN, BASE_GAUGE, GAUGE_EXTENSION_IMPL]:
-        source = source.replace(f"= {ZERO_ADDRESS}", f"= {addr}", 1)
     source = source.replace("69", str(len(BASE_COINS)), 1)
     source = source.replace(f"[{', '.join([ZERO_ADDRESS] * 69)}]", f"[{', '.join(BASE_COINS)}]")
+    for addr in [BASE_POOL, BASE_LP_TOKEN, BASE_GAUGE, GAUGE_EXTENSION_IMPL]:
+        source = source.replace(f"= {ZERO_ADDRESS}", f"= {addr}", 1)
 
     META = compile_source(source).Vyper
     meta = META.deploy({"from": DEPLOYER})

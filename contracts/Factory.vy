@@ -724,6 +724,7 @@ def add_base_pool(
 
     registry: address = AddressProvider(ADDRESS_PROVIDER).get_registry()
     n_coins: uint256 = Registry(registry).get_n_coins(_base_pool)
+    assert n_coins > 0  # dev: pool not in registry
 
     # add pool to pool_list
     length: uint256 = self.base_pool_count

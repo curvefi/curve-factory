@@ -436,7 +436,7 @@ def get_coin_indices(
         # the first time we find a match, set `found_market` to True
         found_market = True
 
-    return i, j, True
+    return i, j, base_pool != ZERO_ADDRESS
 
 
 @view

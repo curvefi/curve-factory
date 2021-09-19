@@ -31,6 +31,8 @@ def set_meta_implementations(
 ):
     if pool_type not in [4, 5, 6]:
         return
+    if base_pool.address in [factory.base_pool_list(i) for i in range(factory.base_pool_count())]:
+        return
     asset_type = 0 if pool_type == 4 else 2 if pool_type == 5 else 3
     factory.add_base_pool(
         base_pool,

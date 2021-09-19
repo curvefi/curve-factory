@@ -2,50 +2,10 @@ import itertools
 
 import brownie
 import pytest
-from brownie import ETH_ADDRESS, ZERO_ADDRESS, Contract
+from brownie import ZERO_ADDRESS, Contract
 from brownie_tokens import ERC20
 
-
-@pytest.fixture(autouse=True)
-def setup(
-    accounts,
-    swap,
-    bob,
-    alice,
-    add_initial_liquidity,
-    mint_bob,
-    coins,
-    approve_bob,
-    decimals,
-    eth_amount,
-):
-    amount = 10 ** decimals[0]
-    swap.exchange(0, 1, amount, 0, {"from": bob, "value": eth_amount(amount)})
-    swap.exchange(1, 0, 10 ** decimals[1], 0, {"from": bob})
-
-    # add initial liquidity to plain pool
-    amounts = []
-    for coin in coins:
-        if coin == ETH_ADDRESS:
-            amount = 1e6 * 10 ** 18
-            accounts[-1].transfer(alice, amount)
-            amounts.append(amount)
-            continue
-        amount = 1e6 * 10 ** coin.decimals()
-        coin._mint_for_testing(alice, amount, {"from": alice})
-        coin.approve(swap, 2 ** 256 - 1, {"from": alice})
-        amounts.append(amount)
-
-    swap.add_liquidity(amounts, 0, {"from": alice, "value": eth_amount(amounts[0])})
-
-    amount = 10 ** decimals[0]
-    if coins[0] == ETH_ADDRESS:
-        accounts[-1].transfer(bob, amount)
-    else:
-        coins[0]._mint_for_testing(bob, amount, {"from": bob})
-        coins[0].approve(swap, amount, {"from": bob})
-
-    swap.exchange(0, 1, amount, 0, {"from": bob, "value": eth_amount(amount)})
+pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "approve_bob", "mint_bob")
 
 
 @pytest.fixture

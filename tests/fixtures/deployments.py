@@ -410,6 +410,9 @@ def swap(
         )
         return getattr(project, plain_implementations[pool_type]._name).at(tx.return_value)
     else:
+        if factory.pool_count() != 0:
+            return state._find_contract(factory.pool_list(0))
+
         tx = factory.deploy_metapool(
             base_pool,
             "Test Meta Pool",

@@ -20,6 +20,7 @@ pool_types = {
     "meta-usd": 4,
     "meta-btc": 5,
     "meta-side": 6,
+    "meta-rai": 7,
 }
 return_types = {"revert": 0, "False": 1, "None": 2}
 
@@ -126,7 +127,7 @@ def pytest_collection_modifyitems(config, items):
             continue
 
         # meta pools we only test against 1 type no parameterization needed
-        if pool_type in [4, 5, 6]:
+        if pool_type in [4, 5, 6, 7]:
             if decimals != 18:
                 items.remove(item)
                 continue
@@ -159,7 +160,7 @@ def pytest_collection_modifyitems(config, items):
 
         # only allow meta pools in the meta directory
         if len(path_parts) > 1 and path_parts[1] == "meta":
-            if pool_type not in [4, 5, 6]:
+            if pool_type not in [4, 5, 6, 7]:
                 items.remove(item)
                 continue
 
@@ -198,7 +199,7 @@ def is_rebase_pool(pool_type):
 
 @pytest.fixture(scope="session")
 def is_meta_pool(pool_type):
-    return pool_type in [4, 5, 6]
+    return pool_type in [4, 5, 6, 7]
 
 
 @pytest.fixture(scope="session")

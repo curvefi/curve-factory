@@ -132,6 +132,7 @@ totalSupply: public(uint256)
 
 redemption_price_snap: public(address)
 deployer: public(address) #used only for setup after initialized
+redemption_price_scale: public(uint256)
 
 
 @external
@@ -179,19 +180,24 @@ def initialize(
     # fire a transfer event so block explorers identify the contract as an ERC20
     log Transfer(ZERO_ADDRESS, self, 0)
 
+
 @external
 def initialize_rate_feed(
-    _feed: address
+    _feed: address,
+    _redemption_price_scale: uint256
 ):
     """
     @notice After creating the pool through the factory the deployer shall call
     this function and set the external rate feed
     @param _feed Address of the external feed
+    @param _redemption_price_scale Scale for redemption price (10**9 for RAY)
     """
     # check if feed was already set to prevent initializing feed twice
     assert self.redemption_price_snap == ZERO_ADDRESS
     assert self.deployer == msg.sender
+    assert _redemption_price_scale > 0
     self.redemption_price_snap = _feed
+    self.redemption_price_scale = _redemption_price_scale
 
 ### ERC20 Functionality ###
 
@@ -312,7 +318,7 @@ def _get_scaled_redemption_price() -> uint256:
     @return The redemption price with appropriate scaling to match LP tokens vitual price.
     """
     rate: uint256 = RedemptionPriceSnap(self.redemption_price_snap).snappedRedemptionPrice()
-    return rate / self.rate_multiplier
+    return rate / self.redemption_price_scale
 
 
 
@@ -433,6 +439,8 @@ def add_liquidity(
     @param _receiver Address that owns the minted LP tokens
     @return Amount of LP tokens received by depositing
     """
+    assert self.redemption_price_snap != ZERO_ADDRESS # assert pool fully initialized
+
     amp: uint256 = self._A()
     rates: uint256[N_COINS] = [self._get_scaled_redemption_price(), Curve(BASE_POOL).get_virtual_price()]
 

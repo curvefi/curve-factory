@@ -172,6 +172,27 @@ def meta_usd(alice, MetaUSD, base_pool, base_coins, lp_token, pytestconfig):
 
 
 @pytest.fixture(scope="session")
+def meta_rai(alice, MetaRAI, base_pool, base_coins, lp_token, pytestconfig):
+    meta_rai_abi = pytestconfig.cache.get("meta_rai_abi", False)
+    meta_rai_bytecode = pytestconfig.cache.get("meta_rai_bytecode", False)
+    if meta_rai_abi and meta_rai_bytecode:
+        tx = alice.transfer(data=meta_rai_bytecode)
+        instance = Contract.from_abi("Meta RAI", tx.contract_address, meta_rai_abi)
+        meta_contracts[tx.contract_address] = meta_rai_abi
+        return instance
+
+    source = MetaRAI._build["source"]
+    new_source = _replace_usd(source, base_pool, base_coins, lp_token)
+    NewMetaRAI = compile_source(new_source).Vyper
+    instance = NewMetaRAI.deploy({"from": alice})
+    meta_contracts[instance.address] = NewMetaRAI.abi
+
+    pytestconfig.cache.set("meta_rai_abi", NewMetaRAI.abi)
+    pytestconfig.cache.set("meta_rai_bytecode", NewMetaRAI.bytecode)
+    return instance
+
+
+@pytest.fixture(scope="session")
 def meta_btc_rebase(alice, MetaBTCBalances, base_pool, base_coins, lp_token, pytestconfig):
     meta_btc_rebase_abi = pytestconfig.cache.get("meta_btc_rebase_abi", False)
     meta_btc_rebase_bytecode = pytestconfig.cache.get("meta_btc_rebase_bytecode", False)
@@ -347,11 +368,14 @@ def meta_implementations(
     meta_btc_rebase,
     meta_sidechain,
     meta_sidechain_rebase,
+    meta_rai
 ):
     if pool_type == 4:
         return [meta_usd, meta_usd_rebase]
     elif pool_type == 5:
         return [meta_btc, meta_btc_rebase]
+    elif pool_type == 7:
+        return [meta_rai, meta_rai]
     else:
         return [meta_sidechain, meta_sidechain_rebase]
 
@@ -375,8 +399,6 @@ def factory(alice, frank, Factory, address_provider, pytestconfig):
 
 
 # Mock contracts
-
-
 @pytest.fixture(scope="session")
 def lending_pool(alice, AaveLendingPoolMock):
     return AaveLendingPoolMock.deploy({"from": alice})
@@ -395,6 +417,7 @@ def swap(
     pool_type,
     is_meta_pool,
     web3,
+    redemption_price_snap
 ):
     if not is_meta_pool:
         # modifies the factory so should be module scoped
@@ -424,6 +447,10 @@ def swap(
         instance = Contract.from_abi("Meta Instance", tx.return_value, meta_contracts[key])
         instance._build["language"] = "Vyper"
         state._add_contract(instance)
+
+        if pool_type == 7: # setting rate feed
+            instance.initialize_rate_feed(redemption_price_snap, 1000000000, {"from": alice})
+
         return instance
 
 
@@ -458,3 +485,8 @@ def zap(alice, base_coins, base_pool, lp_token, DepositZap):
         source = source.replace(f"= {ZERO_ADDRESS}", f"= {token.address}", 1)
 
     return compile_source(source).Vyper.deploy({"from": alice})
+
+
+@pytest.fixture(scope="module")
+def redemption_price_snap(RedemptionPriceSnapMock, alice):
+    return RedemptionPriceSnapMock.deploy({"from": alice})

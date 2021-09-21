@@ -29,7 +29,7 @@ def set_plain_implementations(
 def set_meta_implementations(
     alice, factory, base_pool, meta_implementations, pool_type, fee_receiver, mod_isolation
 ):
-    if pool_type not in [4, 5, 6]:
+    if pool_type not in [4, 5, 6, 7]:
         return
     asset_type = 0 if pool_type == 4 else 2 if pool_type == 5 else 3
     factory.add_base_pool(

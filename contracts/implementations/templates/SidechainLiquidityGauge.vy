@@ -1,40 +1,14 @@
-# @version 0.2.15
+# @version 0.2.16
 """
 @title Liquidity Gauge
 @author Curve Finance
 @license MIT
 @notice Implementation contract for use with Curve Factory
 """
-
 from vyper.interfaces import ERC20
 
 implements: ERC20
 
-
-interface CRV20:
-    def future_epoch_time_write() -> uint256: nonpayable
-    def rate() -> uint256: view
-
-interface Controller:
-    def period() -> int128: view
-    def period_write() -> int128: nonpayable
-    def period_timestamp(p: int128) -> uint256: view
-    def gauge_relative_weight(addr: address, time: uint256) -> uint256: view
-    def voting_escrow() -> address: view
-    def checkpoint(): nonpayable
-    def checkpoint_gauge(addr: address): nonpayable
-
-interface Minter:
-    def token() -> address: view
-    def controller() -> address: view
-    def minted(user: address, gauge: address) -> uint256: view
-
-interface VotingEscrow:
-    def user_point_epoch(addr: address) -> uint256: view
-    def user_point_history__ts(addr: address, epoch: uint256) -> uint256: view
-
-interface VotingEscrowBoost:
-    def adjusted_balance_of(_account: address) -> uint256: view
 
 interface ERC20Extended:
     def symbol() -> String[26]: view
@@ -50,19 +24,6 @@ event Deposit:
 event Withdraw:
     provider: indexed(address)
     value: uint256
-
-event UpdateLiquidityLimit:
-    user: address
-    original_balance: uint256
-    original_supply: uint256
-    working_balance: uint256
-    working_supply: uint256
-
-event CommitOwnership:
-    admin: address
-
-event ApplyOwnership:
-    admin: address
 
 event Transfer:
     _from: indexed(address)
@@ -85,16 +46,7 @@ struct Reward:
 
 
 MAX_REWARDS: constant(uint256) = 8
-TOKENLESS_PRODUCTION: constant(uint256) = 40
 WEEK: constant(uint256) = 604800
-CLAIM_FREQUENCY: constant(uint256) = 3600
-
-MINTER: constant(address) = 0xd061D61a4d941c39E5453435B6345Dc261C2fcE0
-CRV: constant(address) = 0xD533a949740bb3306d119CC777fa900bA034cd52
-VOTING_ESCROW: constant(address) = 0x5f3b5DfEb7B28CDbD7FAba78963EE202a494e2A2
-GAUGE_CONTROLLER: constant(address) = 0x2F50D538606Fa9EDD2B11E2446BEb18C9D5846bB
-VEBOOST_PROXY: constant(address) = 0x8E0c00ed546602fD9927DF742bbAbF726D5B0d16
-
 
 lp_token: public(address)
 future_epoch_time: public(uint256)
@@ -105,27 +57,6 @@ allowance: public(HashMap[address, HashMap[address, uint256]])
 
 name: public(String[64])
 symbol: public(String[32])
-
-working_balances: public(HashMap[address, uint256])
-working_supply: public(uint256)
-
-# The goal is to be able to calculate ∫(rate * balance / totalSupply dt) from 0 till checkpoint
-# All values are kept in units of being multiplied by 1e18
-period: public(int128)
-period_timestamp: public(uint256[100000000000000000000000000000])
-
-# 1e18 * ∫(rate(t) / totalSupply(t) dt) from 0 till checkpoint
-integrate_inv_supply: public(uint256[100000000000000000000000000000])  # bump epoch when rate() changes
-
-# 1e18 * ∫(rate(t) / totalSupply(t) dt) from (last_action) till checkpoint
-integrate_inv_supply_of: public(HashMap[address, uint256])
-integrate_checkpoint_of: public(HashMap[address, uint256])
-
-# ∫(balance * rate(t) / totalSupply(t) dt) from 0 till checkpoint
-# Units: rate * t = already number of coins per address to issue
-integrate_fraction: public(HashMap[address, uint256])
-
-inflation_rate: public(uint256)
 
 # For tracking external rewards
 reward_count: public(uint256)
@@ -156,7 +87,6 @@ def initialize(_lp_token: address):
     @notice Contract constructor
     @param _lp_token Liquidity Pool contract address
     """
-
     assert self.lp_token == ZERO_ADDRESS
     self.lp_token = _lp_token
     self.factory = msg.sender
@@ -164,10 +94,6 @@ def initialize(_lp_token: address):
     symbol: String[26] = ERC20Extended(_lp_token).symbol()
     self.name = concat("Curve.fi ", symbol, " Gauge Deposit")
     self.symbol = concat(symbol, "-gauge")
-
-    self.period_timestamp[0] = block.timestamp
-    self.inflation_rate = CRV20(CRV).rate()
-    self.future_epoch_time = CRV20(CRV).future_epoch_time_write()
 
 
 @view
@@ -179,39 +105,6 @@ def decimals() -> uint256:
     @return uint256 decimal places
     """
     return 18
-
-
-@view
-@external
-def integrate_checkpoint() -> uint256:
-    return self.period_timestamp[self.period]
-
-
-@internal
-def _update_liquidity_limit(addr: address, l: uint256, L: uint256):
-    """
-    @notice Calculate limits which depend on the amount of CRV token per-user.
-            Effectively it calculates working balances to apply amplification
-            of CRV production by CRV
-    @param addr User address
-    @param l User's amount of liquidity (LP tokens)
-    @param L Total amount of liquidity (LP tokens)
-    """
-    # To be called after totalSupply is updated
-    voting_balance: uint256 = VotingEscrowBoost(VEBOOST_PROXY).adjusted_balance_of(addr)
-    voting_total: uint256 = ERC20(VOTING_ESCROW).totalSupply()
-
-    lim: uint256 = l * TOKENLESS_PRODUCTION / 100
-    if voting_total > 0:
-        lim += L * voting_balance / voting_total * (100 - TOKENLESS_PRODUCTION) / 100
-
-    lim = min(l, lim)
-    old_bal: uint256 = self.working_balances[addr]
-    self.working_balances[addr] = lim
-    _working_supply: uint256 = self.working_supply + lim - old_bal
-    self.working_supply = _working_supply
-
-    log UpdateLiquidityLimit(addr, l, L, lim, _working_supply)
 
 
 @internal
@@ -275,98 +168,6 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
                     self.claim_data[_user][token] = total_claimed + shift(total_claimable, 128)
 
 
-@internal
-def _checkpoint(addr: address):
-    """
-    @notice Checkpoint for a user
-    @param addr User address
-    """
-    _period: int128 = self.period
-    _period_time: uint256 = self.period_timestamp[_period]
-    _integrate_inv_supply: uint256 = self.integrate_inv_supply[_period]
-    rate: uint256 = self.inflation_rate
-    new_rate: uint256 = rate
-    prev_future_epoch: uint256 = self.future_epoch_time
-    if prev_future_epoch >= _period_time:
-        self.future_epoch_time = CRV20(CRV).future_epoch_time_write()
-        new_rate = CRV20(CRV).rate()
-        self.inflation_rate = new_rate
-
-    if self.is_killed:
-        # Stop distributing inflation as soon as killed
-        rate = 0
-
-    # Update integral of 1/supply
-    if block.timestamp > _period_time:
-        _working_supply: uint256 = self.working_supply
-        Controller(GAUGE_CONTROLLER).checkpoint_gauge(self)
-        prev_week_time: uint256 = _period_time
-        week_time: uint256 = min((_period_time + WEEK) / WEEK * WEEK, block.timestamp)
-
-        for i in range(500):
-            dt: uint256 = week_time - prev_week_time
-            w: uint256 = Controller(GAUGE_CONTROLLER).gauge_relative_weight(self, prev_week_time / WEEK * WEEK)
-
-            if _working_supply > 0:
-                if prev_future_epoch >= prev_week_time and prev_future_epoch < week_time:
-                    # If we went across one or multiple epochs, apply the rate
-                    # of the first epoch until it ends, and then the rate of
-                    # the last epoch.
-                    # If more than one epoch is crossed - the gauge gets less,
-                    # but that'd meen it wasn't called for more than 1 year
-                    _integrate_inv_supply += rate * w * (prev_future_epoch - prev_week_time) / _working_supply
-                    rate = new_rate
-                    _integrate_inv_supply += rate * w * (week_time - prev_future_epoch) / _working_supply
-                else:
-                    _integrate_inv_supply += rate * w * dt / _working_supply
-                # On precisions of the calculation
-                # rate ~= 10e18
-                # last_weight > 0.01 * 1e18 = 1e16 (if pool weight is 1%)
-                # _working_supply ~= TVL * 1e18 ~= 1e26 ($100M for example)
-                # The largest loss is at dt = 1
-                # Loss is 1e-9 - acceptable
-
-            if week_time == block.timestamp:
-                break
-            prev_week_time = week_time
-            week_time = min(week_time + WEEK, block.timestamp)
-
-    _period += 1
-    self.period = _period
-    self.period_timestamp[_period] = block.timestamp
-    self.integrate_inv_supply[_period] = _integrate_inv_supply
-
-    # Update user-specific integrals
-    _working_balance: uint256 = self.working_balances[addr]
-    self.integrate_fraction[addr] += _working_balance * (_integrate_inv_supply - self.integrate_inv_supply_of[addr]) / 10 ** 18
-    self.integrate_inv_supply_of[addr] = _integrate_inv_supply
-    self.integrate_checkpoint_of[addr] = block.timestamp
-
-
-@external
-def user_checkpoint(addr: address) -> bool:
-    """
-    @notice Record a checkpoint for `addr`
-    @param addr User address
-    @return bool success
-    """
-    assert msg.sender in [addr, MINTER]  # dev: unauthorized
-    self._checkpoint(addr)
-    self._update_liquidity_limit(addr, self.balanceOf[addr], self.totalSupply)
-    return True
-
-
-@external
-def claimable_tokens(addr: address) -> uint256:
-    """
-    @notice Get the number of claimable tokens per user
-    @dev This function should be manually changed to "view" in the ABI
-    @return uint256 number of claimable tokens per user
-    """
-    self._checkpoint(addr)
-    return self.integrate_fraction[addr] - Minter(MINTER).minted(addr, self)
-
-
 @view
 @external
 def claimed_reward(_addr: address, _token: address) -> uint256:
@@ -427,26 +228,6 @@ def claim_rewards(_addr: address = msg.sender, _receiver: address = ZERO_ADDRESS
 
 
 @external
-def kick(addr: address):
-    """
-    @notice Kick `addr` for abusing their boost
-    @dev Only if either they had another voting event, or their voting escrow lock expired
-    @param addr Address to kick
-    """
-    t_last: uint256 = self.integrate_checkpoint_of[addr]
-    t_ve: uint256 = VotingEscrow(VOTING_ESCROW).user_point_history__ts(
-        addr, VotingEscrow(VOTING_ESCROW).user_point_epoch(addr)
-    )
-    _balance: uint256 = self.balanceOf[addr]
-
-    assert ERC20(VOTING_ESCROW).balanceOf(addr) == 0 or t_ve > t_last # dev: kick not allowed
-    assert self.working_balances[addr] > _balance * TOKENLESS_PRODUCTION / 100  # dev: kick not needed
-
-    self._checkpoint(addr)
-    self._update_liquidity_limit(addr, self.balanceOf[addr], self.totalSupply)
-
-
-@external
 @nonreentrant('lock')
 def deposit(_value: uint256, _addr: address = msg.sender, _claim_rewards: bool = False):
     """
@@ -455,8 +236,6 @@ def deposit(_value: uint256, _addr: address = msg.sender, _claim_rewards: bool =
     @param _value Number of tokens to deposit
     @param _addr Address to deposit for
     """
-
-    self._checkpoint(_addr)
 
     if _value != 0:
         is_rewards: bool = self.reward_count != 0
@@ -468,8 +247,6 @@ def deposit(_value: uint256, _addr: address = msg.sender, _claim_rewards: bool =
         new_balance: uint256 = self.balanceOf[_addr] + _value
         self.balanceOf[_addr] = new_balance
         self.totalSupply = total_supply
-
-        self._update_liquidity_limit(_addr, new_balance, total_supply)
 
         ERC20(self.lp_token).transferFrom(msg.sender, self, _value)
 
@@ -485,8 +262,6 @@ def withdraw(_value: uint256, _claim_rewards: bool = False):
     @dev Withdrawing also claims pending reward tokens
     @param _value Number of tokens to withdraw
     """
-    self._checkpoint(msg.sender)
-
     if _value != 0:
         is_rewards: bool = self.reward_count != 0
         total_supply: uint256 = self.totalSupply
@@ -498,8 +273,6 @@ def withdraw(_value: uint256, _claim_rewards: bool = False):
         self.balanceOf[msg.sender] = new_balance
         self.totalSupply = total_supply
 
-        self._update_liquidity_limit(msg.sender, new_balance, total_supply)
-
         ERC20(self.lp_token).transfer(msg.sender, _value)
 
     log Withdraw(msg.sender, _value)
@@ -508,8 +281,6 @@ def withdraw(_value: uint256, _claim_rewards: bool = False):
 
 @internal
 def _transfer(_from: address, _to: address, _value: uint256):
-    self._checkpoint(_from)
-    self._checkpoint(_to)
 
     if _value != 0:
         total_supply: uint256 = self.totalSupply
@@ -518,13 +289,11 @@ def _transfer(_from: address, _to: address, _value: uint256):
             self._checkpoint_rewards(_from, total_supply, False, ZERO_ADDRESS)
         new_balance: uint256 = self.balanceOf[_from] - _value
         self.balanceOf[_from] = new_balance
-        self._update_liquidity_limit(_from, new_balance, total_supply)
 
         if is_rewards:
             self._checkpoint_rewards(_to, total_supply, False, ZERO_ADDRESS)
         new_balance = self.balanceOf[_to] + _value
         self.balanceOf[_to] = new_balance
-        self._update_liquidity_limit(_to, new_balance, total_supply)
 
     log Transfer(_from, _to, _value)
 

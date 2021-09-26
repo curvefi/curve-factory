@@ -16,6 +16,9 @@ interface ERC20Extended:
 interface Factory:
     def admin() -> address: view
 
+interface Streamer:
+    def get_reward(): nonpayable
+
 
 event Deposit:
     provider: indexed(address)
@@ -43,7 +46,11 @@ struct Reward:
     rate: uint256
     last_update: uint256
     integral: uint256
+    # CRV token only
+    _balance: uint256
 
+
+SIDECHAIN_CRV: constant(address) = 0x0000000000000000000000000000000000000000
 
 MAX_REWARDS: constant(uint256) = 8
 WEEK: constant(uint256) = 604800
@@ -76,6 +83,8 @@ claim_data: HashMap[address, HashMap[address, uint256]]
 is_killed: public(bool)
 factory: public(address)
 deployer: public(address)
+
+streamer: public(address)
 
 
 @external
@@ -111,12 +120,83 @@ def decimals() -> uint256:
 
 
 @internal
+def _checkpoint(_user: address, _total_supply: uint256, _claim: bool, _receiver: address):
+    """
+    @notice Claim pending CRV from child chain streamer
+    """
+    # claim from reward contract
+
+    streamer: address = self.streamer
+    if streamer == ZERO_ADDRESS:
+        return
+    
+    # get the rewards
+    Streamer(streamer).get_reward()
+
+    receiver: address = _receiver
+    if _claim and receiver == ZERO_ADDRESS:
+        # if receiver is not explicitly declared, check for default receiver
+        receiver = self.rewards_receiver[_user]
+        if receiver == ZERO_ADDRESS:
+            # direct claims to user if no default receiver is set
+            receiver = _user
+
+    # calculate new user reward integral and transfer any owed rewards
+    user_balance: uint256 = self.balanceOf[_user]
+    token: address = SIDECHAIN_CRV
+    dI: uint256 = 0
+    if _total_supply != 0:
+        token_balance: uint256 = ERC20(token).balanceOf(self)
+        dI = 10**18 * (token_balance - self.reward_data[token]._balance) / _total_supply
+        self.reward_data[token]._balance = token_balance
+        if _user == ZERO_ADDRESS:
+            if dI != 0:
+                self.reward_data[token].integral += dI
+            continue
+
+    integral: uint256 = self.reward_data[token].integral + dI
+    if dI != 0:
+        self.reward_data[token].integral = integral
+
+    integral_for: uint256 = self.reward_integral_for[token][_user]
+    new_claimable: uint256 = 0
+    if integral_for < integral:
+        self.reward_integral_for[token][_user] = integral
+        new_claimable = user_balance * (integral - integral_for) / 10**18
+
+    claim_data: uint256 = self.claim_data[_user][token]
+    total_claimable: uint256 = shift(claim_data, -128) + new_claimable
+    if total_claimable > 0:
+        total_claimed: uint256 = claim_data % 2 ** 128
+        if _claim:
+            response: Bytes[32] = raw_call(
+                token,
+                concat(
+                    method_id("transfer(address,uint256)"),
+                    convert(receiver, bytes32),
+                    convert(total_claimable, bytes32),
+                ),
+                max_outsize=32,
+            )
+            if len(response) != 0:
+                assert convert(response, bool)
+            self.reward_data[token]._balance -= total_claimable
+            # update amount claimed (lower order bytes)
+            self.claim_data[_user][token] = total_claimed + total_claimable
+        elif new_claimable > 0:
+            # update total_claimable (higher order bytes)
+            self.claim_data[_user][token] = total_claimed + shift(total_claimable, 128)
+
+
+@internal
 def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _receiver: address):
     """
     @notice Claim pending rewards and checkpoint rewards for a user
     """
     if self.is_killed:
         return
+    
+    self._checkpoint(_user, _total_supply, _claim, _receiver)
 
     user_balance: uint256 = 0
     receiver: address = _receiver
@@ -462,3 +542,14 @@ def set_killed(_is_killed: bool):
     assert msg.sender == Factory(self.factory).admin()  # dev: only owner
 
     self.is_killed = _is_killed
+
+
+@external
+def set_streamer(_streamer: address):
+    if msg.sender == self.deployer:
+        assert self.streamer == ZERO_ADDRESS
+    else:
+        assert msg.sender == Factory(self.factory).admin()
+    
+    self.streamer = _streamer
+

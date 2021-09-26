@@ -152,7 +152,7 @@ def _checkpoint(_user: address, _total_supply: uint256, _claim: bool, _receiver:
         if _user == ZERO_ADDRESS:
             if dI != 0:
                 self.reward_data[token].integral += dI
-            continue
+            return
 
     integral: uint256 = self.reward_data[token].integral + dI
     if dI != 0:

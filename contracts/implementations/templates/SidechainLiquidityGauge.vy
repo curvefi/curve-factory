@@ -75,6 +75,8 @@ claim_data: HashMap[address, HashMap[address, uint256]]
 
 is_killed: public(bool)
 factory: public(address)
+deployer: public(address)
+
 
 @external
 def __init__():
@@ -90,6 +92,7 @@ def initialize(_lp_token: address):
     assert self.lp_token == ZERO_ADDRESS
     self.lp_token = _lp_token
     self.factory = msg.sender
+    self.deployer = tx.origin
 
     symbol: String[26] = ERC20Extended(_lp_token).symbol()
     self.name = concat("Curve.fi ", symbol, " Gauge Deposit")
@@ -112,6 +115,8 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
     """
     @notice Claim pending rewards and checkpoint rewards for a user
     """
+    if self.is_killed:
+        return
 
     user_balance: uint256 = 0
     receiver: address = _receiver
@@ -392,7 +397,8 @@ def add_reward(_reward_token: address, _distributor: address):
     """
     @notice Set the active reward contract
     """
-    assert msg.sender == Factory(self.factory).admin()  # dev: only owner
+    admin: address = Factory(self.factory).admin()
+    assert msg.sender in [admin, self.deployer]  # dev: only owner
 
     reward_count: uint256 = self.reward_count
     assert reward_count < MAX_REWARDS

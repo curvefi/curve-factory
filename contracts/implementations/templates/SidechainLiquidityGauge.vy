@@ -171,10 +171,8 @@ def _checkpoint(_user: address, _total_supply: uint256, _claim: bool, _receiver:
         if _claim:
             response: Bytes[32] = raw_call(
                 token,
-                concat(
-                    method_id("transfer(address,uint256)"),
-                    convert(receiver, bytes32),
-                    convert(total_claimable, bytes32),
+                _abi_encode(
+                    receiver, total_claimable, method_id=method_id("transfer(address,uint256)")
                 ),
                 max_outsize=32,
             )
@@ -239,10 +237,10 @@ def _checkpoint_rewards(_user: address, _total_supply: uint256, _claim: bool, _r
                 if _claim:
                     response: Bytes[32] = raw_call(
                         token,
-                        concat(
-                            method_id("transfer(address,uint256)"),
-                            convert(receiver, bytes32),
-                            convert(total_claimable, bytes32),
+                        _abi_encode(
+                            receiver,
+                            total_claimable,
+                            method_id=method_id("transfer(address,uint256)")
                         ),
                         max_outsize=32,
                     )
@@ -509,11 +507,11 @@ def deposit_reward_token(_reward_token: address, _amount: uint256):
 
     response: Bytes[32] = raw_call(
         _reward_token,
-        concat(
-            method_id("transferFrom(address,address,uint256)"),
-            convert(msg.sender, bytes32),
-            convert(self, bytes32),
-            convert(_amount, bytes32),
+        _abi_encode(
+            msg.sender,
+            self,
+            _amount,
+            method_id=method_id("transferFrom(address,address,uint256)")
         ),
         max_outsize=32,
     )

@@ -241,7 +241,8 @@ def remove_liquidity_one_coin(
     _burn_amount: uint256,
     i: int128,
     _min_amount: uint256,
-    _receiver: address=msg.sender
+    _receiver: address = msg.sender,
+    _use_underlying: bool = False,
 ) -> uint256:
     """
     @notice Withdraw and unwrap a single coin from the pool
@@ -270,11 +271,15 @@ def remove_liquidity_one_coin(
     if i == 0:
         coin_amount = CurveMeta(_pool).remove_liquidity_one_coin(_burn_amount, i, _min_amount, _receiver)
     else:
-        base_coins: address[BASE_N_COINS] = BASE_COINS
+        base_coins: address[BASE_N_COINS] = empty(address[BASE_N_COINS])
+        if _use_underlying:
+            base_coins = UNDERLYING_COINS
+        else:
+            base_coins = BASE_COINS
         coin: address = base_coins[i - MAX_COIN]
         # Withdraw a base pool coin
         coin_amount = CurveMeta(_pool).remove_liquidity_one_coin(_burn_amount, MAX_COIN, 0, self)
-        CurveBase(BASE_POOL).remove_liquidity_one_coin(coin_amount, i-MAX_COIN, _min_amount)
+        CurveBase(BASE_POOL).remove_liquidity_one_coin(coin_amount, i-MAX_COIN, _min_amount, _use_underlying)
         coin_amount = ERC20(coin).balanceOf(self)
         response = raw_call(
             coin,

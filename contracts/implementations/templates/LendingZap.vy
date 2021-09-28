@@ -151,7 +151,8 @@ def remove_liquidity(
     _pool: address,
     _burn_amount: uint256,
     _min_amounts: uint256[N_ALL_COINS],
-    _receiver: address = msg.sender
+    _receiver: address = msg.sender,
+    _use_underlying: bool = False
 ) -> uint256[N_ALL_COINS]:
     """
     @notice Withdraw and unwrap coins from the pool
@@ -192,7 +193,7 @@ def remove_liquidity(
     # Withdraw from base
     for i in range(BASE_N_COINS):
         min_amounts_base[i] = _min_amounts[MAX_COIN+i]
-    CurveBase(BASE_POOL).remove_liquidity(meta_received[MAX_COIN], min_amounts_base)
+    CurveBase(BASE_POOL).remove_liquidity(meta_received[MAX_COIN], min_amounts_base, _use_underlying)
 
     # Transfer all coins out
     response = raw_call(
@@ -209,7 +210,11 @@ def remove_liquidity(
 
     amounts[0] = meta_received[0]
 
-    base_coins: address[BASE_N_COINS] = BASE_COINS
+    base_coins: address[BASE_N_COINS] = empty(address[BASE_N_COINS])
+    if _use_underlying:
+        base_coins = UNDERLYING_COINS
+    else:
+        base_coins = BASE_COINS
     for i in range(1, N_ALL_COINS):
         coin: address = base_coins[i-1]
         # handle potential fee on transfer

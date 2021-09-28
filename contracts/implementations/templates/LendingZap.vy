@@ -302,7 +302,8 @@ def remove_liquidity_imbalance(
     _pool: address,
     _amounts: uint256[N_ALL_COINS],
     _max_burn_amount: uint256,
-    _receiver: address=msg.sender
+    _receiver: address = msg.sender,
+    _use_underlying: bool = False
 ) -> uint256:
     """
     @notice Withdraw coins from the pool in an imbalanced amount
@@ -363,7 +364,7 @@ def remove_liquidity_imbalance(
 
     # withdraw from base pool
     if withdraw_base:
-        CurveBase(BASE_POOL).remove_liquidity_imbalance(amounts_base, amounts_meta[MAX_COIN])
+        CurveBase(BASE_POOL).remove_liquidity_imbalance(amounts_base, amounts_meta[MAX_COIN], _use_underlying)
         coin: address = BASE_LP_TOKEN
         leftover: uint256 = ERC20(coin).balanceOf(self)
 
@@ -375,7 +376,12 @@ def remove_liquidity_imbalance(
             burn_amount -= CurveMeta(_pool).add_liquidity([convert(0, uint256), leftover], 0, msg.sender)
 
         # transfer withdrawn base pool tokens to caller
-        base_coins: address[BASE_N_COINS] = BASE_COINS
+        base_coins: address[BASE_N_COINS] = empty(address[BASE_N_COINS])
+        if _use_underlying:
+            base_coins = UNDERLYING_COINS
+        else:
+            base_coins = BASE_COINS
+
         for i in range(BASE_N_COINS):
             response = raw_call(
                 base_coins[i],

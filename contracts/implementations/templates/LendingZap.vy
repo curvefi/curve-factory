@@ -36,6 +36,7 @@ BASE_N_COINS: constant(int128) = ___BASE_N_COINS___
 BASE_POOL: constant(address) = 0x0000000000000000000000000000000000000000
 BASE_LP_TOKEN: constant(address) = 0x0000000000000000000000000000000000000000
 BASE_COINS: constant(address[BASE_N_COINS]) = ___BASE_COINS___
+UNDERLYING_COINS: constant(address[BASE_N_COINS]) = ___UNDERLYING_COINS___
 
 LENDING_POOL: constant(address) = 0x0000000000000000000000000000000000000000
 
@@ -57,6 +58,8 @@ def __init__():
     @notice Contract constructor
     """
     for coin in BASE_COINS:
+        ERC20(coin).approve(BASE_POOL, MAX_UINT256)
+    for coin in UNDERLYING_COINS:
         ERC20(coin).approve(BASE_POOL, MAX_UINT256)
 
 

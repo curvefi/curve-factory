@@ -19,20 +19,25 @@ interface CurveMeta:
     def coins(i: uint256) -> address: view
 
 interface CurveBase:
-    def add_liquidity(amounts: uint256[BASE_N_COINS], min_mint_amount: uint256): nonpayable
-    def remove_liquidity(_amount: uint256, min_amounts: uint256[BASE_N_COINS]): nonpayable
-    def remove_liquidity_one_coin(_token_amount: uint256, i: int128, min_amount: uint256): nonpayable
-    def remove_liquidity_imbalance(amounts: uint256[BASE_N_COINS], max_burn_amount: uint256): nonpayable
+    def add_liquidity(amounts: uint256[BASE_N_COINS], min_mint_amount: uint256, use_underlying: bool): nonpayable
+    def remove_liquidity(_amount: uint256, min_amounts: uint256[BASE_N_COINS], use_underlying: bool): nonpayable
+    def remove_liquidity_one_coin(_token_amount: uint256, i: int128, min_amount: uint256, use_underlying: bool): nonpayable
+    def remove_liquidity_imbalance(amounts: uint256[BASE_N_COINS], max_burn_amount: uint256, use_underlying: bool): nonpayable
     def calc_withdraw_one_coin(_token_amount: uint256, i: int128) -> uint256: view
     def calc_token_amount(amounts: uint256[BASE_N_COINS], deposit: bool) -> uint256: view
     def coins(i: uint256) -> address: view
     def fee() -> uint256: view
+
+interface LendingPool:
+    def withdraw(_underlying_asset: address, _amount: uint256, _receiver: address): nonpayable
 
 
 BASE_N_COINS: constant(int128) = ___BASE_N_COINS___
 BASE_POOL: constant(address) = 0x0000000000000000000000000000000000000000
 BASE_LP_TOKEN: constant(address) = 0x0000000000000000000000000000000000000000
 BASE_COINS: constant(address[BASE_N_COINS]) = ___BASE_COINS___
+
+LENDING_POOL: constant(address) = 0x0000000000000000000000000000000000000000
 
 N_COINS: constant(int128) = 2
 MAX_COIN: constant(int128) = N_COINS-1

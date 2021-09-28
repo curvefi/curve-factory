@@ -69,6 +69,7 @@ def add_liquidity(
     _deposit_amounts: uint256[N_ALL_COINS],
     _min_mint_amount: uint256,
     _receiver: address = msg.sender,
+    _use_underlying: bool = False
 ) -> uint256:
     """
     @notice Wrap underlying coins and deposit them into `_pool`
@@ -76,12 +77,17 @@ def add_liquidity(
     @param _deposit_amounts List of amounts of underlying coins to deposit
     @param _min_mint_amount Minimum amount of LP tokens to mint from the deposit
     @param _receiver Address that receives the LP tokens
+    @param _use_underlying Flag determining the usage of underlying coins for deposit
     @return Amount of LP tokens received by depositing
     """
     meta_amounts: uint256[N_COINS] = empty(uint256[N_COINS])
     base_amounts: uint256[BASE_N_COINS] = empty(uint256[BASE_N_COINS])
     deposit_base: bool = False
-    base_coins: address[BASE_N_COINS] = BASE_COINS
+    base_coins: address[BASE_N_COINS] = empty(address[BASE_N_COINS])
+    if _use_underlying:
+        base_coins = UNDERLYING_COINS
+    else:
+        base_coins = BASE_COINS
 
     if _deposit_amounts[0] != 0:
         coin: address = CurveMeta(_pool).coins(0)
@@ -100,7 +106,7 @@ def add_liquidity(
         )
         if len(response) != 0:
             assert convert(response, bool)
-        # hand fee on transfer
+        # handle fee on transfer
         meta_amounts[0] = ERC20(coin).balanceOf(self)
 
     for i in range(1, N_ALL_COINS):
@@ -130,7 +136,7 @@ def add_liquidity(
     # Deposit to the base pool
     if deposit_base:
         coin: address = BASE_LP_TOKEN
-        CurveBase(BASE_POOL).add_liquidity(base_amounts, 0)
+        CurveBase(BASE_POOL).add_liquidity(base_amounts, 0, _use_underlying)
         meta_amounts[MAX_COIN] = ERC20(coin).balanceOf(self)
         if not self.is_approved[coin][_pool]:
             ERC20(coin).approve(_pool, MAX_UINT256)

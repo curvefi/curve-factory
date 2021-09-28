@@ -17,11 +17,13 @@ def brownie_load_source(path: Path, source: str):
     replacements = {
         "___BASE_N_COINS___": 3,
         "___BASE_COINS___": f"[{', '.join([ZERO_ADDRESS] * 3)}]",
+        "___UNDERLYING_COINS___": f"[{', '.join([ZERO_ADDRESS] * 3)}]",
     }
     if CONFIG.mode != "test":
         replacements = {
             "___BASE_N_COINS___": 69,
             "___BASE_COINS___": f"[{', '.join([ZERO_ADDRESS] * 69)}]",
+            "___UNDERLYING_COINS___": f"[{', '.join([ZERO_ADDRESS] * 69)}]",
         }
 
     for k, v in replacements.items():

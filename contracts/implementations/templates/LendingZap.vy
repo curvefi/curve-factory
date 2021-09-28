@@ -14,6 +14,7 @@ interface CurveMeta:
     def remove_liquidity(_amount: uint256, min_amounts: uint256[N_COINS]): nonpayable
     def remove_liquidity_one_coin(_token_amount: uint256, i: int128, min_amount: uint256, _receiver: address) -> uint256: nonpayable
     def remove_liquidity_imbalance(amounts: uint256[N_COINS], max_burn_amount: uint256) -> uint256: nonpayable
+    def exchange_underlying(i: int128, j: int128, dx: uint256, min_dy: uint256, receiver: address) -> uint256: nonpayable
     def calc_withdraw_one_coin(_token_amount: uint256, i: int128) -> uint256: view
     def calc_token_amount(amounts: uint256[N_COINS], deposit: bool) -> uint256: view
     def coins(i: uint256) -> address: view
@@ -455,3 +456,98 @@ def calc_token_amount(_pool: address, _amounts: uint256[N_ALL_COINS], _is_deposi
     meta_amounts[MAX_COIN] = base_tokens
 
     return CurveMeta(_pool).calc_token_amount(meta_amounts, _is_deposit)
+
+
+@external
+def exchange_underlying(
+    _pool: address,
+    _i: int128,
+    _j: int128,
+    _dx: uint256,
+    _min_dy: uint256,
+    _receiver: address = msg.sender,
+    _use_underlying: bool = False
+) -> uint256:
+
+    base_coins: address[BASE_N_COINS] = BASE_COINS
+    underlying_coins: address[BASE_N_COINS] = UNDERLYING_COINS
+
+    input_coin: address = ZERO_ADDRESS
+    should_wrap: bool = False
+
+    if _i == 0:
+        input_coin = CurveMeta(_pool).coins(0)
+        # approve the input coin for exchange
+        if not self.is_approved[input_coin][_pool]:
+            ERC20(input_coin).approve(_pool, MAX_UINT256)
+            self.is_approved[input_coin][_pool] = True
+    else:
+        base_i: int128 = _i - MAX_COIN
+        base_coin: address = base_coins[base_i]
+        if _use_underlying:
+            underlying_coin: address = underlying_coins[base_i]
+            # if the base and underlying coin are equal we can't wrap
+            should_wrap = base_coin != underlying_coin
+            input_coin = underlying_coin
+        else:
+            input_coin = base_coin
+
+        # approve the base coin to be exchanged irregardless of underlying/base status
+        if not self.is_approved[base_coin][_pool]:
+            ERC20(base_coin).approve(_pool, MAX_UINT256)
+            self.is_approved[base_coin][_pool] = True
+
+    response: Bytes[32] = raw_call(
+        input_coin,
+        _abi_encode(
+            msg.sender,
+            self,
+            _dx,
+            method_id=method_id("transferFrom(address,address,uint256)"),
+        ),
+        max_outsize=32
+    )
+    if len(response) != 0:
+        assert convert(response, bool)
+
+    if not _use_underlying:
+        return CurveMeta(_pool).exchange_underlying(_i, _j, _dx, _min_dy, _receiver)
+    
+    # we are using underlying so we potentially have to wrap
+    if should_wrap:
+        # approve for wrapping
+        if not self.is_approved[input_coin][LENDING_POOL]:
+            ERC20(input_coin).approve(LENDING_POOL, MAX_UINT256)
+            self.is_approved[input_coin][LENDING_POOL] = True
+        raw_call(
+            LENDING_POOL,
+            # deposit(address asset, uint256 amount, address onBehalfOf, uint16 referralCode)
+            _abi_encode(input_coin, _dx, self, convert(0, uint256), method_id=method_id("deposit(address,uint256,address,uint16)"))
+        )
+    dy: uint256 = CurveMeta(_pool).exchange_underlying(_i, _j, _dx, _min_dy, self)
+
+    # need to potentially unwrap now
+    output_coin: address = ZERO_ADDRESS
+
+    if _j == 0:
+        output_coin = CurveMeta(_pool).coins(0)
+    else:
+        # we for sure are operating on underlying coins
+        base_j: int128 = _j - MAX_COIN
+        base_coin: address = base_coins[base_j]
+        underlying_coin: address = underlying_coins[base_j]
+        # if the base and underlying coin are equal we can't wrap
+        should_wrap = base_coin != underlying_coin
+        output_coin = underlying_coin
+    
+    if should_wrap:
+        LendingPool(LENDING_POOL).withdraw(output_coin, dy, _receiver)
+    else:
+        response = raw_call(
+            output_coin,
+            _abi_encode(_receiver, dy, method_id=method_id("transfer(address,uint256)")),
+            max_outsize=32
+        )
+        if len(response) != 0:
+            assert convert(response, bool)
+    return dy

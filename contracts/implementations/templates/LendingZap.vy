@@ -530,7 +530,9 @@ def exchange_underlying(
     output_coin: address = ZERO_ADDRESS
 
     if _j == 0:
+        # we don't wrap the 0th token
         output_coin = CurveMeta(_pool).coins(0)
+        should_wrap = False
     else:
         # we for sure are operating on underlying coins
         base_j: int128 = _j - MAX_COIN

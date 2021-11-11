@@ -1,4 +1,4 @@
-# @version 0.2.15
+# @version 0.3.0
 """
 @title Curve StableSwap Owner Proxy
 @author Curve Finance
@@ -9,6 +9,11 @@
 interface Curve:
     def ramp_A(_future_A: uint256, _future_time: uint256): nonpayable
     def stop_ramp_A(): nonpayable
+
+interface Gauge:
+    def set_killed(_is_killed: bool): nonpayable
+    def add_reward(_reward_token: address, _distributor: address): nonpayable
+    def set_reward_distributor(_reward_token: address, _distributor: address): nonpayable
 
 interface Factory:
     def add_base_pool(
@@ -50,16 +55,20 @@ future_ownership_admin: public(address)
 future_parameter_admin: public(address)
 future_emergency_admin: public(address)
 
+gauge_manager: public(address)
+
 
 @external
 def __init__(
     _ownership_admin: address,
     _parameter_admin: address,
-    _emergency_admin: address
+    _emergency_admin: address,
+    _gauge_manager: address
 ):
     self.ownership_admin = _ownership_admin
     self.parameter_admin = _parameter_admin
     self.emergency_admin = _emergency_admin
+    self.gauge_manager = _gauge_manager
 
 
 @external
@@ -128,7 +137,6 @@ def add_base_pool(
     _asset_type: uint256,
     _implementations: address[10],
 ):
-
     assert msg.sender == self.ownership_admin, "Access denied"
 
     Factory(_target).add_base_pool(_base_pool, _fee_receiver, _asset_type, _implementations)
@@ -173,9 +181,21 @@ def set_fee_receiver(_target: address, _base_pool: address, _fee_receiver: addre
 
 
 @external
-def set_manager(_target: address, _manager: address):
-    assert msg.sender == self.ownership_admin, "Access denied"
+def set_factory_manager(_target: address, _manager: address):
+    assert msg.sender in [self.ownership_admin, self.emergency_admin], "Access denied"
     Factory(_target).set_manager(_manager)
+
+
+@external
+def set_gauge_manager(_manager: address):
+    """
+    @notice Set the manager
+    @dev Callable by the admin or existing manager
+    @param _manager Manager address
+    """
+    assert msg.sender in [self.ownership_admin, self.emergency_admin, self.gauge_manager], "Access denied"
+
+    self.gauge_manager = _manager
 
 
 @external
@@ -197,3 +217,21 @@ def accept_transfer_ownership(_target: address):
     @param _target `Factory` deployment address
     """
     Factory(_target).accept_transfer_ownership()
+
+
+@external
+def set_killed(_gauge: address, _is_killed: bool):
+    assert msg.sender in [self.ownership_admin, self.emergency_admin]
+    Gauge(_gauge).set_killed(_is_killed)
+
+
+@external
+def add_reward(_gauge: address, _reward_token: address, _distributor: address):
+    assert msg.sender in [self.ownership_admin, self.gauge_manager]
+    Gauge(_gauge).add_reward(_reward_token, _distributor)
+
+
+@external
+def set_reward_distributor(_gauge: address, _reward_token: address, _distributor: address):
+    assert msg.sender in [self.ownership_admin, self.gauge_manager]
+    Gauge(_gauge).set_reward_distributor(_reward_token, _distributor)

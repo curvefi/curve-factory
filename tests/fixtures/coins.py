@@ -22,7 +22,7 @@ def lp_token(alice, CurveTokenV3, accounts):
     setattr(
         lp_token,
         "_mint_for_testing",
-        lambda _to, _amount, _tx: lp_token.transfer(_to, _amount, {"from": accounts[-1]}),
+        lambda _to, _amount, _tx: lp_token.transfer(_to, _amount, {"from": accounts[10]}),
     )
     return lp_token
 

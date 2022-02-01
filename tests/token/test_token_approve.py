@@ -69,17 +69,17 @@ def test_permit(accounts, bob, chain, swap, web3):
 
     class Permit(EIP712Message):
         # EIP-712 Domain Fields
-        _name_: "string" = swap.name()
-        _version_: "string" = swap.version()
-        _chainId_: "uint256" = chain.id
-        _verifyingContract_: "address" = swap.address
+        _name_: "string" = swap.name()  # noqa: F821
+        _version_: "string" = swap.version()  # noqa: F821
+        _chainId_: "uint256" = chain.id  # noqa: F821
+        _verifyingContract_: "address" = swap.address  # noqa: F821
 
         # EIP-2612 Data Fields
-        owner: "address"
-        spender: "address"
-        value: "uint256"
-        nonce: "uint256"
-        deadline: "uint256" = 2 ** 256 - 1
+        owner: "address"  # noqa: F821
+        spender: "address"  # noqa: F821
+        value: "uint256"  # noqa: F821
+        nonce: "uint256"  # noqa: F821
+        deadline: "uint256" = 2 ** 256 - 1  # noqa: F821
 
     permit = Permit(owner=alice.address, spender=bob.address, value=2 ** 256 - 1, nonce=0)
     sig = alice.sign_message(permit)
@@ -106,22 +106,24 @@ def isValidSignature(_hash: bytes32, _sig: Bytes[65]) -> bytes32:
 
     class Permit(EIP712Message):
         # EIP-712 Domain Fields
-        _name_: "string" = swap.name()
-        _version_: "string" = swap.version()
-        _chainId_: "uint256" = chain.id
-        _verifyingContract_: "address" = swap.address
+        _name_: "string" = swap.name()  # noqa: F821
+        _version_: "string" = swap.version()  # noqa: F821
+        _chainId_: "uint256" = chain.id  # noqa: F821
+        _verifyingContract_: "address" = swap.address  # noqa: F821
 
         # EIP-2612 Data Fields
-        owner: "address"
-        spender: "address"
-        value: "uint256"
-        nonce: "uint256"
-        deadline: "uint256" = 2 ** 256 - 1
+        owner: "address"  # noqa: F821
+        spender: "address"  # noqa: F821
+        value: "uint256"  # noqa: F821
+        nonce: "uint256"  # noqa: F821
+        deadline: "uint256" = 2 ** 256 - 1  # noqa: F821
 
     permit = Permit(owner=alice.address, spender=bob.address, value=2 ** 256 - 1, nonce=0)
     sig = alice.sign_message(permit)
 
-    tx = swap.permit(mock_contract, bob, 2 ** 256 - 1, 2 ** 256 - 1, sig.v, sig.r, sig.s, {"from": bob})
+    tx = swap.permit(
+        mock_contract, bob, 2 ** 256 - 1, 2 ** 256 - 1, sig.v, sig.r, sig.s, {"from": bob}
+    )
 
     # make sure this is hit when owner is a contract
     assert tx.subcalls[-1]["function"] == "isValidSignature(bytes32,bytes)"

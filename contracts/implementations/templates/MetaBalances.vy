@@ -1208,7 +1208,6 @@ def stop_ramp_A():
 
 
 @external
-@nonreentrant('lock')
 def withdraw_admin_fees():
     # transfer coin 0 to Factory and call `convert_fees` to swap it for coin 1
     balances: uint256[N_COINS] = self._balances()

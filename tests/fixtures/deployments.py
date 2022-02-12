@@ -47,7 +47,7 @@ def base_pool(alice, CurvePool, base_coins, lp_token, registry, accounts):
         coin._mint_for_testing(alice, amount, {"from": alice})
         coin.approve(pool, 2 ** 256 - 1, {"from": alice})
     pool.add_liquidity([amount] * 3, 0, {"from": alice})
-    lp_token.transfer(accounts[-1], lp_token.balanceOf(alice), {"from": alice})
+    lp_token.transfer(accounts[10], lp_token.balanceOf(alice), {"from": alice})
 
     registry.add_pool_without_underlying(
         pool,

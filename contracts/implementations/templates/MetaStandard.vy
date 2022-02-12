@@ -22,15 +22,6 @@ interface Curve:
     def add_liquidity(amounts: uint256[BASE_N_COINS], min_mint_amount: uint256): nonpayable
     def remove_liquidity_one_coin(_token_amount: uint256, i: int128, min_amount: uint256): nonpayable
 
-interface Gauge:
-    def set_rewards_receiver(_receiver: address): nonpayable
-    def deposit(_value: uint256): nonpayable
-    def withdraw(_value: uint256): nonpayable
-
-interface GaugeExtension:
-    def initialize(_base_gauge: address): nonpayable
-    def checkpoint_rewards(_addr: address): nonpayable
-
 interface Factory:
     def convert_metapool_fees() -> bool: nonpayable
     def get_fee_receiver(_pool: address) -> address: view

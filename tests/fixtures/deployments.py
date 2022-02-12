@@ -217,7 +217,6 @@ def meta_usd_rebase(alice, MetaUSDBalances, base_pool, base_coins, lp_token, pyt
 def meta_sidechain(
     alice,
     MetaStandard,
-    sidechain_meta_gauge,
     base_gauge,
     base_pool,
     base_coins,
@@ -235,7 +234,7 @@ def meta_sidechain(
         return instance
 
     source = MetaStandard._build["source"]
-    for repl in [base_pool, *base_coins, lp_token, base_gauge, sidechain_meta_gauge]:
+    for repl in [base_pool, *base_coins, lp_token, base_gauge]:
         source = source.replace(ZERO_ADDRESS, repl.address, 1)
 
     NewMeta = compile_source(source).Vyper
@@ -251,7 +250,6 @@ def meta_sidechain(
 def meta_sidechain_rebase(
     alice,
     MetaBalances,
-    sidechain_meta_gauge,
     base_gauge,
     base_pool,
     base_coins,
@@ -269,7 +267,7 @@ def meta_sidechain_rebase(
         return instance
 
     source = MetaBalances._build["source"]
-    for repl in [base_pool, *base_coins, lp_token, base_gauge, sidechain_meta_gauge]:
+    for repl in [base_pool, *base_coins, lp_token, base_gauge]:
         source = source.replace(ZERO_ADDRESS, repl.address, 1)
 
     NewMeta = compile_source(source).Vyper
@@ -329,13 +327,6 @@ def gauge_implementation(
 
     NewLiquidityGauge = compile_source(source).Vyper
     return NewLiquidityGauge.deploy({"from": alice})
-
-
-@pytest.fixture(scope="session")
-def sidechain_meta_gauge(alice, GaugeExtension, factory):
-    source = GaugeExtension._build["source"]
-    source = source.replace("0x0000000000000000000000000000000000000000", factory.address, 1)
-    return compile_source(source).Vyper.deploy({"from": alice})
 
 
 @pytest.fixture(scope="session")
@@ -439,11 +430,6 @@ def owner_proxy(alice, OwnerProxy):
 def gauge(alice, factory, swap, LiquidityGauge, set_gauge_implementation):
     tx = factory.deploy_gauge(swap, {"from": alice})
     return LiquidityGauge.at(tx.return_value)
-
-
-@pytest.fixture(scope="module")
-def meta_gauge(swap, GaugeExtension):
-    return Contract.from_abi("Meta Liquidity Gauge", swap.rewards_receiver(), GaugeExtension.abi)
 
 
 @pytest.fixture(scope="module")

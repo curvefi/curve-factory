@@ -1,5 +1,4 @@
 import pytest
-import wrapt
 from brownie import ETH_ADDRESS
 from brownie_tokens import ERC20
 
@@ -63,15 +62,6 @@ def coins(
     elif is_rebase_pool:
         return rebase_coins
     elif is_meta_pool:
-        if pool_type == 6:
-
-            class _Wrapper(wrapt.ObjectProxy):
-                def balanceOf(self, _addr):
-                    if hasattr(_addr, "bytecode"):
-                        return base_gauge.balanceOf(_addr)
-                    return self.__wrapped__.balanceOf(_addr)
-
-            lp_token = _Wrapper(lp_token)
         return [plain_coins[0], lp_token]
     else:
         return plain_coins

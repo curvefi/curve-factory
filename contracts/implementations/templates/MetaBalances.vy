@@ -23,15 +23,6 @@ interface Curve:
     def add_liquidity(amounts: uint256[BASE_N_COINS], min_mint_amount: uint256): nonpayable
     def remove_liquidity_one_coin(_token_amount: uint256, i: int128, min_amount: uint256): nonpayable
 
-interface Gauge:
-    def set_rewards_receiver(_receiver: address): nonpayable
-    def deposit(_value: uint256): nonpayable
-    def withdraw(_value: uint256): nonpayable
-
-interface GaugeExtension:
-    def initialize(_base_gauge: address): nonpayable
-    def checkpoint_rewards(_addr: address): nonpayable
-
 interface Factory:
     def convert_metapool_fees() -> bool: nonpayable
     def get_fee_receiver(_pool: address) -> address: view
@@ -107,9 +98,6 @@ BASE_N_COINS: constant(int128) = ___BASE_N_COINS___
 BASE_COINS: constant(address[BASE_N_COINS]) = ___BASE_COINS___
 
 BASE_LP_TOKEN: constant(address) = 0x0000000000000000000000000000000000000000
-BASE_GAUGE: constant(address) = 0x0000000000000000000000000000000000000000
-
-GAUGE_EXTENSION_IMPL: constant(address) = 0x0000000000000000000000000000000000000000
 
 EIP712_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
 PERMIT_TYPEHASH: constant(bytes32) = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)")
@@ -151,11 +139,8 @@ balanceOf: public(HashMap[address, uint256])
 allowance: public(HashMap[address, HashMap[address, uint256]])
 totalSupply: public(uint256)
 
-rewards_receiver: public(address)
-
 DOMAIN_SEPARATOR: public(bytes32)
 nonces: public(HashMap[address, uint256])
-
 
 @external
 def __init__():
@@ -196,17 +181,8 @@ def initialize(
     self.name = name
     self.symbol = concat(_symbol, "3CRV-f")
 
-    receiver: address = create_forwarder_to(GAUGE_EXTENSION_IMPL)
-    GaugeExtension(receiver).initialize(BASE_GAUGE)
-    
-    self.rewards_receiver = receiver
-
-    Gauge(BASE_GAUGE).set_rewards_receiver(receiver)
-
     for coin in BASE_COINS:
         ERC20(coin).approve(BASE_POOL, MAX_UINT256)
-    
-    ERC20(BASE_LP_TOKEN).approve(BASE_GAUGE, MAX_UINT256)
 
     self.DOMAIN_SEPARATOR = keccak256(
         _abi_encode(EIP712_TYPEHASH, keccak256(name), keccak256(VERSION), chain.id, self)
@@ -233,12 +209,7 @@ def decimals() -> uint256:
 def _transfer(_from: address, _to: address, _value: uint256):
     # # NOTE: vyper does not allow underflows
     # #       so the following subtraction would revert on insufficient balance
-    receiver: address = self.rewards_receiver
-    
-    GaugeExtension(receiver).checkpoint_rewards(_from)
     self.balanceOf[_from] -= _value
-
-    GaugeExtension(receiver).checkpoint_rewards(_from)
     self.balanceOf[_to] += _value
 
     log Transfer(_from, _to, _value)
@@ -348,10 +319,7 @@ def permit(
 def _balances() -> uint256[N_COINS]:
     result: uint256[N_COINS] = empty(uint256[N_COINS])
     for i in range(N_COINS):
-        coin: address = self.coins[i]
-        if i == MAX_COIN:
-            coin = BASE_GAUGE
-        result[i] = ERC20(coin).balanceOf(self) - self.admin_balances[i]
+        result[i] = ERC20(self.coins[i]).balanceOf(self) - self.admin_balances[i]
     return result
 
 
@@ -590,11 +558,6 @@ def add_liquidity(
 
     assert mint_amount >= _min_mint_amount
 
-    # Deposit into the base gauge
-    Gauge(BASE_GAUGE).deposit(_amounts[MAX_COIN])
-
-    GaugeExtension(self.rewards_receiver).checkpoint_rewards(_receiver)
-
     # Mint pool tokens
     total_supply += mint_amount
     self.balanceOf[_receiver] += mint_amount
@@ -780,11 +743,6 @@ def exchange(
     dy = (dy - dy_fee) * PRECISION / rates[j]
     assert dy >= _min_dy
 
-    if i == MAX_COIN:
-        Gauge(BASE_GAUGE).deposit(_dx)
-    else:
-        Gauge(BASE_GAUGE).withdraw(dy)
-
     self.admin_balances[j] += (dy_fee * ADMIN_FEE / FEE_DENOMINATOR) * PRECISION / rates[j]
 
     response = raw_call(
@@ -876,7 +834,6 @@ def exchange_underlying(
             x = dx_w_fee * rates[MAX_COIN] / PRECISION
             # Adding number of pool tokens
             x += xp[MAX_COIN]
-            Gauge(BASE_GAUGE).deposit(dx_w_fee)
 
         y: uint256 = self.get_y(meta_i, meta_j, x, xp)
 
@@ -896,7 +853,6 @@ def exchange_underlying(
         # Withdraw from the base pool if needed
         if j > 0:
             out_amount: uint256 = ERC20(output_coin).balanceOf(self)
-            Gauge(BASE_GAUGE).withdraw(dy)
             Curve(BASE_POOL).remove_liquidity_one_coin(dy, base_j, 0)
             dy = ERC20(output_coin).balanceOf(self) - out_amount
 
@@ -944,8 +900,6 @@ def remove_liquidity(
         value: uint256 = balances[i] * _burn_amount / total_supply
         assert value >= _min_amounts[i]
         amounts[i] = value
-        if i == MAX_COIN:
-            Gauge(BASE_GAUGE).withdraw(value)
         response: Bytes[32] = raw_call(
             self.coins[i],
             _abi_encode(_receiver, value, method_id=method_id("transfer(address,uint256)")),
@@ -953,9 +907,6 @@ def remove_liquidity(
         )
         if len(response) > 0:
             assert convert(response, bool)
-
-    GaugeExtension(self.rewards_receiver).checkpoint_rewards(msg.sender)
-            
     total_supply -= _burn_amount
     self.balanceOf[msg.sender] -= _burn_amount
     self.totalSupply = total_supply
@@ -988,8 +939,6 @@ def remove_liquidity_imbalance(
     new_balances: uint256[N_COINS] = old_balances
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
-        if i == MAX_COIN:
-            Gauge(BASE_GAUGE).withdraw(amount)
         if amount != 0:
             new_balances[i] -= amount
             response: Bytes[32] = raw_call(
@@ -1020,8 +969,6 @@ def remove_liquidity_imbalance(
     burn_amount: uint256 = ((D0 - D2) * total_supply / D0) + 1
     assert burn_amount > 1  # dev: zero tokens burned
     assert burn_amount <= _max_burn_amount
-
-    GaugeExtension(self.rewards_receiver).checkpoint_rewards(msg.sender)
 
     total_supply -= burn_amount
     self.totalSupply = total_supply
@@ -1146,16 +1093,10 @@ def remove_liquidity_one_coin(
     assert dy[0] >= _min_received
 
     self.admin_balances[i] += dy[1] * ADMIN_FEE / FEE_DENOMINATOR
-
-    GaugeExtension(self.rewards_receiver).checkpoint_rewards(msg.sender)
-
     total_supply: uint256 = self.totalSupply - _burn_amount
     self.totalSupply = total_supply
     self.balanceOf[msg.sender] -= _burn_amount
     log Transfer(msg.sender, ZERO_ADDRESS, _burn_amount)
-
-    if i == MAX_COIN:
-        Gauge(BASE_GAUGE).withdraw(dy[0])
 
     response: Bytes[32] = raw_call(
         self.coins[i],
@@ -1227,8 +1168,6 @@ def withdraw_admin_fees():
 
     # transfer coin 1 to the receiver
     amount = self.admin_balances[1]
-    Gauge(BASE_GAUGE).withdraw(amount)
-    amount = ERC20(BASE_LP_TOKEN).balanceOf(self)
 
     if amount > 0:
         self.admin_balances[1] = 0

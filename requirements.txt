@@ -1,5 +1,5 @@
-brownie-token-tester==0.3.2
-eth-brownie>=1.15.1,<2.0.0
+brownie-token-tester
+git+https://github.com/eth-brownie/brownie/
 black
-flake8==3.8.4
-isort==5.7.0
+flake8
+isort

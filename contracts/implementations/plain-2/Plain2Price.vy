@@ -90,6 +90,8 @@ PERMIT_TYPEHASH: constant(bytes32) = keccak256("Permit(address owner,address spe
 ERC1271_MAGIC_VAL: constant(bytes32) = 0x1626ba7e00000000000000000000000000000000000000000000000000000000
 VERSION: constant(String[8]) = "v5.0.0"
 
+BIT_MASK: constant(uint256) = shift(2**32 - 1, 224)
+
 
 factory: address
 originator: address
@@ -308,7 +310,7 @@ def _stored_rates() -> uint256[N_COINS]:
         
         response: Bytes[32] = raw_call(
             convert(oracle % 2**160, address),
-            concat(convert(bitwise_and(oracle, shift(2**32 -1, 224)), bytes32), b""),
+            concat(convert(bitwise_and(oracle, BIT_MASK), bytes32), b""),
             max_outsize=32,
             is_static_call=True,
         )

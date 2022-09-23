@@ -298,6 +298,7 @@ def permit(
 @view
 @internal
 def _stored_rates() -> uint256[N_COINS]:
+    assert self.originator == ZERO_ADDRESS
     rates: uint256[N_COINS] = self.rate_multipliers
 
     for i in range(N_COINS):
@@ -423,7 +424,7 @@ def get_virtual_price() -> uint256:
     @return LP token virtual price normalized to 1e18
     """
     amp: uint256 = self._A()
-    xp: uint256[N_COINS] = self._xp_mem(self.rate_multipliers, self.balances)
+    xp: uint256[N_COINS] = self._xp_mem(self._stored_rates(), self.balances)
     D: uint256 = self.get_D(xp, amp)
     # D is in the units similar to DAI (e.g. converted to precision 1e18)
     # When balanced, D = n * x_u - total virtual value of the portfolio
@@ -444,14 +445,15 @@ def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
     amp: uint256 = self._A()
     balances: uint256[N_COINS] = self.balances
 
-    D0: uint256 = self.get_D_mem(self.rate_multipliers, balances, amp)
+    rates: uint256[N_COINS] = self._stored_rates()
+    D0: uint256 = self.get_D_mem(rates, balances, amp)
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
         if _is_deposit:
             balances[i] += amount
         else:
             balances[i] -= amount
-    D1: uint256 = self.get_D_mem(self.rate_multipliers, balances, amp)
+    D1: uint256 = self.get_D_mem(rates, balances, amp)
     diff: uint256 = 0
     if _is_deposit:
         diff = D1 - D0
@@ -476,7 +478,7 @@ def add_liquidity(
     """
     amp: uint256 = self._A()
     old_balances: uint256[N_COINS] = self.balances
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
 
     # Initial invariant
     D0: uint256 = self.get_D_mem(rates, old_balances, amp)
@@ -612,7 +614,7 @@ def get_dy(i: int128, j: int128, dx: uint256) -> uint256:
     @param dx Amount of `i` being exchanged
     @return Amount of `j` predicted
     """
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     xp: uint256[N_COINS] = self._xp_mem(rates, self.balances)
 
     x: uint256 = xp[i] + (dx * rates[i] / PRECISION)
@@ -640,7 +642,7 @@ def exchange(
     @param _min_dy Minimum amount of `j` to receive
     @return Actual amount of `j` received
     """
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     old_balances: uint256[N_COINS] = self.balances
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
@@ -754,7 +756,7 @@ def remove_liquidity_imbalance(
     @return Actual amount of the LP token burned in the withdrawal
     """
     amp: uint256 = self._A()
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     old_balances: uint256[N_COINS] = self.balances
     D0: uint256 = self.get_D_mem(rates, old_balances, amp)
 
@@ -860,7 +862,7 @@ def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128) -> uint256[2]:
     # * Get current D
     # * Solve Eqn against y_i for D - _token_amount
     amp: uint256 = self._A()
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     xp: uint256[N_COINS] = self._xp_mem(rates, self.balances)
     D0: uint256 = self.get_D(xp, amp)
 

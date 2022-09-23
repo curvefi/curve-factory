@@ -296,6 +296,27 @@ def permit(
 ### StableSwap Functionality ###
 
 @view
+@internal
+def _stored_rates() -> uint256[N_COINS]:
+    rates: uint256[N_COINS] = self.rate_multipliers
+
+    for i in range(N_COINS):
+        oracle: uint256 = self.oracles[i]
+        if oracle == 0:
+            continue
+        
+        response: Bytes[32] = raw_call(
+            convert(oracle % 2**160, address),
+            concat(convert(bitwise_and(oracle, shift(2**32 -1, 224)), bytes32), b""),
+            max_outsize=32,
+            is_static_call=True,
+        )
+        assert len(response) != 0
+        rates[i] = convert(response, uint256)
+    
+    return rates
+
+@view
 @external
 def get_balances() -> uint256[N_COINS]:
     return self.balances
@@ -981,7 +1002,7 @@ def withdraw_admin_fees():
 
 
 @external
-def set_oracles(_method_ids: bytes4[N_COINS], _oracles: address[N_COINS]):
+def set_oracles(_method_ids: uint256[N_COINS], _oracles: address[N_COINS]):
     """
     @notice Set the oracles used for calculating rates
     @dev if any value is empty, rate will fallback to value provided on initialize, one time use
@@ -991,7 +1012,8 @@ def set_oracles(_method_ids: bytes4[N_COINS], _oracles: address[N_COINS]):
     assert msg.sender == self.originator
 
     for i in range(N_COINS):
-        self.oracles[i] = bitwise_and(convert(_method_ids[i], uint256), convert(_oracles[i], uint256))
+        assert shift(_method_ids[i], 32) == 0
+        self.oracles[i] = bitwise_and(_method_ids[i], convert(_oracles[i], uint256))
 
     self.originator = ZERO_ADDRESS
 

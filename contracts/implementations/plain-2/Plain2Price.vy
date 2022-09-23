@@ -92,6 +92,7 @@ VERSION: constant(String[8]) = "v5.0.0"
 
 
 factory: address
+originator: address
 
 coins: public(address[N_COINS])
 balances: public(uint256[N_COINS])
@@ -103,6 +104,8 @@ initial_A_time: public(uint256)
 future_A_time: public(uint256)
 
 rate_multipliers: uint256[N_COINS]
+# [bytes4 method_id][bytes8 <empty>][bytes20 oracle]
+oracles: uint256[N_COINS]
 
 name: public(String[64])
 symbol: public(String[32])
@@ -141,6 +144,9 @@ def initialize(
     """
     # check if fee was already set to prevent initializing contract twice
     assert self.fee == 0
+
+    # tx.origin will have the ability to set oracles for coins
+    self.originator = tx.origin
 
     for i in range(N_COINS):
         coin: address = _coins[i]
@@ -972,6 +978,22 @@ def withdraw_admin_fees():
                 convert(fees, bytes32)
             )
         )
+
+
+@external
+def set_oracles(_method_ids: bytes4[N_COINS], _oracles: address[N_COINS]):
+    """
+    @notice Set the oracles used for calculating rates
+    @dev if any value is empty, rate will fallback to value provided on initialize, one time use
+    @param _method_ids List of method_ids needed to call on `_oracles` to fetch rate
+    @param _oracles List of oracle addresses
+    """
+    assert msg.sender == self.originator
+
+    for i in range(N_COINS):
+        self.oracles[i] = bitwise_and(convert(_method_ids[i], uint256), convert(_oracles[i], uint256))
+
+    self.originator = ZERO_ADDRESS
 
 
 @pure

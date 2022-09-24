@@ -104,11 +104,11 @@ def pytest_collection_modifyitems(config, items):
         path_parts = path.parts[1:-1]
         try:
             params = item.callspec.params
-            pool_size = params["plain_pool_size"]
-            pool_type = params["pool_type"]
-            return_type = params["return_type"]
-            decimals = params["decimals"]
-            meta_implementation_idx = params["meta_implementation_idx"]
+            pool_size = params.get("plain_pool_size", 2)
+            pool_type = params.get("pool_type", 2)
+            return_type = params.get("return_type", 0)
+            decimals = params.get("decimals", 18)
+            meta_implementation_idx = params.get("meta_implementation_idx", 0)
         except Exception:
             if path_parts == ():
                 if pool_type != 2:
@@ -168,7 +168,7 @@ def pytest_collection_modifyitems(config, items):
             continue
 
         if "test_factory.py" not in path.parts and len(path.parts) == 2:
-            if not (pool_type == 2 and pool_size == 2):
+            if pool_type != 2 or pool_size != 2:
                 items.remove(item)
                 continue
 

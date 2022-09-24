@@ -32,12 +32,12 @@ manager: public(address)
 
 
 @external
-def __init__(_factory: address):
+def __init__(_factory: address, _manager: address):
     FACTORY = _factory
     OWNER_PROXY = Factory(_factory).admin()
 
-    self.manager = msg.sender
-    log SetManager(msg.sender)
+    self.manager = _manager
+    log SetManager(_manager)
 
 
 @external

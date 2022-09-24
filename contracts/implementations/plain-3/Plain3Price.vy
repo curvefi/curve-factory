@@ -90,8 +90,11 @@ PERMIT_TYPEHASH: constant(bytes32) = keccak256("Permit(address owner,address spe
 ERC1271_MAGIC_VAL: constant(bytes32) = 0x1626ba7e00000000000000000000000000000000000000000000000000000000
 VERSION: constant(String[8]) = "v5.0.0"
 
+BIT_MASK: constant(uint256) = shift(2**32 - 1, 224)
+
 
 factory: address
+originator: address
 
 coins: public(address[N_COINS])
 balances: public(uint256[N_COINS])
@@ -103,6 +106,8 @@ initial_A_time: public(uint256)
 future_A_time: public(uint256)
 
 rate_multipliers: uint256[N_COINS]
+# [bytes4 method_id][bytes8 <empty>][bytes20 oracle]
+oracles: uint256[N_COINS]
 
 name: public(String[64])
 symbol: public(String[32])
@@ -141,6 +146,9 @@ def initialize(
     """
     # check if fee was already set to prevent initializing contract twice
     assert self.fee == 0
+
+    # tx.origin will have the ability to set oracles for coins
+    self.originator = tx.origin
 
     for i in range(N_COINS):
         coin: address = _coins[i]
@@ -290,6 +298,29 @@ def permit(
 ### StableSwap Functionality ###
 
 @view
+@internal
+def _stored_rates() -> uint256[N_COINS]:
+    assert self.originator == ZERO_ADDRESS
+    rates: uint256[N_COINS] = self.rate_multipliers
+
+    for i in range(N_COINS):
+        oracle: uint256 = self.oracles[i]
+        if oracle == 0:
+            continue
+        
+        response: Bytes[32] = raw_call(
+            convert(oracle % 2**160, address),
+            concat(convert(bitwise_and(oracle, BIT_MASK), bytes32), b""),
+            max_outsize=32,
+            is_static_call=True,
+        )
+        assert len(response) != 0
+        rates[i] = convert(response, uint256)
+    
+    return rates
+
+
+@view
 @external
 def get_balances() -> uint256[N_COINS]:
     return self.balances
@@ -399,7 +430,7 @@ def get_virtual_price() -> uint256:
     @return LP token virtual price normalized to 1e18
     """
     amp: uint256 = self._A()
-    xp: uint256[N_COINS] = self._xp_mem(self.rate_multipliers, self.balances)
+    xp: uint256[N_COINS] = self._xp_mem(self._stored_rates(), self.balances)
     D: uint256 = self.get_D(xp, amp)
     # D is in the units similar to DAI (e.g. converted to precision 1e18)
     # When balanced, D = n * x_u - total virtual value of the portfolio
@@ -420,14 +451,15 @@ def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
     amp: uint256 = self._A()
     balances: uint256[N_COINS] = self.balances
 
-    D0: uint256 = self.get_D_mem(self.rate_multipliers, balances, amp)
+    rates: uint256[N_COINS]
+    D0: uint256 = self.get_D_mem(rates, balances, amp)
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
         if _is_deposit:
             balances[i] += amount
         else:
             balances[i] -= amount
-    D1: uint256 = self.get_D_mem(self.rate_multipliers, balances, amp)
+    D1: uint256 = self.get_D_mem(rates, balances, amp)
     diff: uint256 = 0
     if _is_deposit:
         diff = D1 - D0
@@ -452,7 +484,7 @@ def add_liquidity(
     """
     amp: uint256 = self._A()
     old_balances: uint256[N_COINS] = self.balances
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
 
     # Initial invariant
     D0: uint256 = self.get_D_mem(rates, old_balances, amp)
@@ -588,7 +620,7 @@ def get_dy(i: int128, j: int128, dx: uint256) -> uint256:
     @param dx Amount of `i` being exchanged
     @return Amount of `j` predicted
     """
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     xp: uint256[N_COINS] = self._xp_mem(rates, self.balances)
 
     x: uint256 = xp[i] + (dx * rates[i] / PRECISION)
@@ -616,7 +648,7 @@ def exchange(
     @param _min_dy Minimum amount of `j` to receive
     @return Actual amount of `j` received
     """
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     old_balances: uint256[N_COINS] = self.balances
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
@@ -730,7 +762,7 @@ def remove_liquidity_imbalance(
     @return Actual amount of the LP token burned in the withdrawal
     """
     amp: uint256 = self._A()
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     old_balances: uint256[N_COINS] = self.balances
     D0: uint256 = self.get_D_mem(rates, old_balances, amp)
 
@@ -836,7 +868,7 @@ def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128) -> uint256[2]:
     # * Get current D
     # * Solve Eqn against y_i for D - _token_amount
     amp: uint256 = self._A()
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     xp: uint256[N_COINS] = self._xp_mem(rates, self.balances)
     D0: uint256 = self.get_D(xp, amp)
 
@@ -976,6 +1008,22 @@ def withdraw_admin_fees():
             )
         )
 
+external
+def set_oracles(_method_ids: uint256[N_COINS], _oracles: address[N_COINS]):
+    """
+    @notice Set the oracles used for calculating rates
+    @dev if any value is empty, rate will fallback to value provided on initialize, one time use
+    @param _method_ids List of method_ids needed to call on `_oracles` to fetch rate
+    @param _oracles List of oracle addresses
+    """
+    assert msg.sender == self.originator
+
+    for i in range(N_COINS):
+        assert shift(_method_ids[i], 32) == 0
+        self.oracles[i] = bitwise_and(_method_ids[i], convert(_oracles[i], uint256))
+
+    self.originator = ZERO_ADDRESS
+
 
 @view
 @external
@@ -984,3 +1032,8 @@ def version() -> String[8]:
     @notice Get the version of this token contract
     """
     return VERSION
+
+@view
+@external
+def oracle(_idx: uint256) -> address:
+    return convert(self.oracles[_idx] % 2**160, address)

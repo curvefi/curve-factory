@@ -423,7 +423,7 @@ def swap(
 
 @pytest.fixture(scope="module")
 def owner_proxy(alice, OwnerProxy):
-    return OwnerProxy.deploy(alice, alice, alice, {"from": alice})
+    return OwnerProxy.deploy(alice, alice, alice, alice, {"from": alice})
 
 
 @pytest.fixture(scope="module")

@@ -1029,3 +1029,9 @@ def version() -> String[8]:
     @notice Get the version of this token contract
     """
     return VERSION
+
+
+@view
+@external
+def oracle(_idx: uint256) -> address:
+    return convert(self.oracles[_idx] % 2**160, address)

@@ -451,7 +451,7 @@ def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
     amp: uint256 = self._A()
     balances: uint256[N_COINS] = self.balances
 
-    rates: uint256[N_COINS]
+    rates: uint256[N_COINS] = self._stored_rates()
     D0: uint256 = self.get_D_mem(rates, balances, amp)
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
@@ -1008,7 +1008,7 @@ def withdraw_admin_fees():
             )
         )
 
-external
+@external
 def set_oracles(_method_ids: uint256[N_COINS], _oracles: address[N_COINS]):
     """
     @notice Set the oracles used for calculating rates

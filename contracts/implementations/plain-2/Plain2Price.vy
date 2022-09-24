@@ -308,6 +308,7 @@ def _stored_rates() -> uint256[N_COINS]:
         if oracle == 0:
             continue
         
+        # NOTE: assumed that response is of precision 10**18
         response: Bytes[32] = raw_call(
             convert(oracle % 2**160, address),
             _abi_encode(bitwise_and(oracle, BIT_MASK)),
@@ -315,7 +316,7 @@ def _stored_rates() -> uint256[N_COINS]:
             is_static_call=True,
         )
         assert len(response) != 0
-        rates[i] = convert(response, uint256)
+        rates[i] = rates[i] * convert(response, uint256) / PRECISION
     
     return rates
 
@@ -989,7 +990,8 @@ def withdraw_admin_fees():
 def set_oracles(_method_ids: uint256[N_COINS], _oracles: address[N_COINS]):
     """
     @notice Set the oracles used for calculating rates
-    @dev if any value is empty, rate will fallback to value provided on initialize, one time use
+    @dev if any value is empty, rate will fallback to value provided on initialize, one time use.
+        The precision of the rate returned by the oracle MUST be 18.
     @param _method_ids List of method_ids needed to call on `_oracles` to fetch rate
     @param _oracles List of oracle addresses
     """

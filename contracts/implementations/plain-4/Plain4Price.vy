@@ -315,7 +315,7 @@ def _stored_rates() -> uint256[N_COINS]:
             is_static_call=True,
         )
         assert len(response) != 0
-        rates[i] = convert(response, uint256)
+        rates[i] = rates[i] * convert(response, uint256) / PRECISION
     
     return rates
 

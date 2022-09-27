@@ -295,6 +295,7 @@ def _checkpoint(addr: address):
     if self.is_killed:
         # Stop distributing inflation as soon as killed
         rate = 0
+        new_rate = 0
 
     # Update integral of 1/supply
     if block.timestamp > _period_time:

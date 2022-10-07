@@ -116,7 +116,7 @@ DOMAIN_SEPARATOR: public(bytes32)
 nonces: public(HashMap[address, uint256])
 
 ma_price: uint256
-ma_half_time: public(uint256)
+ma_exp_time: public(uint256)
 ma_last_time: public(uint256)
 
 
@@ -160,7 +160,7 @@ def initialize(
     self.future_A = A
     self.fee = _fee
     self.factory = msg.sender
-    self.ma_half_time = 866  # = 600 / ln(2)
+    self.ma_exp_time = 866  # = 600 / ln(2)
     self.ma_price = 10**18
     self.ma_last_time = block.timestamp
 
@@ -456,7 +456,7 @@ def exp(power: int256) -> uint256:
 @view
 def _ma_price(xp: uint256[N_COINS], amp: uint256, D: uint256) -> uint256:
     p: uint256 = self._get_p(xp, amp, D)
-    ema_mul: uint256 = self.exp(-convert((block.timestamp - self.ma_last_time) * 10**18 / self.ma_half_time, int256))
+    ema_mul: uint256 = self.exp(-convert((block.timestamp - self.ma_last_time) * 10**18 / self.ma_exp_time, int256))
     return (self.ma_price * ema_mul + p * (10**18 - ema_mul)) / 10**18
 
 

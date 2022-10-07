@@ -93,6 +93,7 @@ VERSION: constant(String[8]) = "v6.0.0"
 
 
 factory: address
+originator: address
 
 coins: public(address[N_COINS])
 balances: public(uint256[N_COINS])
@@ -1070,6 +1071,18 @@ def stop_ramp_A():
     # now (block.timestamp < t1) is always False, so we return saved A
 
     log StopRampA(current_A, block.timestamp)
+
+
+@external
+def set_ma_exp_time(_ma_exp_time: uint256):
+    if msg.sender == self.originator:
+        assert self.totalSupply == 0  # no depositors in the pool
+        self.originator = empty(address)  # one-time change
+    else:
+        assert msg.sender == Factory(self.factory).admin()  # dev: only owner
+    assert _ma_exp_time != 0
+
+    self.ma_exp_time = _ma_exp_time
 
 
 @view

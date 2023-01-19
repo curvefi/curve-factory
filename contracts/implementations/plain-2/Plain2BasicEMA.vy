@@ -81,6 +81,7 @@ event ApplyNewFee:
 N_COINS: constant(uint256) = 2
 N_COINS_128: constant(int128) = 2
 PRECISION: constant(uint256) = 10 ** 18
+ADMIN_ACTIONS_DEADLINE_DT: constant(uint256) = 86400 * 3
 
 FEE_DENOMINATOR: constant(uint256) = 10 ** 10
 ADMIN_FEE: constant(uint256) = 5000000000
@@ -106,6 +107,7 @@ coins: public(address[N_COINS])
 balances: public(uint256[N_COINS])
 fee: public(uint256)  # fee * 1e10
 future_fee: public(uint256)
+admin_action_deadline: public(uint256)
 
 initial_A: public(uint256)
 future_A: public(uint256)
@@ -1040,17 +1042,22 @@ def admin_balances(i: uint256) -> uint256:
 def commit_new_fee(_new_fee: uint256):
     assert msg.sender == Factory(self.factory).admin()
     assert _new_fee <= MAX_FEE
+    assert self.admin_action_deadline == 0
 
     self.future_fee = _new_fee
+    self.admin_action_deadline = block.timestamp + ADMIN_ACTIONS_DEADLINE_DT
     log CommitNewFee(_new_fee)
 
 
 @external
 def apply_new_fee():
     assert msg.sender == Factory(self.factory).admin()
+    deadline: uint256 = self.admin_action_deadline
+    assert deadline != 0 and block.timestamp >= deadline
     
     fee: uint256 = self.future_fee
     self.fee = fee
+    self.admin_action_deadline = 0
     log ApplyNewFee(fee)
 
 

@@ -71,6 +71,12 @@ event StopRampA:
     A: uint256
     t: uint256
 
+event CommitNewFee:
+    new_fee: uint256
+
+event ApplyNewFee:
+    fee: uint256
+
 
 N_COINS: constant(uint256) = 2
 N_COINS_128: constant(int128) = 2
@@ -80,6 +86,7 @@ FEE_DENOMINATOR: constant(uint256) = 10 ** 10
 ADMIN_FEE: constant(uint256) = 5000000000
 
 A_PRECISION: constant(uint256) = 100
+MAX_FEE: constant(uint256) = 5 * 10 ** 9
 MAX_A: constant(uint256) = 10 ** 6
 MAX_A_CHANGE: constant(uint256) = 10
 MIN_RAMP_TIME: constant(uint256) = 86400
@@ -98,6 +105,7 @@ originator: address
 coins: public(address[N_COINS])
 balances: public(uint256[N_COINS])
 fee: public(uint256)  # fee * 1e10
+future_fee: public(uint256)
 
 initial_A: public(uint256)
 future_A: public(uint256)
@@ -1026,6 +1034,24 @@ def set_ma_exp_time(_ma_exp_time: uint256):
 @external
 def admin_balances(i: uint256) -> uint256:
     return ERC20(self.coins[i]).balanceOf(self) - self.balances[i]
+
+
+@external
+def commit_new_fee(_new_fee: uint256):
+    assert msg.sender == Factory(self.factory).admin()
+    assert _new_fee <= MAX_FEE
+
+    self.future_fee = _new_fee
+    log CommitNewFee(_new_fee)
+
+
+@external
+def apply_new_fee():
+    assert msg.sender == Factory(self.factory).admin()
+    
+    fee: uint256 = self.future_fee
+    self.fee = fee
+    log ApplyNewFee(fee)
 
 
 @external

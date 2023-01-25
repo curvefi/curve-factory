@@ -10,6 +10,7 @@ interface Curve:
     def ramp_A(_future_A: uint256, _future_time: uint256): nonpayable
     def stop_ramp_A(): nonpayable
     def set_ma_exp_time(_ma_exp_time: uint256): nonpayable
+    def ma_exp_time() -> uint256: view
 
 interface Gauge:
     def set_killed(_is_killed: bool): nonpayable
@@ -36,6 +37,15 @@ interface Factory:
     def commit_transfer_ownership(addr: address): nonpayable
     def accept_transfer_ownership(): nonpayable
     def set_manager(_manager: address): nonpayable
+    def deploy_plain_pool(
+        _name: String[32],
+        _symbol: String[10],
+        _coins: address[4],
+        _A: uint256,
+        _fee: uint256,
+        _asset_type: uint256,
+        _implementation_idx: uint256,
+    ) -> address: nonpayable
 
 
 event CommitAdmins:
@@ -70,6 +80,32 @@ def __init__(
     self.parameter_admin = _parameter_admin
     self.emergency_admin = _emergency_admin
     self.gauge_manager = _gauge_manager
+
+
+@external
+def deploy_plain_pool(
+    _factory: address,
+    _name: String[32],
+    _symbol: String[10],
+    _coins: address[4],
+    _A: uint256,
+    _fee: uint256,
+    _ma_exp_time: uint256,
+    _asset_type: uint256 = 0,
+    _implementation_idx: uint256 = 0,
+) -> address:
+    pool: address = Factory(_factory).deploy_plain_pool(
+        _name,
+        _symbol,
+        _coins,
+        _A,
+        _fee,
+        _asset_type,
+        _implementation_idx,
+    )
+    assert Curve(pool).ma_exp_time() == 0
+    Curve(pool).set_ma_exp_time(_ma_exp_time)
+    return pool
 
 
 @external

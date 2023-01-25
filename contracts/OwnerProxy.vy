@@ -11,6 +11,8 @@ interface Curve:
     def stop_ramp_A(): nonpayable
     def set_ma_exp_time(_ma_exp_time: uint256): nonpayable
     def ma_exp_time() -> uint256: view
+    def commit_new_fee(_new_fee: uint256): nonpayable
+    def apply_new_fee(): nonpayable
 
 interface Gauge:
     def set_killed(_is_killed: bool): nonpayable
@@ -146,6 +148,18 @@ def apply_set_admins():
 def set_ma_exp_time(_pool: address, _ma_exp_time: uint256):
     assert msg.sender == self.parameter_admin, "Access denied"
     Curve(_pool).set_ma_exp_time(_ma_exp_time)
+
+
+@external
+def commit_new_fee(_pool: address, _new_fee: uint256):
+    assert msg.sender == self.parameter_admin, "Access denied"
+
+    Curve(_pool).commit_new_fee(_new_fee)
+
+
+@external
+def apply_new_fee(_pool: address):
+    Curve(_pool).apply_new_fee()
 
 
 @external

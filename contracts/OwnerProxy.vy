@@ -9,6 +9,7 @@
 interface Curve:
     def ramp_A(_future_A: uint256, _future_time: uint256): nonpayable
     def stop_ramp_A(): nonpayable
+    def set_ma_exp_time(_ma_exp_time: uint256): nonpayable
 
 interface Gauge:
     def set_killed(_is_killed: bool): nonpayable
@@ -103,6 +104,12 @@ def apply_set_admins():
     self.emergency_admin = _e_admin
 
     log ApplyAdmins(_o_admin, _p_admin, _e_admin)
+
+
+@external
+def set_ma_exp_time(_pool: address, _ma_exp_time: uint256):
+    assert msg.sender == self.parameter_admin, "Access denied"
+    Curve(_pool).set_ma_exp_time(_ma_exp_time)
 
 
 @external

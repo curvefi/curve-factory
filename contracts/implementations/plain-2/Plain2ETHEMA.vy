@@ -1119,6 +1119,14 @@ def apply_new_fee():
     log ApplyNewFee(fee)
 
 
+@external
+def set_ma_exp_time(_ma_exp_time: uint256):
+    assert msg.sender == Factory(self.factory).admin()  # dev: only owner
+    assert _ma_exp_time != 0
+
+    self.ma_exp_time = _ma_exp_time
+
+
 @view
 @external
 def version() -> String[8]:

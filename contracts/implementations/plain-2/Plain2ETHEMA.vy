@@ -150,7 +150,7 @@ def initialize(
 
     for i in range(N_COINS):
         coin: address = _coins[i]
-        if coin == ZERO_ADDRESS:
+        if coin == empty(address):
             break
         self.coins[i] = coin
         self.rate_multipliers[i] = _rate_multipliers[i]
@@ -170,7 +170,7 @@ def initialize(
     )
 
     # fire a transfer event so block explorers identify the contract as an ERC20
-    log Transfer(ZERO_ADDRESS, self, 0)
+    log Transfer(empty(address), self, 0)
 
 
 ### ERC20 Functionality ###
@@ -267,7 +267,7 @@ def permit(
     @param _s The bytes[32:64] of the valid secp256k1 signature of permit by owner
     @return True, if transaction completes successfully
     """
-    assert _owner != ZERO_ADDRESS
+    assert _owner != empty(address)
     assert block.timestamp <= _deadline
 
     nonce: uint256 = self.nonces[_owner]
@@ -520,7 +520,7 @@ def add_liquidity(
     total_supply += mint_amount
     self.balanceOf[_receiver] += mint_amount
     self.totalSupply = total_supply
-    log Transfer(ZERO_ADDRESS, _receiver, mint_amount)
+    log Transfer(empty(address), _receiver, mint_amount)
 
     log AddLiquidity(msg.sender, _amounts, fees, D1, total_supply)
 
@@ -724,7 +724,7 @@ def remove_liquidity(
     total_supply -= _burn_amount
     self.balanceOf[msg.sender] -= _burn_amount
     self.totalSupply = total_supply
-    log Transfer(msg.sender, ZERO_ADDRESS, _burn_amount)
+    log Transfer(msg.sender, empty(address), _burn_amount)
 
     log RemoveLiquidity(msg.sender, amounts, empty(uint256[N_COINS]), total_supply)
 
@@ -778,7 +778,7 @@ def remove_liquidity_imbalance(
     total_supply -= burn_amount
     self.totalSupply = total_supply
     self.balanceOf[msg.sender] -= burn_amount
-    log Transfer(msg.sender, ZERO_ADDRESS, burn_amount)
+    log Transfer(msg.sender, empty(address), burn_amount)
 
     if _amounts[0] != 0:
         raw_call(_receiver, b"", value=_amounts[0])
@@ -917,7 +917,7 @@ def remove_liquidity_one_coin(
     total_supply: uint256 = self.totalSupply - _burn_amount
     self.totalSupply = total_supply
     self.balanceOf[msg.sender] -= _burn_amount
-    log Transfer(msg.sender, ZERO_ADDRESS, _burn_amount)
+    log Transfer(msg.sender, empty(address), _burn_amount)
 
     if i == 0:
         raw_call(_receiver, b"", value=dy[0])

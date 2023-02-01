@@ -502,19 +502,7 @@ def add_liquidity(
     # Take coins from the sender
     assert msg.value == _amounts[0]
     if _amounts[1] > 0:
-        response: Bytes[32] = raw_call(
-            self.coins[1],
-            concat(
-                method_id("transferFrom(address,address,uint256)"),
-                convert(msg.sender, bytes32),
-                convert(self, bytes32),
-                convert(_amounts[1], bytes32),
-            ),
-            max_outsize=32,
-        )
-        if len(response) > 0:
-            assert convert(response, bool)  # dev: failed transfer
-        # end "safeTransferFrom"
+        assert ERC20(self.coins[1]).transferFrom(msg.sender, self, _amounts[1], default_return_value=True)  # dev: failed transfer
 
     # Mint pool tokens
     total_supply += mint_amount
@@ -649,31 +637,10 @@ def exchange(
     coin: address = self.coins[1]
     if i == 0:
         assert msg.value == _dx
-        response: Bytes[32] = raw_call(
-            coin,
-            concat(
-                method_id("transfer(address,uint256)"),
-                convert(_receiver, bytes32),
-                convert(dy, bytes32),
-            ),
-            max_outsize=32,
-        )
-        if len(response) > 0:
-            assert convert(response, bool)
+        assert ERC20(coin).transfer(_receiver, dy, default_return_value=True)
     else:
         assert msg.value == 0
-        response: Bytes[32] = raw_call(
-            coin,
-            concat(
-                method_id("transferFrom(address,address,uint256)"),
-                convert(msg.sender, bytes32),
-                convert(self, bytes32),
-                convert(_dx, bytes32),
-            ),
-            max_outsize=32,
-        )
-        if len(response) > 0:
-            assert convert(response, bool)
+        assert ERC20(coin).transferFrom(msg.sender, self, _dx, default_return_value=True)
         raw_call(_receiver, b"", value=dy)
 
     log TokenExchange(msg.sender, i, _dx, j, dy)
@@ -709,17 +676,7 @@ def remove_liquidity(
         if i == 0:
             raw_call(_receiver, b"", value=value)
         else:
-            response: Bytes[32] = raw_call(
-                self.coins[1],
-                concat(
-                    method_id("transfer(address,uint256)"),
-                    convert(_receiver, bytes32),
-                    convert(value, bytes32),
-                ),
-                max_outsize=32,
-            )
-            if len(response) > 0:
-                assert convert(response, bool)
+            assert ERC20(self.coins[1]).transfer(_receiver, value, default_return_value=True)
 
     total_supply -= _burn_amount
     self.balanceOf[msg.sender] -= _burn_amount
@@ -783,17 +740,7 @@ def remove_liquidity_imbalance(
     if _amounts[0] != 0:
         raw_call(_receiver, b"", value=_amounts[0])
     if _amounts[1] != 0:
-        response: Bytes[32] = raw_call(
-            self.coins[1],
-            concat(
-                method_id("transfer(address,uint256)"),
-                convert(_receiver, bytes32),
-                convert(_amounts[1], bytes32),
-            ),
-            max_outsize=32,
-        )
-        if len(response) > 0:
-            assert convert(response, bool)
+        assert ERC20(self.coins[1]).transfer(_receiver, _amounts[1], default_return_value=True)
 
     log RemoveLiquidityImbalance(msg.sender, _amounts, fees, D1, total_supply)
 
@@ -922,17 +869,7 @@ def remove_liquidity_one_coin(
     if i == 0:
         raw_call(_receiver, b"", value=dy[0])
     else:
-        response: Bytes[32] = raw_call(
-            self.coins[1],
-            concat(
-                method_id("transfer(address,uint256)"),
-                convert(_receiver, bytes32),
-                convert(dy[0], bytes32),
-            ),
-            max_outsize=32,
-        )
-        if len(response) > 0:
-            assert convert(response, bool)
+        assert ERC20(self.coins[1]).transfer(_receiver, dy[0], default_return_value=True)
 
     log RemoveLiquidityOne(msg.sender, _burn_amount, dy[0], total_supply)
 
@@ -994,14 +931,7 @@ def withdraw_admin_fees():
 
     coin: address = self.coins[1]
     fees = ERC20(coin).balanceOf(self) - self.balances[1]
-    raw_call(
-    coin,
-    concat(
-        method_id("transfer(address,uint256)"),
-        convert(receiver, bytes32),
-        convert(fees, bytes32)
-    )
-)
+    assert ERC20(coin).transfer(receiver, fees, default_return_value=True)
 
 
 @view

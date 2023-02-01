@@ -952,7 +952,7 @@ def get_y_D(A: uint256, i: int128, xp: uint256[N_COINS], D: uint256) -> uint256:
 
 @view
 @internal
-def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128) -> uint256[2]:
+def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128) -> uint256[3]:
     # First, need to calculate
     # * Get current D
     # * Solve Eqn against y_i for D - _token_amount
@@ -981,7 +981,12 @@ def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128) -> uint256[2]:
     dy_0: uint256 = (xp[i] - new_y) * PRECISION / rates[i]  # w/o fees
     dy = (dy - 1) * PRECISION / rates[i]  # Withdraw less to account for rounding errors
 
-    return [dy, dy_0 - dy]
+    xp[i] = new_y
+    last_p: uint256 = 0
+    if new_y > 0:
+        last_p = self._get_p(xp, amp, D1)
+
+    return [dy, dy_0 - dy, last_p]
 
 
 @view
@@ -1012,7 +1017,7 @@ def remove_liquidity_one_coin(
     @param _receiver Address that receives the withdrawn coins
     @return Amount of coin received
     """
-    dy: uint256[2] = self._calc_withdraw_one_coin(_burn_amount, i)
+    dy: uint256[3] = self._calc_withdraw_one_coin(_burn_amount, i)
     assert dy[0] >= _min_received, "Not enough coins removed"
 
     self.balances[i] -= (dy[0] + dy[1] * ADMIN_FEE / FEE_DENOMINATOR)
@@ -1027,6 +1032,8 @@ def remove_liquidity_one_coin(
         assert ERC20(self.coins[1]).transfer(_receiver, dy[0], default_return_value=True)
 
     log RemoveLiquidityOne(msg.sender, _burn_amount, dy[0], total_supply)
+
+    self.save_p_from_price(dy[2])
 
     return dy[0]
 

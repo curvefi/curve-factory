@@ -649,7 +649,7 @@ def add_liquidity(
 
 @view
 @internal
-def get_y(i: int128, j: int128, x: uint256, xp: uint256[N_COINS]) -> uint256:
+def get_y(i: int128, j: int128, x: uint256, xp: uint256[N_COINS], _amp: uint256, _D: uint256) -> uint256:
     """
     Calculate x[j] if one makes x[i] = x
 
@@ -669,8 +669,11 @@ def get_y(i: int128, j: int128, x: uint256, xp: uint256[N_COINS]) -> uint256:
     assert i >= 0
     assert i < N_COINS_128
 
-    amp: uint256 = self._A()
-    D: uint256 = self.get_D(xp, amp)
+    amp: uint256 = _amp
+    D: uint256 = _D
+    if _D == 0:
+        amp = self._A()
+        D = self.get_D(xp, amp)
     S_: uint256 = 0
     _x: uint256 = 0
     y_prev: uint256 = 0
@@ -719,7 +722,7 @@ def get_dy(i: int128, j: int128, dx: uint256) -> uint256:
     xp: uint256[N_COINS] = self._xp_mem(rates, self.balances)
 
     x: uint256 = xp[i] + (dx * rates[i] / PRECISION)
-    y: uint256 = self.get_y(i, j, x, xp)
+    y: uint256 = self.get_y(i, j, x, xp, 0, 0)
     dy: uint256 = xp[j] - y - 1
     fee: uint256 = self.fee * dy / FEE_DENOMINATOR
     return (dy - fee) * PRECISION / rates[j]
@@ -749,7 +752,10 @@ def exchange(
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
     x: uint256 = xp[i] + _dx * rates[i] / PRECISION
-    y: uint256 = self.get_y(i, j, x, xp)
+
+    amp: uint256 = self._A()
+    D: uint256 = self.get_D(xp, amp)
+    y: uint256 = self.get_y(i, j, x, xp, amp, D)
 
     dy: uint256 = xp[j] - y - 1  # -1 just in case there were some rounding errors
     dy_fee: uint256 = dy * self.fee / FEE_DENOMINATOR
@@ -757,6 +763,12 @@ def exchange(
     # Convert all to real units
     dy = (dy - dy_fee) * PRECISION / rates[j]
     assert dy >= _min_dy, "Exchange resulted in fewer coins than expected"
+
+    # xp is not used anymore, so we reuse it for price calc
+    xp[i] = x
+    xp[j] = y
+    # D is not changed because we did not apply a fee
+    self.save_p(xp, amp, D)
 
     dy_admin_fee: uint256 = dy_fee * ADMIN_FEE / FEE_DENOMINATOR
     dy_admin_fee = dy_admin_fee * PRECISION / rates[j]

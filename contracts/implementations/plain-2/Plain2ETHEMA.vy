@@ -72,15 +72,23 @@ event StopRampA:
     A: uint256
     t: uint256
 
+event CommitNewFee:
+    new_fee: uint256
+
+event ApplyNewFee:
+    fee: uint256
+
 
 N_COINS_128: constant(int128) = 2
 N_COINS: constant(uint256) = 2
 PRECISION: constant(uint256) = 10 ** 18
+ADMIN_ACTIONS_DEADLINE_DT: constant(uint256) = 86400 * 3
 
 FEE_DENOMINATOR: constant(uint256) = 10 ** 10
 ADMIN_FEE: constant(uint256) = 5000000000
 
 A_PRECISION: constant(uint256) = 100
+MAX_FEE: constant(uint256) = 5 * 10 ** 9
 MAX_A: constant(uint256) = 10 ** 6
 MAX_A_CHANGE: constant(uint256) = 10
 MIN_RAMP_TIME: constant(uint256) = 86400
@@ -98,6 +106,8 @@ factory: address
 coins: public(address[N_COINS])
 balances: public(uint256[N_COINS])
 fee: public(uint256)  # fee * 1e10
+future_fee: public(uint256)
+admin_action_deadline: public(uint256)
 
 initial_A: public(uint256)
 future_A: public(uint256)
@@ -120,7 +130,8 @@ nonces: public(HashMap[address, uint256])
 @external
 def __init__():
     # we do this to prevent the implementation contract from being used as a pool
-    self.fee = 31337
+    self.factory = 0x0000000000000000000000000000000000000001
+    assert N_COINS == 2
 
 
 @external
@@ -141,8 +152,8 @@ def initialize(
     @param _A Amplification coefficient multiplied by n ** (n - 1)
     @param _fee Fee to charge for exchanges
     """
-    # check if fee was already set to prevent initializing contract twice
-    assert self.fee == 0
+    # check if factory was already set to prevent initializing contract twice
+    assert self.factory == empty(address)
 
     # additional sanity checks for ETH configuration
     assert _coins[0] == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE
@@ -932,6 +943,29 @@ def withdraw_admin_fees():
     coin: address = self.coins[1]
     fees = ERC20(coin).balanceOf(self) - self.balances[1]
     assert ERC20(coin).transfer(receiver, fees, default_return_value=True)
+
+
+@external
+def commit_new_fee(_new_fee: uint256):
+    assert msg.sender == Factory(self.factory).admin()
+    assert _new_fee <= MAX_FEE
+    assert self.admin_action_deadline == 0
+
+    self.future_fee = _new_fee
+    self.admin_action_deadline = block.timestamp + ADMIN_ACTIONS_DEADLINE_DT
+    log CommitNewFee(_new_fee)
+
+
+@external
+def apply_new_fee():
+    assert msg.sender == Factory(self.factory).admin()
+    deadline: uint256 = self.admin_action_deadline
+    assert deadline != 0 and block.timestamp >= deadline
+    
+    fee: uint256 = self.future_fee
+    self.fee = fee
+    self.admin_action_deadline = 0
+    log ApplyNewFee(fee)
 
 
 @view

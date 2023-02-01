@@ -172,6 +172,10 @@ def initialize(
     self.fee = _fee
     self.factory = msg.sender
 
+    # self.ma_exp_time = 866  # = 600 / ln(2)
+    self.last_prices_packed = self.pack_prices(10**18, 10**18)
+    self.ma_last_time = block.timestamp
+
     name: String[64] = concat("Curve.fi Factory Pool: ", _name)
     self.name = name
     self.symbol = concat(_symbol, "-f")

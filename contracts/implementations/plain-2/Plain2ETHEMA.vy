@@ -126,6 +126,10 @@ totalSupply: public(uint256)
 DOMAIN_SEPARATOR: public(bytes32)
 nonces: public(HashMap[address, uint256])
 
+last_prices_packed: uint256  #  [last_price, ma_price]
+ma_exp_time: public(uint256)
+ma_last_time: public(uint256)
+
 
 @external
 def __init__():
@@ -873,7 +877,10 @@ def remove_liquidity_imbalance(
         fees[i] = base_fee * difference / FEE_DENOMINATOR
         self.balances[i] = new_balance - (fees[i] * ADMIN_FEE / FEE_DENOMINATOR)
         new_balances[i] -= fees[i]
-    D2: uint256 = self.get_D_mem(rates, new_balances, amp)
+    new_balances = self._xp_mem(rates, new_balances)
+    D2: uint256 = self.get_D(new_balances, amp)
+
+    self.save_p(new_balances, amp, D2)
 
     total_supply: uint256 = self.totalSupply
     burn_amount: uint256 = ((D0 - D2) * total_supply / D0) + 1

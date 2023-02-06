@@ -91,17 +91,16 @@ def __init__(
 
 @external
 def deploy_plain_pool(
-    _factory: address,
     _name: String[32],
     _symbol: String[10],
     _coins: address[4],
     _A: uint256,
     _fee: uint256,
-    _ma_exp_time: uint256,
     _asset_type: uint256 = 0,
     _implementation_idx: uint256 = 0,
+    _ma_exp_time: uint256 = 600
 ) -> address:
-    pool: address = Factory(_factory).deploy_plain_pool(
+    pool: address = Factory(FACTORY).deploy_plain_pool(
         _name,
         _symbol,
         _coins,
@@ -110,8 +109,8 @@ def deploy_plain_pool(
         _asset_type,
         _implementation_idx,
     )
-    assert Curve(pool).ma_exp_time() == 0
-    Curve(pool).set_ma_exp_time(_ma_exp_time)
+    if _ma_exp_time != 600:
+        Curve(pool).set_ma_exp_time(_ma_exp_time)
     return pool
 
 

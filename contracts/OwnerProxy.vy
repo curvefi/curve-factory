@@ -80,7 +80,6 @@ def __init__(
     _ownership_admin: address,
     _parameter_admin: address,
     _emergency_admin: address,
-    _gauge_manager: address,
     _factory: address
 ):
     FACTORY = _factory
@@ -88,7 +87,6 @@ def __init__(
     self.ownership_admin = _ownership_admin
     self.parameter_admin = _parameter_admin
     self.emergency_admin = _emergency_admin
-    self.gauge_manager = _gauge_manager
 
 
 @external
@@ -251,15 +249,15 @@ def set_factory_manager(_target: address, _manager: address):
 
 
 @external
-def set_gauge_manager(_manager: address):
+def set_gauge_manager(_gauge: address, _manager: address):
     """
     @notice Set the manager
     @dev Callable by the admin or existing manager
     @param _manager Manager address
     """
-    assert msg.sender in [self.ownership_admin, self.emergency_admin, self.gauge_manager], "Access denied"
+    assert msg.sender in [self.ownership_admin, self.emergency_admin, self.gauge_manager[_gauge]], "Access denied"
 
-    self.gauge_manager = _manager
+    self.gauge_manager[_gauge] = _manager
 
 
 @external
@@ -291,11 +289,11 @@ def set_killed(_gauge: address, _is_killed: bool):
 
 @external
 def add_reward(_gauge: address, _reward_token: address, _distributor: address):
-    assert msg.sender in [self.ownership_admin, self.gauge_manager]
+    assert msg.sender in [self.ownership_admin, self.gauge_manager[_gauge]]
     Gauge(_gauge).add_reward(_reward_token, _distributor)
 
 
 @external
 def set_reward_distributor(_gauge: address, _reward_token: address, _distributor: address):
-    assert msg.sender in [self.ownership_admin, self.gauge_manager]
+    assert msg.sender in [self.ownership_admin, self.gauge_manager[_gauge]]
     Gauge(_gauge).set_reward_distributor(_reward_token, _distributor)

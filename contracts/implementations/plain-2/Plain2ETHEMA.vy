@@ -176,7 +176,7 @@ def initialize(
     self.fee = _fee
     self.factory = msg.sender
 
-    # self.ma_exp_time = 866  # = 600 / ln(2)
+    self.ma_exp_time = 866  # = 600 / ln(2)
     self.last_prices_packed = self.pack_prices(10**18, 10**18)
     self.ma_last_time = block.timestamp
 

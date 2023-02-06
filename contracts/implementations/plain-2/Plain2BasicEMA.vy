@@ -502,6 +502,7 @@ def _ma_price() -> uint256:
 
 @external
 @view
+@nonreentrant('lock')
 def price_oracle() -> uint256:
     return self._ma_price()
 

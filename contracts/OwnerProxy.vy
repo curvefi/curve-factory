@@ -6,6 +6,9 @@
 @notice Allows DAO ownership of `Factory` and it's deployed pools
 """
 
+interface ManagerProxy:
+    def gauge_manager(_gauge: address) -> address: view
+
 interface Curve:
     def ramp_A(_future_A: uint256, _future_time: uint256): nonpayable
     def stop_ramp_A(): nonpayable
@@ -63,6 +66,7 @@ event ApplyAdmins:
 
 
 FACTORY: public(immutable(address))
+OLD_MANAGER_PROXY: public(immutable(address))
 
 
 ownership_admin: public(address)
@@ -81,9 +85,11 @@ def __init__(
     _ownership_admin: address,
     _parameter_admin: address,
     _emergency_admin: address,
-    _factory: address
+    _factory: address,
+    _old_manager_proxy: address,
 ):
     FACTORY = _factory
+    OLD_MANAGER_PROXY = _old_manager_proxy
 
     self.ownership_admin = _ownership_admin
     self.parameter_admin = _parameter_admin
@@ -310,3 +316,10 @@ def add_reward(_gauge: address, _reward_token: address, _distributor: address):
 def set_reward_distributor(_gauge: address, _reward_token: address, _distributor: address):
     assert msg.sender in [self.ownership_admin, self.gauge_manager[_gauge]]
     Gauge(_gauge).set_reward_distributor(_reward_token, _distributor)
+
+
+@external
+def migrate_gauge_manager(_gauge: address):
+    manager: address = ManagerProxy(OLD_MANAGER_PROXY).gauge_manager(_gauge)
+    if manager != empty(address) and self.gauge_manager[_gauge] == empty(address):
+        self.gauge_manager[_gauge] = manager

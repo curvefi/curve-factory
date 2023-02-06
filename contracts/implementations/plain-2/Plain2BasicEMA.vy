@@ -528,6 +528,7 @@ def save_p(xp: uint256[N_COINS], amp: uint256, D: uint256):
 
 @view
 @external
+@nonreentrant('lock')
 def get_virtual_price() -> uint256:
     """
     @notice The current virtual price of the pool LP token

@@ -1,4 +1,4 @@
-# @version 0.3.0
+# @version 0.3.7
 """
 @title Curve StableSwap Owner Proxy
 @author Curve Finance
@@ -48,6 +48,7 @@ interface Factory:
         _asset_type: uint256,
         _implementation_idx: uint256,
     ) -> address: nonpayable
+    def deploy_gauge(_pool: address) -> address: nonpayable
 
 
 event CommitAdmins:
@@ -61,8 +62,8 @@ event ApplyAdmins:
     emergency_admin: address
 
 
-FACTORY: public(constant(address))
-    
+FACTORY: public(immutable(address))
+
 
 ownership_admin: public(address)
 parameter_admin: public(address)
@@ -72,7 +73,7 @@ future_ownership_admin: public(address)
 future_parameter_admin: public(address)
 future_emergency_admin: public(address)
 
-gauge_manager: public(address)
+gauge_manager: public(HashMap[address, address])
 
 
 @external
@@ -112,6 +113,19 @@ def deploy_plain_pool(
     if _ma_exp_time != 600:
         Curve(pool).set_ma_exp_time(_ma_exp_time)
     return pool
+
+
+@external
+def deploy_gauge(_pool: address, _manager: address = msg.sender) -> address:
+    """
+    @notice Deploy a gauge, and set _manager as the manager
+    @param _pool The pool to deploy a gauge for
+    @param _manager The account to which will manage rewards for the gauge
+    """
+    gauge: address = Factory(FACTORY).deploy_gauge(_pool)
+
+    self.gauge_manager[gauge] = _manager
+    return gauge
 
 
 @external

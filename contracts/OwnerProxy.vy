@@ -60,6 +60,10 @@ event ApplyAdmins:
     parameter_admin: address
     emergency_admin: address
 
+
+FACTORY: public(constant(address))
+    
+
 ownership_admin: public(address)
 parameter_admin: public(address)
 emergency_admin: public(address)
@@ -76,8 +80,11 @@ def __init__(
     _ownership_admin: address,
     _parameter_admin: address,
     _emergency_admin: address,
-    _gauge_manager: address
+    _gauge_manager: address,
+    _factory: address
 ):
+    FACTORY = _factory
+
     self.ownership_admin = _ownership_admin
     self.parameter_admin = _parameter_admin
     self.emergency_admin = _emergency_admin

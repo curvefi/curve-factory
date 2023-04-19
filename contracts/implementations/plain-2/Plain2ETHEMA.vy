@@ -115,7 +115,13 @@ future_A: public(uint256)
 initial_A_time: public(uint256)
 future_A_time: public(uint256)
 
-rate_multipliers: uint256[N_COINS]
+# [bytes4 method_id][bytes8 <empty>][bytes20 oracle]
+oracle_method: public(uint256)  # Only for one coin which is not ETH
+originator: address  # Creator of the pool who can set the oracle method
+
+RATE_MULTIPLIERS: constant(uint256[2]) = [10**18, 10**18]
+# shift(2**32 - 1, 224)
+ORACLE_BIT_MASK: constant(uint256) = (2**32 - 1) * 256**28
 
 name: public(String[64])
 symbol: public(String[32])
@@ -161,17 +167,14 @@ def initialize(
     """
     # check if factory was already set to prevent initializing contract twice
     assert self.factory == empty(address)
+    # tx.origin will have the ability to set oracles for coins
+    self.originator = tx.origin
 
     # additional sanity checks for ETH configuration
     assert _coins[0] == ETH_ADDR
-    assert _rate_multipliers[0] == 10**18
-
     for i in range(N_COINS):
-        coin: address = _coins[i]
-        if coin == empty(address):
-            break
-        self.coins[i] = coin
-        self.rate_multipliers[i] = _rate_multipliers[i]
+        assert _rate_multipliers[i] == 10**18
+        self.coins[i] = _coins[i]
 
     A: uint256 = _A * A_PRECISION
     self.initial_A = A
@@ -306,7 +309,6 @@ def permit(
 
 ### StableSwap Functionality ###
 
-
 @pure
 @internal
 def pack_prices(p1: uint256, p2: uint256) -> uint256:
@@ -325,6 +327,27 @@ def last_price() -> uint256:
 @external
 def ema_price() -> uint256:
     return shift(self.last_prices_packed, -128)
+
+
+@view
+@internal
+def _stored_rates() -> uint256[N_COINS]:
+    assert self.originator == empty(address), "Set oracle"
+    rates: uint256[N_COINS] = RATE_MULTIPLIERS
+
+    oracle: uint256 = self.oracle_method
+    if oracle != 0:
+        # NOTE: assumed that response is of precision 10**18
+        response: Bytes[32] = raw_call(
+            convert(oracle % 2**160, address),
+            _abi_encode(oracle & ORACLE_BIT_MASK),
+            max_outsize=32,
+            is_static_call=True,
+        )
+        assert len(response) != 0
+        rates[1] = rates[1] * convert(response, uint256) / PRECISION
+
+    return rates
 
 
 @view
@@ -455,7 +478,7 @@ def _get_p(xp: uint256[N_COINS], amp: uint256, D: uint256) -> uint256:
 @view
 def get_p() -> uint256:
     amp: uint256 = self._A()
-    xp: uint256[N_COINS] = self._xp_mem(self.rate_multipliers, self._balances())
+    xp: uint256[N_COINS] = self._xp_mem(self._stored_rates(), self._balances())
     D: uint256 = self.get_D(xp, amp)
     return self._get_p(xp, amp, D)
 
@@ -502,7 +525,7 @@ def _ma_price() -> uint256:
     ma_last_time: uint256 = self.ma_last_time
 
     pp: uint256 = self.last_prices_packed
-    last_price: uint256 = pp & (2**128 - 1)
+    last_price: uint256 = min(pp & (2**128 - 1), 2 * 10**18)  # Limit the price going into EMA to not be more than 2.0
     last_ema_price: uint256 = shift(pp, -128)
 
     if ma_last_time < block.timestamp:
@@ -517,6 +540,10 @@ def _ma_price() -> uint256:
 @view
 @nonreentrant('lock')
 def price_oracle() -> uint256:
+    """
+    @notice EMA price oracle based on the last state prices
+            Prices are taken after rate multiplier is applied (if it is set)
+    """
     return self._ma_price()
 
 
@@ -549,7 +576,7 @@ def get_virtual_price() -> uint256:
     @return LP token virtual price normalized to 1e18
     """
     amp: uint256 = self._A()
-    xp: uint256[N_COINS] = self._xp_mem(self.rate_multipliers, self._balances())
+    xp: uint256[N_COINS] = self._xp_mem(self._stored_rates(), self._balances())
     D: uint256 = self.get_D(xp, amp)
     # D is in the units similar to DAI (e.g. converted to precision 1e18)
     # When balanced, D = n * x_u - total virtual value of the portfolio
@@ -569,15 +596,16 @@ def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
     """
     amp: uint256 = self._A()
     balances: uint256[N_COINS] = self._balances()
+    rates: uint256[N_COINS] = self._stored_rates()
 
-    D0: uint256 = self.get_D_mem(self.rate_multipliers, balances, amp)
+    D0: uint256 = self.get_D_mem(rates, balances, amp)
     for i in range(N_COINS):
         amount: uint256 = _amounts[i]
         if _is_deposit:
             balances[i] += amount
         else:
             balances[i] -= amount
-    D1: uint256 = self.get_D_mem(self.rate_multipliers, balances, amp)
+    D1: uint256 = self.get_D_mem(rates, balances, amp)
     diff: uint256 = 0
     if _is_deposit:
         diff = D1 - D0
@@ -603,7 +631,7 @@ def add_liquidity(
     """
     amp: uint256 = self._A()
     old_balances: uint256[N_COINS] = self._balances(msg.value)
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
 
     # Initial invariant
     D0: uint256 = self.get_D_mem(rates, old_balances, amp)
@@ -734,7 +762,7 @@ def get_dy(i: int128, j: int128, dx: uint256) -> uint256:
     @param dx Amount of `i` being exchanged
     @return Amount of `j` predicted
     """
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     xp: uint256[N_COINS] = self._xp_mem(rates, self._balances())
 
     x: uint256 = xp[i] + (dx * rates[i] / PRECISION)
@@ -763,7 +791,7 @@ def exchange(
     @param _min_dy Minimum amount of `j` to receive
     @return Actual amount of `j` received
     """
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     old_balances: uint256[N_COINS] = self._balances(msg.value)
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
@@ -857,7 +885,7 @@ def remove_liquidity_imbalance(
     @return Actual amount of the LP token burned in the withdrawal
     """
     amp: uint256 = self._A()
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     old_balances: uint256[N_COINS] = self._balances()
     D0: uint256 = self.get_D_mem(rates, old_balances, amp)
 
@@ -959,7 +987,7 @@ def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128) -> uint256[3]:
     # * Get current D
     # * Solve Eqn against y_i for D - _token_amount
     amp: uint256 = self._A()
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     xp: uint256[N_COINS] = self._xp_mem(rates, self._balances())
     D0: uint256 = self.get_D(xp, amp)
 
@@ -1122,3 +1150,20 @@ def set_ma_exp_time(_ma_exp_time: uint256):
     assert _ma_exp_time != 0
 
     self.ma_exp_time = _ma_exp_time
+
+
+@external
+def set_oracle(_method_id: uint256, _oracle: address):
+    """
+    @notice Set the oracles used for calculating rates
+    @dev if any value is empty, rate will fallback to value provided on initialize, one time use.
+        The precision of the rate returned by the oracle MUST be 18.
+    @param _method_ids List of method_ids needed to call on `_oracles` to fetch rate
+    @param _oracles List of oracle addresses
+    """
+    assert msg.sender == self.originator
+
+    assert shift(_method_id, 32) == 0
+    self.oracle_method = _method_id & convert(_oracle, uint256)
+
+    self.originator = empty(address)

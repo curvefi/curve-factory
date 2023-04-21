@@ -126,8 +126,8 @@ def pytest_collection_modifyitems(config, items):
             items.remove(item)
             continue
 
-        # meta pools and eth rebase pool we only test against 1 type no parameterization needed
-        if pool_type in [4, 5, 6, 7]:
+        # meta pools we only test against 1 type no parameterization needed
+        if pool_type in [4, 5, 6]:
             if decimals != 18:
                 items.remove(item)
                 continue
@@ -150,6 +150,10 @@ def pytest_collection_modifyitems(config, items):
                 # and we only use the template zap DepositZap.vy
                 # all the zaps are essentially copies of this with
                 # constants set appropriately
+                items.remove(item)
+                continue
+
+            if pool_size > 2 and pool_type == 7:
                 items.remove(item)
                 continue
 

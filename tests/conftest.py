@@ -20,6 +20,7 @@ pool_types = {
     "meta-usd": 4,
     "meta-btc": 5,
     "meta-side": 6,
+    "eth-ema": 7,
 }
 return_types = {"revert": 0, "False": 1, "None": 2}
 
@@ -34,7 +35,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--pool-type",
         action="store",
-        default="basic,eth,optimized,rebase,meta-usd,meta-btc",
+        default="basic,eth,optimized,rebase,meta-usd,meta-btc,eth-ema",
         help="comma-separated list of pool types to test against",
     )
     parser.addoption(
@@ -125,8 +126,8 @@ def pytest_collection_modifyitems(config, items):
             items.remove(item)
             continue
 
-        # meta pools we only test against 1 type no parameterization needed
-        if pool_type in [4, 5, 6]:
+        # meta pools and eth rebase pool we only test against 1 type no parameterization needed
+        if pool_type in [4, 5, 6, 7]:
             if decimals != 18:
                 items.remove(item)
                 continue
@@ -188,7 +189,7 @@ def pool_type(request):
 
 @pytest.fixture(scope="session")
 def is_eth_pool(pool_type):
-    return pool_type == 1
+    return pool_type in [1, 7]
 
 
 @pytest.fixture(scope="session")

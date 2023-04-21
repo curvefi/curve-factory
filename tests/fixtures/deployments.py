@@ -2,6 +2,7 @@ import pytest
 from brownie import ZERO_ADDRESS, Contract, compile_source, convert
 from brownie.network import state
 from hexbytes import HexBytes
+from eth_utils import function_signature_to_4byte_selector
 
 # keys are keccak256(source)
 # values are
@@ -84,6 +85,11 @@ def plain_eth(deploy_plain_implementation, plain_pool_size):
 
 
 @pytest.fixture(scope="session")
+def plain_eth_ema(deploy_plain_implementation, alice):
+    return deploy_plain_implementation(_pool_size=2, _pool_type="ETHEMA")
+
+
+@pytest.fixture(scope="session")
 def plain_optimized(deploy_plain_implementation, plain_pool_size):
     return deploy_plain_implementation(_pool_size=plain_pool_size, _pool_type="Optimized")
 
@@ -94,8 +100,8 @@ def plain_rebase(deploy_plain_implementation, plain_pool_size):
 
 
 @pytest.fixture(scope="session")
-def plain_implementations(plain_basic, plain_eth, plain_optimized, plain_rebase):
-    return [plain_basic, plain_eth, plain_optimized, plain_rebase]
+def plain_implementations(plain_basic, plain_eth, plain_optimized, plain_rebase, plain_eth_ema):
+    return [plain_basic, plain_eth, plain_optimized, plain_rebase, plain_eth_ema]
 
 
 # meta-pools require mainnet-fork network for testing
@@ -388,6 +394,10 @@ def swap(
     web3,
 ):
     if not is_meta_pool:
+        # workaround for testing
+        if pool_type == 7:
+            pool_type = 4
+
         # modifies the factory so should be module scoped
         tx = factory.deploy_plain_pool(
             "Test Plain Pool",
@@ -399,6 +409,13 @@ def swap(
             pool_type,
             {"from": alice},
         )
+        if pool_type == 4:
+            pool = project.Plain2ETHEMA.at(tx.return_value)
+            # oracle_mock = project.OracleMock.deploy({"from": alice})
+            # method_id = function_signature_to_4byte_selector("get_price()")
+            pool.set_oracle(0, ZERO_ADDRESS, {"from": alice})
+            return pool
+
         return getattr(project, plain_implementations[pool_type]._name).at(tx.return_value)
     else:
         if factory.pool_count() != 0:
@@ -423,7 +440,7 @@ def swap(
 
 @pytest.fixture(scope="module")
 def owner_proxy(alice, OwnerProxy):
-    return OwnerProxy.deploy(alice, alice, alice, alice, {"from": alice})
+    return OwnerProxy.deploy(alice, alice, alice, alice, ZERO_ADDRESS, {"from": alice})
 
 
 @pytest.fixture(scope="module")
@@ -440,7 +457,7 @@ def zap(alice, base_coins, base_pool, lp_token, DepositZap):
 
     base_coin_addrs = [coin.address for coin in base_coins]
     source = source.replace(
-        f"= [{', '.join([ZERO_ADDRESS] * 3)}]", f"= [{', '.join(base_coin_addrs)}]"
+        f"= [{', '.join([ZERO_ADDRESS] * 69)}]", f"= [{', '.join(base_coin_addrs)}]"
     )
 
     for token in [base_pool, lp_token]:

@@ -21,7 +21,7 @@ def set_plain_implementations(
     alice, factory, plain_implementations, plain_pool_size, mod_isolation
 ):
     factory.set_plain_implementations(
-        plain_pool_size, plain_implementations + [ZERO_ADDRESS] * 6, {"from": alice}
+        plain_pool_size, plain_implementations + [ZERO_ADDRESS] * 5, {"from": alice}
     )
 
 

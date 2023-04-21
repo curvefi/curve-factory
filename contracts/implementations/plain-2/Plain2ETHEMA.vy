@@ -1158,8 +1158,8 @@ def set_oracle(_method_id: uint256, _oracle: address):
     @notice Set the oracles used for calculating rates
     @dev if any value is empty, rate will fallback to value provided on initialize, one time use.
         The precision of the rate returned by the oracle MUST be 18.
-    @param _method_ids List of method_ids needed to call on `_oracles` to fetch rate
-    @param _oracles List of oracle addresses
+    @param _method_id method_id needed to call on `_oracle` to fetch rate
+    @param _oracle oracle address
     """
     assert msg.sender == self.originator
 

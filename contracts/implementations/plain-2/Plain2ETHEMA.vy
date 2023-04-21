@@ -351,6 +351,12 @@ def _stored_rates() -> uint256[N_COINS]:
 
 
 @view
+@external
+def stored_rates() -> uint256[N_COINS]:
+    return self._stored_rates()
+
+
+@view
 @internal
 def _balances(_value: uint256 = 0) -> uint256[N_COINS]:
     return [

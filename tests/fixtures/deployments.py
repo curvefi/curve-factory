@@ -411,9 +411,9 @@ def swap(
         )
         if pool_type == 4:
             pool = project.Plain2ETHEMA.at(tx.return_value)
-            # oracle_mock = project.OracleMock.deploy({"from": alice})
-            # method_id = function_signature_to_4byte_selector("get_price()")
-            pool.set_oracle(0, ZERO_ADDRESS, {"from": alice})
+            oracle_mock = project.OracleMock.deploy({"from": alice})
+            method_id = function_signature_to_4byte_selector("get_price()")
+            pool.set_oracle(method_id, oracle_mock.address, {"from": alice})
             return pool
 
         return getattr(project, plain_implementations[pool_type]._name).at(tx.return_value)

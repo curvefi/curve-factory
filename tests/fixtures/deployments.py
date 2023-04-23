@@ -439,6 +439,32 @@ def swap(
 
 
 @pytest.fixture(scope="module")
+def error_swap(
+    alice,
+    base_pool,
+    factory,
+    coins,
+    project,
+    plain_pool_size,
+):
+    tx = factory.deploy_plain_pool(
+        "Test Plain Pool",
+        "TPP",
+        coins + [ZERO_ADDRESS] * (4 - plain_pool_size),
+        200,
+        4000000,
+        0,
+        4,
+        {"from": alice},
+    )
+    pool = project.Plain2ETHEMA.at(tx.return_value)
+    oracle_mock = project.OracleMock.deploy({"from": alice})
+    method_id = function_signature_to_4byte_selector("wrong_method_id()")
+    pool.set_oracle(method_id, oracle_mock.address, {"from": alice})
+    return pool
+
+
+@pytest.fixture(scope="module")
 def owner_proxy(alice, OwnerProxy):
     return OwnerProxy.deploy(alice, alice, alice, alice, ZERO_ADDRESS, {"from": alice})
 

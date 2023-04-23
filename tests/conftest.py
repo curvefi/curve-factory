@@ -177,6 +177,10 @@ def pytest_collection_modifyitems(config, items):
                 items.remove(item)
                 continue
 
+        if pool_type != 7 and "test_failed_oracle.py" in path.parts:
+            items.remove(item)
+            continue
+
     # hacky magic to ensure the correct number of tests is shown in collection report
     config.pluginmanager.get_plugin("terminalreporter")._numcollected = len(items)
 

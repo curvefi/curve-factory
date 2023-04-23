@@ -144,3 +144,6 @@ dmypy.json
 
 # profiling data
 .prof
+
+# Macos
+.idea

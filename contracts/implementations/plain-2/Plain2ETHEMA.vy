@@ -1159,17 +1159,15 @@ def set_ma_exp_time(_ma_exp_time: uint256):
 
 
 @external
-def set_oracle(_method_id: uint256, _oracle: address):
+def set_oracle(_method_id: bytes4, _oracle: address):
     """
     @notice Set the oracles used for calculating rates
     @dev if any value is empty, rate will fallback to value provided on initialize, one time use.
         The precision of the rate returned by the oracle MUST be 18.
-    @param _method_ids List of method_ids needed to call on `_oracles` to fetch rate
-    @param _oracles List of oracle addresses
+    @param _method_id method_id needed to call on `_oracle` to fetch rate
+    @param _oracle oracle address
     """
     assert msg.sender == self.originator
 
-    assert shift(_method_id, 32) == 0
-    self.oracle_method = _method_id & convert(_oracle, uint256)
-
+    self.oracle_method = convert(_method_id, uint256) * 2**224 | convert(_oracle, uint256)
     self.originator = empty(address)

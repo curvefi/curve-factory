@@ -1,11 +1,11 @@
 import pytest
-from brownie import ETH_ADDRESS, accounts
+from brownie import ETH_ADDRESS
 
 SWAP_AMOUNT = 1e6
 
 
 @pytest.fixture(autouse=True)
-def setup(alice, factory, bob, swap, coins, add_initial_liquidity, eth_amount, decimals):
+def setup(accounts, alice, factory, bob, swap, coins, add_initial_liquidity, eth_amount, decimals):
     amounts = [0] * len(coins)
     for idx, coin in enumerate(coins[:2]):
         amount = 1e6 * 10 ** decimals[idx]

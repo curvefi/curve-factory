@@ -5,7 +5,7 @@ pytestmark = pytest.mark.usefixtures("add_initial_liquidity", "approve_bob")
 
 
 @pytest.mark.parametrize("sending,receiving", [(0, 1), (1, 0)])
-def test_min_dy(accounts, bob, swap, coins, sending, receiving, decimals, eth_amount, is_eth_pool):
+def test_min_dy(eth_holder, bob, swap, coins, sending, receiving, decimals, eth_amount, is_eth_pool):
 
     amounts = [10 ** i for i in decimals]
     scaler = amounts.copy()  # used to scale token amounts when decimals are different
@@ -15,7 +15,7 @@ def test_min_dy(accounts, bob, swap, coins, sending, receiving, decimals, eth_am
 
     for i, amount in enumerate(amounts):
         if coins[i] == ETH_ADDRESS:
-            accounts[-1].transfer(bob, amount)
+            eth_holder.transfer(bob, amount)
             continue
         coins[i]._mint_for_testing(bob, amount, {"from": bob})
 

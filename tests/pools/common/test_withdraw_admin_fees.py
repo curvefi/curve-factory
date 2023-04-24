@@ -5,12 +5,12 @@ SWAP_AMOUNT = 1e6
 
 
 @pytest.fixture(autouse=True)
-def setup(accounts, alice, factory, bob, swap, coins, add_initial_liquidity, eth_amount, decimals):
+def setup(eth_holder, alice, factory, bob, swap, coins, add_initial_liquidity, eth_amount, decimals):
     amounts = [0] * len(coins)
     for idx, coin in enumerate(coins[:2]):
         amount = 1e6 * 10 ** decimals[idx]
         if coin == ETH_ADDRESS:
-            accounts[-1].transfer(alice, amount)
+            eth_holder.transfer(alice, amount)
             continue
         amounts[idx] = amount
         coin._mint_for_testing(alice, amount, {"from": alice})
@@ -23,7 +23,7 @@ def setup(accounts, alice, factory, bob, swap, coins, add_initial_liquidity, eth
     amount = SWAP_AMOUNT * 10 ** 18
 
     if coins[0] == ETH_ADDRESS:
-        accounts[-1].transfer(bob, amount)
+        eth_holder.transfer(bob, amount)
     else:
         coins[0]._mint_for_testing(bob, amount, {"from": bob})
         coins[0].approve(swap, amount, {"from": bob})

@@ -1,0 +1,16 @@
+# testing:
+ipython
+pytest
+pdbpp
+
+# vyper and dev framework:
+git+https://github.com/vyperlang/titanoboa.git@9b53cfd6d631f6a57b0e307861419223c4d0be37
+eth-ape>=0.6.8
+vyper==0.3.7
+python-dotenv
+
+# prices api:
+pycoingecko
+
+# linting:
+pre-commit

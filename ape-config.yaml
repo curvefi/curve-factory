@@ -1,0 +1,102 @@
+name: curve-custom-work
+contracts_folder: contracts/
+
+plugins:
+  - name: vyper
+  - name: alchemy
+  - name: hardhat
+  - name: ledger
+  - name: etherscan
+  - name: arbitrum
+  - name: optimism
+  - name: polygon
+  - name: gnosis
+
+default_ecosystem: ethereum
+
+ethereum:
+  default_network: mainnet-fork
+  mainnet_fork:
+    transaction_acceptance_timeout: 99999999
+    default_provider: hardhat
+  mainnet:
+    transaction_acceptance_timeout: 99999999
+  sepolia:
+    transaction_acceptance_timeout: 99999999
+
+arbitrum:
+  default_network: mainnet-fork
+  mainnet_fork:
+    transaction_acceptance_timeout: 99999999
+    default_provider: hardhat
+  mainnet:
+    transaction_acceptance_timeout: 99999999
+
+optimism:
+  default_network: mainnet-fork
+  default_network: mainnet
+  mainnet_fork:
+    transaction_acceptance_timeout: 99999999
+    default_provider: hardhat
+  mainnet:
+    transaction_acceptance_timeout: 99999999
+
+polygon:
+  default_network: mainnet-fork
+  mainnet_fork:
+    transaction_acceptance_timeout: 99999999
+    default_provider: hardhat
+  mainnet:
+    transaction_acceptance_timeout: 99999999
+
+gnosis:
+  default_network: mainnet-fork
+  mainnet_fork:
+    transaction_acceptance_timeout: 99999999
+    default_provider: hardhat
+  mainnet:
+    transaction_acceptance_timeout: 99999999
+
+hardhat:
+  port: auto
+  fork:
+    ethereum:
+      mainnet:
+        upstream_provider: geth
+      sepolia:
+        upstream_provider: alchemy
+    arbitrum:
+      mainnet:
+        upstream_provider: geth
+    optimism:
+      mainnet:
+        upstream_provider: geth
+    polygon:
+      mainnet:
+        upstream_provider: geth
+    gnosis:
+      mainnet:
+        upstream_provider: geth
+
+geth:
+  ethereum:
+    mainnet:
+      uri: https://eth-mainnet.g.alchemy.com/v2/{}
+    sepolia:
+      uri: https://eth-sepolia.g.alchemy.com/v2/{}
+  arbitrum:
+    mainnet:
+      uri: https://arb-mainnet.g.alchemy.com/v2/{}
+  optimism:
+    mainnet:
+      uri: https://opt-mainnet.g.alchemy.com/v2/Nck-{}
+  polygon:
+    mainnet:
+      uri: https://polygon-mainnet.g.alchemy.com/v2/{}
+  gnosis:
+    mainnet:
+      uri: https://rpc.gnosischain.com
+
+test:
+  mnemonic: test test test test test test test test test test test junk
+  number_of_accounts: 5

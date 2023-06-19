@@ -102,6 +102,7 @@ VERSION: constant(String[8]) = "v7.0.0"
 
 
 factory: address
+originator: address
 
 coins: public(address[N_COINS])
 admin_balances: public(uint256[N_COINS])
@@ -115,6 +116,8 @@ initial_A_time: public(uint256)
 future_A_time: public(uint256)
 
 rate_multipliers: uint256[N_COINS]
+# [bytes4 method_id][bytes8 <empty>][bytes20 oracle]
+oracles: uint256[N_COINS]
 
 name: public(String[64])
 symbol: public(String[32])
@@ -852,10 +855,14 @@ def _exchange(
     callback_sig: bytes32
 ) -> uint256:
 
+    assert i != j  # dev: coin index out of range
+    assert _dx > 0  # dev: do not exchange 0 coins
+
     rates: uint256[N_COINS] = self.rate_multipliers
     old_balances: uint256[N_COINS] = self._balances()
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
+    # ------------- CALLBACK --------------
     coin: address = self.coins[i]
     initial_x: uint256 = ERC20(coin).balanceOf(self)
 
@@ -878,7 +885,9 @@ def _exchange(
 
     new_x: uint256 = ERC20(coin).balanceOf(self)
     dx: uint256 = new_x - initial_x
-    assert new_x - initial_x >= _dx  # dev: callback did not give us coins!
+    assert dx > 0  # dev: pool received 0 tokens
+
+    # ------------- END CALLBACK -------------
 
     x: uint256 = xp[i] + dx * rates[i] / PRECISION
     y: uint256 = self.get_y(i, j, x, xp)
@@ -890,9 +899,13 @@ def _exchange(
     dy = (dy - dy_fee) * PRECISION / rates[j]
     assert dy >= _min_dy, "Exchange resulted in fewer coins than expected"
 
-    self.admin_balances[j] += (dy_fee * ADMIN_FEE / FEE_DENOMINATOR) * PRECISION / rates[j]
+    self.admin_balances[j] += (
+        dy_fee * ADMIN_FEE / FEE_DENOMINATOR
+    ) * PRECISION / rates[j]
 
-    assert ERC20(self.coins[j]).transfer(receiver, dy, default_return_value=True)  # dev: failed transfer
+    assert ERC20(self.coins[j]).transfer(
+        receiver, dy, default_return_value=True
+    )  # dev: failed transfer
 
     log TokenExchange(msg.sender, i, _dx, j, dy)
 
@@ -1230,11 +1243,19 @@ def stop_ramp_A():
 
 
 @external
-def set_ma_exp_time(_ma_exp_time: uint256):
-    assert msg.sender == Factory(self.factory).admin()  # dev: only owner
-    assert _ma_exp_time != 0
+def withdraw_admin_fees():
+    receiver: address = Factory(self.factory).get_fee_receiver(self)
 
-    self.ma_exp_time = _ma_exp_time
+    for i in range(N_COINS):
+        amount: uint256 = self.admin_balances[i]
+        if amount > 0:
+            assert ERC20(self.coins[i]).transfer(
+                receiver, 
+                amount, 
+                default_return_value=True
+            )
+    
+    self.admin_balances = empty(uint256[N_COINS])
 
 
 @external
@@ -1261,13 +1282,29 @@ def apply_new_fee():
 
 
 @external
-def withdraw_admin_fees():
-    receiver: address = Factory(self.factory).get_fee_receiver(self)
+def set_ma_exp_time(_ma_exp_time: uint256):
+    assert msg.sender == Factory(self.factory).admin()  # dev: only owner
+    assert _ma_exp_time != 0
+
+    self.ma_exp_time = _ma_exp_time
+
+
+@external
+def set_oracles(_method_ids: uint256[N_COINS], _oracles: address[N_COINS]):
+    """
+    @notice Set the oracles used for calculating rates
+    @dev if any value is empty, rate will fallback to value provided on initialize, one time use.
+        The precision of the rate returned by the oracle MUST be 18.
+    @param _method_ids List of method_ids needed to call on `_oracles` to fetch rate
+    @param _oracles List of oracle addresses
+    """
+    assert msg.sender == self.originator
 
     for i in range(N_COINS):
-        assert ERC20(self.coins[i]).transfer(
-            receiver, self.admin_balances[i], default_return_value=True
-        )
+        assert shift(_method_ids[i], 32) == 0
+        self.oracles[i] = bitwise_and(_method_ids[i], convert(_oracles[i], uint256))
+
+    self.originator = ZERO_ADDRESS
 
 
 @pure
@@ -1277,3 +1314,9 @@ def version() -> String[8]:
     @notice Get the version of this token contract
     """
     return VERSION
+
+
+@view
+@external
+def oracle(_idx: uint256) -> address:
+    return convert(self.oracles[_idx] % 2**160, address)

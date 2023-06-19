@@ -871,6 +871,9 @@ def _exchange(
     callback_sig: bytes32
 ) -> uint256:
 
+    assert i != j  # dev: coin index out of range
+    assert _dx > 0  # dev: do not exchange 0 coins
+
     rates: uint256[N_COINS] = self.rate_multipliers
     old_balances: uint256[N_COINS] = self.balances
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)

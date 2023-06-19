@@ -1,11 +1,12 @@
 # @version 0.3.9
 """
-@title CurveStableSwapPlain2BalancesEMA
+@title CurveStableSwapPlain2BalancesOracleEMA
 @author Curve.Fi
 @license Copyright (c) Curve.Fi, 2020-2021 - all rights reserved
 @notice 2 coin pool implementation with no lending
 @dev ERC20 support for return True/revert, return True/False, return None
      Support for positive-rebasing and fee-on-transfer tokens
+     Support for ERC20 tokens with rate oracles (e.g. wstETH, sDAI)
 """
 
 from vyper.interfaces import ERC20
@@ -100,6 +101,8 @@ PERMIT_TYPEHASH: constant(bytes32) = keccak256("Permit(address owner,address spe
 ERC1271_MAGIC_VAL: constant(bytes32) = 0x1626ba7e00000000000000000000000000000000000000000000000000000000
 VERSION: constant(String[8]) = "v7.0.0"
 
+BIT_MASK: constant(uint256) = shift(2**32 - 1, 224)
+
 
 factory: address
 originator: address
@@ -161,6 +164,9 @@ def initialize(
     """
     # check if factory was already set to prevent initializing contract twice
     assert self.factory == empty(address)
+
+    # tx.origin will have the ability to set oracles for coins
+    self.originator = tx.origin
 
     for i in range(N_COINS):
         coin: address = _coins[i]
@@ -312,6 +318,30 @@ def permit(
 
 
 ### StableSwap Functionality ###
+
+@view
+@internal
+def _stored_rates() -> uint256[N_COINS]:
+    assert self.originator == ZERO_ADDRESS
+    rates: uint256[N_COINS] = self.rate_multipliers
+
+    for i in range(N_COINS):
+        oracle: uint256 = self.oracles[i]
+        if oracle == 0:
+            continue
+        
+        # NOTE: assumed that response is of precision 10**18
+        response: Bytes[32] = raw_call(
+            convert(oracle % 2**160, address),
+            _abi_encode(bitwise_and(oracle, BIT_MASK)),
+            max_outsize=32,
+            is_static_call=True,
+        )
+        assert len(response) != 0
+        rates[i] = rates[i] * convert(response, uint256) / PRECISION
+    
+    return rates
+
 
 @pure
 @internal
@@ -596,7 +626,7 @@ def get_virtual_price() -> uint256:
     @return LP token virtual price normalized to 1e18
     """
     amp: uint256 = self._A()
-    xp: uint256[N_COINS] = self._xp_mem(self.rate_multipliers, self._balances())
+    xp: uint256[N_COINS] = self._xp_mem(self._stored_rates(), self._balances())
     D: uint256 = self.get_D(xp, amp)
     # D is in the units similar to DAI (e.g. converted to precision 1e18)
     # When balanced, D = n * x_u - total virtual value of the portfolio
@@ -614,7 +644,7 @@ def calc_token_amount(_amounts: uint256[N_COINS], _is_deposit: bool) -> uint256:
     """
     amp: uint256 = self._A()
     old_balances: uint256[N_COINS] = self._balances()
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
 
     # Initial invariant
     D0: uint256 = self.get_D_mem(rates, old_balances, amp)
@@ -676,7 +706,7 @@ def add_liquidity(
     """
     amp: uint256 = self._A()
     old_balances: uint256[N_COINS] = self._balances()
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
 
     # Initial invariant
     D0: uint256 = self.get_D_mem(rates, old_balances, amp)
@@ -814,7 +844,7 @@ def get_dy(i: int128, j: int128, dx: uint256) -> uint256:
     @param dx Amount of `i` being exchanged
     @return Amount of `j` predicted
     """
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     xp: uint256[N_COINS] = self._xp_mem(rates, self._balances())
 
     x: uint256 = xp[i] + (dx * rates[i] / PRECISION)
@@ -858,7 +888,7 @@ def _exchange(
     assert i != j  # dev: coin index out of range
     assert _dx > 0  # dev: do not exchange 0 coins
 
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     old_balances: uint256[N_COINS] = self._balances()
     xp: uint256[N_COINS] = self._xp_mem(rates, old_balances)
 
@@ -1028,7 +1058,7 @@ def remove_liquidity_imbalance(
     @return Actual amount of the LP token burned in the withdrawal
     """
     amp: uint256 = self._A()
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     old_balances: uint256[N_COINS] = self._balances()
     D0: uint256 = self.get_D_mem(rates, old_balances, amp)
 
@@ -1128,7 +1158,7 @@ def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128) -> uint256[3]:
     # * Get current D
     # * Solve Eqn against y_i for D - _token_amount
     amp: uint256 = self._A()
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     xp: uint256[N_COINS] = self._xp_mem(rates, self._balances())
     D0: uint256 = self.get_D(xp, amp)
 

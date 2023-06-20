@@ -49,6 +49,10 @@ interface CurvePlainPool:
         _rate_multipliers: uint256[4],
         _A: uint256,
         _fee: uint256,
+        _weth: address,
+        _ma_exp_time: uint256,
+        _method_ids: bytes4[4], 
+        _oracles: address[4]
     ): nonpayable
 
 interface CurvePool:
@@ -105,6 +109,7 @@ event LiquidityGaugeDeployed:
     pool: address
     gauge: address
 
+WETH20: public(immutable(address))
 
 MAX_COINS: constant(uint256) = 8
 MAX_PLAIN_COINS: constant(uint256) = 4  # max coins in a plain pool
@@ -144,7 +149,10 @@ market_counts: HashMap[uint256, uint256]
 
 
 @external
-def __init__(_fee_receiver: address):
+def __init__(_fee_receiver: address, _weth: address):
+
+    WETH20 = _weth
+
     self.admin = msg.sender
     self.manager = msg.sender
     self.fee_receiver = _fee_receiver
@@ -510,6 +518,9 @@ def deploy_plain_pool(
     _coins: address[MAX_PLAIN_COINS],
     _A: uint256,
     _fee: uint256,
+    _ma_exp_time: uint256,
+    _method_ids: bytes4[4] = empty(bytes4[4]),
+    _oracles: address[4] = empty(address[4]),
     _asset_type: uint256 = 0,
     _implementation_idx: uint256 = 0,
 ) -> address:
@@ -528,6 +539,12 @@ def deploy_plain_pool(
     @param _fee Trade fee, given as an integer with 1e10 precision. The
                 the maximum is 1% (100000000).
                 50% of the fee is distributed to veCRV holders.
+    @param _ma_exp_time Averaging window of oracle. Set as time_in_seconds / ln(2)
+                        Example: for 10 minute EMA, _ma_exp_time is 600 / ln(2) ~= 866
+    @param _method_ids Array of first four bytes of the Keccak-256 hash of the function signature
+                       of the oracle address that gives rate oracle.
+                       Calculated as: keccak(text=event_signature.replace(" ", ""))[:4]
+    @param _oracles Array of rate oracle addresses.
     @param _asset_type Asset type for pool, as an integer
                        0 = USD, 1 = ETH, 2 = BTC, 3 = Other
     @param _implementation_idx Index of the implementation to use. All possible
@@ -569,7 +586,19 @@ def deploy_plain_pool(
     implementation: address = self.plain_implementations[n_coins][_implementation_idx]
     assert implementation != empty(address), "Invalid implementation index"
     pool: address = create_minimal_proxy_to(implementation)
-    CurvePlainPool(pool).initialize(_name, _symbol, _coins, rate_multipliers, _A, _fee)
+
+    CurvePlainPool(pool).initialize(
+        _name, 
+        _symbol, 
+        _coins, 
+        rate_multipliers, 
+        _A, 
+        _fee,
+        WETH20,
+        _ma_exp_time,
+        _method_ids,
+        _oracles
+    )
 
     length: uint256 = self.pool_count
     self.pool_list[length] = pool

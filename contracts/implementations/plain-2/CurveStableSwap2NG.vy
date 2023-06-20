@@ -121,7 +121,8 @@ PERMIT_TYPEHASH: constant(bytes32) = keccak256("Permit(address owner,address spe
 ERC1271_MAGIC_VAL: constant(bytes32) = 0x1626ba7e00000000000000000000000000000000000000000000000000000000
 VERSION: constant(String[8]) = "v7.0.0"
 
-BIT_MASK: constant(uint256) = 2**32 - 1 << 224
+# shift(2**32 - 1, 224)
+ORACLE_BIT_MASK: constant(uint256) = (2**32 - 1) * 256**28
 
 
 factory: public(address)
@@ -179,8 +180,8 @@ def initialize(
     _fee: uint256,
     _weth: address,
     _ma_exp_time: uint256,
-    _method_ids: uint256[N_COINS], 
-    _oracles: address[N_COINS]
+    _method_ids: bytes4[4], 
+    _oracles: address[4]
 ):
     """
     @notice Contract constructor
@@ -195,17 +196,15 @@ def initialize(
     # check if factory was already set to prevent initializing contract twice
     assert self.factory == empty(address)
 
-    # Set Rate Oracles
     for i in range(N_COINS):
-        assert (_method_ids[i] << 32) == 0
-        self.oracles[i] = _method_ids[i] & convert(_oracles[i], uint256)
 
-    for i in range(N_COINS):
         coin: address = _coins[i]
         if coin == empty(address):
             break
+
         self.coins[i] = coin
         self.rate_multipliers[i] = _rate_multipliers[i]
+        self.oracles[i] = convert(_method_ids[i], uint256) * 2**224 | convert(_oracles[i], uint256)
 
     A: uint256 = _A * A_PRECISION
     self.initial_A = A
@@ -648,6 +647,7 @@ def remove_liquidity(
     _min_amounts: uint256[N_COINS],
     _use_eth: bool = False,
     _receiver: address = msg.sender,
+    _claim_admin_fees: bool = True,
 ) -> uint256[N_COINS]:
     """
     @notice Withdraw coins from the pool
@@ -675,6 +675,10 @@ def remove_liquidity(
     log Transfer(msg.sender, empty(address), _burn_amount)
 
     log RemoveLiquidity(msg.sender, amounts, empty(uint256[N_COINS]), total_supply)
+
+    # Withdraw admin fees if _claim_admin_fees is set to True. Helps automate.
+    if _claim_admin_fees:
+        self._withdraw_admin_fees()
 
     return amounts
 
@@ -770,12 +774,13 @@ def _stored_rates() -> uint256[N_COINS]:
         # NOTE: assumed that response is of precision 10**18
         response: Bytes[32] = raw_call(
             convert(oracle % 2**160, address),
-            _abi_encode(oracle & BIT_MASK),
+            _abi_encode(oracle & ORACLE_BIT_MASK),
             max_outsize=32,
             is_static_call=True,
         )
+
         assert len(response) != 0
-        rates[i] = rates[i] * convert(response, uint256) / PRECISION
+        rates[1] = rates[1] * convert(response, uint256) / PRECISION
     
     return rates
 
@@ -1016,12 +1021,17 @@ def _withdraw_admin_fees():
 
     for i in range(N_COINS):
         amount: uint256 = self.admin_balances[i]
+
         if amount > 0:
-            assert ERC20(self.coins[i]).transfer(
-                receiver, 
-                amount, 
-                default_return_value=True
-            )
+
+            if self.coins[i] == WETH20:
+                raw_call(receiver, b"", value=amount)
+            else:
+                assert ERC20(self.coins[i]).transfer(
+                    receiver, 
+                    amount, 
+                    default_return_value=True
+                )
     
     self.admin_balances = empty(uint256[N_COINS])
 
@@ -1483,7 +1493,9 @@ def version() -> String[8]:
 @view
 @external
 def oracle(_idx: uint256) -> address:
-    return convert(self.oracles[_idx] % 2**160, address)
+    if _idx < N_COINS:
+        return convert(self.oracles[_idx] % 2**160, address)
+    return empty(address)
 
 
 # --------------------------- AMM Admin Functions ----------------------------

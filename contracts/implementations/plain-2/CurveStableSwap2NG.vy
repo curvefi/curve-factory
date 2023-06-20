@@ -1334,7 +1334,7 @@ def get_dx(i: int128, j: int128, dy: uint256) -> uint256:
     @param dy Amount of `j` being received after exchange
     @return Amount of `i` predicted
     """
-    rates: uint256[N_COINS] = self.rate_multipliers
+    rates: uint256[N_COINS] = self._stored_rates()
     xp: uint256[N_COINS] = self._xp_mem(rates, self._balances())
 
     y: uint256 = xp[j] - (dy * rates[j] / PRECISION + 1) * FEE_DENOMINATOR / (FEE_DENOMINATOR - self.fee)

@@ -124,8 +124,7 @@ VERSION: constant(String[8]) = "v7.0.0"
 BIT_MASK: constant(uint256) = 2**32 - 1 << 224
 
 
-factory: address
-originator: address
+factory: public(address)
 
 coins: public(address[N_COINS])
 admin_balances: public(uint256[N_COINS])
@@ -157,7 +156,7 @@ ma_exp_time: public(uint256)
 ma_last_time: public(uint256)
 
 
-# --------------------------- Contract Setup ---------------------------------
+# ------------------------------ AMM Setup -----------------------------------
 
 
 @external
@@ -179,6 +178,9 @@ def initialize(
     _A: uint256,
     _fee: uint256,
     _weth: address,
+    _ma_exp_time: uint256,
+    _method_ids: uint256[N_COINS], 
+    _oracles: address[N_COINS]
 ):
     """
     @notice Contract constructor
@@ -193,8 +195,10 @@ def initialize(
     # check if factory was already set to prevent initializing contract twice
     assert self.factory == empty(address)
 
-    # tx.origin will have the ability to set oracles for coins
-    self.originator = tx.origin
+    # Set Rate Oracles
+    for i in range(N_COINS):
+        assert (_method_ids[i] << 32) == 0
+        self.oracles[i] = _method_ids[i] & convert(_oracles[i], uint256)
 
     for i in range(N_COINS):
         coin: address = _coins[i]
@@ -209,7 +213,8 @@ def initialize(
     self.fee = _fee
     self.factory = msg.sender
 
-    self.ma_exp_time = 866  # = 600 / ln(2)
+    assert _ma_exp_time != 0
+    self.ma_exp_time = _ma_exp_time
     self.last_prices_packed = self.pack_prices(10**18, 10**18)
     self.ma_last_time = block.timestamp
 
@@ -227,28 +232,14 @@ def initialize(
 
 @external
 def set_ma_exp_time(_ma_exp_time: uint256):
+    """
+    @notice Set the moving average window of the price oracle.
+    @param _ma_exp_time Moving average window. It is time_in_seconds / ln(2)
+    """
     assert msg.sender == Factory(self.factory).admin()  # dev: only owner
     assert _ma_exp_time != 0
 
     self.ma_exp_time = _ma_exp_time
-
-
-@external
-def set_oracles(_method_ids: uint256[N_COINS], _oracles: address[N_COINS]):
-    """
-    @notice Set the oracles used for calculating rates
-    @dev if any value is empty, rate will fallback to value provided on initialize, one time use.
-        The precision of the rate returned by the oracle MUST be 18.
-    @param _method_ids List of method_ids needed to call on `_oracles` to fetch rate
-    @param _oracles List of oracle addresses
-    """
-    assert msg.sender == self.originator
-
-    for i in range(N_COINS):
-        assert (_method_ids[i] << 32) == 0
-        self.oracles[i] = _method_ids[i] & convert(_oracles[i], uint256)
-
-    self.originator = empty(address)
 
 
 # ------------------ Token transfers in and out of the AMM -------------------
@@ -276,11 +267,14 @@ def _transfer_in(
     @notice Transfers `_coin` from `sender` to `self` and calls `callback_sig`
             if it is not empty.
     @dev The callback sig must have the following args:
-         sender: address
-         receiver: address
-         coin: address
-         dx: uint256
-         dy: uint256
+            sender: address
+            receiver: address
+            coin: address
+            dx: uint256
+            dy: uint256
+         The `dy` that the pool enforces is actually min_dy.
+         Callback only occurs for `exchange_extended`.
+         Callback cannot happen for `_use_eth` = True.
     @dev If callback_sig is empty, `_transfer_in` does a transferFrom.
     @params _coin address of the coin to transfer in.
     @params dx amount of `_coin` to transfer into the pool.
@@ -322,12 +316,11 @@ def _transfer_in(
                 )
             )
 
-        new_x: uint256 = ERC20(coin).balanceOf(self)
-
         # If the coin is a fee-on-transfer token, transferring `_dx` amount can
         # result in the pool receiving slightly less amount. So: recalculate dx
 
-        _dx = new_x - initial_x
+        _dx = ERC20(coin).balanceOf(self) - initial_x
+
         assert _dx > 0  # dev: pool received 0 tokens
 
         # -------------------- End Callback Handling -------------------------
@@ -336,6 +329,7 @@ def _transfer_in(
             WETH(WETH20).withdraw(dx)  # <--------- if WETH was transferred in
             #           previous step and `not use_eth`, withdraw WETH to ETH.
 
+    # Return _dx so it can be used by `_exchange` and `add_liquidity`.
     return _dx
 
 
@@ -352,7 +346,7 @@ def _transfer_out(
     @params use_eth Whether to transfer ETH or not
     @params receiver Address to send the tokens to
     """
-    
+
     if use_eth and _coin == WETH20:
         raw_call(receiver, b"", value=_amount)
     else:
@@ -498,6 +492,7 @@ def add_liquidity(
                 )
             
         else:
+
             assert total_supply != 0  # dev: initial deposit requires all coins
 
     # Invariant after change
@@ -765,7 +760,6 @@ def _exchange(
 @internal
 def _stored_rates() -> uint256[N_COINS]:
 
-    assert self.originator == empty(address)
     rates: uint256[N_COINS] = self.rate_multipliers
 
     for i in range(N_COINS):

@@ -5,7 +5,7 @@
 @license Copyright (c) Curve.Fi, 2020-2021 - all rights reserved
 @notice 2 coin pool implementation with no lending
 @dev ERC20 support for return True/revert, return True/False, return None
-     ERC20 tokens can have arbitrary decimals.
+     ERC20 tokens can have arbitrary decimals (<=18).
      Additional features include:
         1. Support for positive-rebasing and fee-on-transfer tokens
         2. Support for ERC20 tokens with rate oracles (e.g. wstETH, sDAI)

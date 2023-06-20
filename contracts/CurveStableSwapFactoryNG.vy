@@ -567,12 +567,8 @@ def deploy_plain_pool(
             n_coins = i
             break
 
-        if _coins[i] == 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE:
-            assert i == 0, "ETH must be first coin"
-            decimals[0] = 18
-        else:
-            decimals[i] = ERC20(coin).decimals()
-            assert decimals[i] < 19, "Max 18 decimals for coins"
+        decimals[i] = ERC20(coin).decimals()
+        assert decimals[i] < 19, "Max 18 decimals for coins"
 
         rate_multipliers[i] = 10 ** (36 - decimals[i])
 

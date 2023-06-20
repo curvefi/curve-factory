@@ -352,7 +352,16 @@ def _transfer_out(
     @params use_eth Whether to transfer ETH or not
     @params receiver Address to send the tokens to
     """
-    pass
+    
+    if use_eth and _coin == WETH20:
+        raw_call(receiver, b"", value=_amount)
+    else:
+        if _coin == WETH20:
+            WETH(WETH20).deposit(value=_amount)
+
+        assert ERC20(_coin).transfer(
+            receiver, _amount, default_return_value=True
+        )
 
 
 # -------------------------- AMM Main Functions ------------------------------

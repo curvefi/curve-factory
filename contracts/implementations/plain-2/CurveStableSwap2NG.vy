@@ -68,6 +68,7 @@ event RemoveLiquidity:
 
 event RemoveLiquidityOne:
     provider: indexed(address)
+    token_id: int128
     token_amount: uint256
     coin_amount: uint256
     token_supply: uint256
@@ -374,6 +375,8 @@ def exchange(
     """
     @notice Perform an exchange between two coins
     @dev Index values can be found via the `coins` public getter method
+         Allows for native token swaps (e.g. ETH <> whatever)
+         If native token is not in coin list and msg.value > 0, swap will revert
     @param i Index value for the coin to send
     @param j Index valie of the coin to recieve
     @param _dx Amount of `i` being exchanged
@@ -570,7 +573,7 @@ def remove_liquidity_one_coin(
 
     self._transfer_out(self.coins[i], dy[0], _use_eth, _receiver)
 
-    log RemoveLiquidityOne(msg.sender, _burn_amount, dy[0], total_supply)
+    log RemoveLiquidityOne(msg.sender, i, _burn_amount, dy[0], total_supply)
 
     self.save_p_from_price(dy[2])
 

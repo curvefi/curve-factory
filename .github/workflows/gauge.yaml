@@ -3,11 +3,11 @@ name: gauge
 on:
   pull_request:
     paths:
-      - "tests/gauge/*.py"
+      - "tests/brownie/gauge/*.py"
       - "contracts/LiquidityGauge.vy"
   push:
     paths:
-      - "tests/gauge/*.py"
+      - "tests/brownie/gauge/*.py"
       - "contracts/LiquidityGauge.vy"
 
 env:
@@ -48,4 +48,4 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run Tests
-        run: brownie test tests/gauge/ --decimals 18 --return-type revert --pool-type basic --plain-pool-size 2 --cache-clear
+        run: brownie test tests/brownie/gauge/ --decimals 18 --return-type revert --pool-type basic --plain-pool-size 2 --cache-clear

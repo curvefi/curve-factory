@@ -186,13 +186,26 @@ def initialize(
     _oracles: address[4]
 ):
     """
-    @notice Contract constructor
-    @param _name Name of the new pool
-    @param _symbol Token symbol
-    @param _coins List of all ERC20 conract addresses of coins
-    @param _rate_multipliers List of number of decimals in coins
-    @param _A Amplification coefficient multiplied by n ** (n - 1)
-    @param _fee Fee to charge for exchanges
+    @notice Initialize the pool contract
+    @param _name Name of the new plain pool
+    @param _symbol Symbol for the new plain pool - will be
+                   concatenated with factory symbol
+    @param _coins List of addresses of the coins being used in the pool.
+    @param _A Amplification co-efficient - a lower value here means
+              less tolerance for imbalance within the pool's assets.
+              Suggested values include:
+               * Uncollateralized algorithmic stablecoins: 5-10
+               * Non-redeemable, collateralized assets: 100
+               * Redeemable assets: 200-400
+    @param _fee Trade fee, given as an integer with 1e10 precision. The
+                the maximum is 1% (100000000).
+                50% of the fee is distributed to veCRV holders.
+    @param _ma_exp_time Averaging window of oracle. Set as time_in_seconds / ln(2)
+                        Example: for 10 minute EMA, _ma_exp_time is 600 / ln(2) ~= 866
+    @param _method_ids Array of first four bytes of the Keccak-256 hash of the function signatures
+                       of the oracle addresses that gives rate oracles.
+                       Calculated as: keccak(text=event_signature.replace(" ", ""))[:4]
+    @param _oracles Array of rate oracle addresses.
     """
 
     # check if factory was already set to prevent initializing contract twice

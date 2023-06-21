@@ -541,8 +541,8 @@ def deploy_plain_pool(
                 50% of the fee is distributed to veCRV holders.
     @param _ma_exp_time Averaging window of oracle. Set as time_in_seconds / ln(2)
                         Example: for 10 minute EMA, _ma_exp_time is 600 / ln(2) ~= 866
-    @param _method_ids Array of first four bytes of the Keccak-256 hash of the function signature
-                       of the oracle address that gives rate oracle.
+    @param _method_ids Array of first four bytes of the Keccak-256 hash of the function signatures
+                       of the oracle addresses that gives rate oracles.
                        Calculated as: keccak(text=event_signature.replace(" ", ""))[:4]
     @param _oracles Array of rate oracle addresses.
     @param _asset_type Asset type for pool, as an integer

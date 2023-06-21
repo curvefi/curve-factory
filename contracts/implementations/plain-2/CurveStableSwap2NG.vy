@@ -2,8 +2,9 @@
 """
 @title CurveStableSwap2NG
 @author Curve.Fi
-@license Copyright (c) Curve.Fi, 2020-2021 - all rights reserved
-@notice 2 coin pool implementation with no lending
+@license Copyright (c) Curve.Fi, 2020-2023 - all rights reserved
+@notice 2 coin pool implementation with no lending, i.e. tokens are not 
+        deposited into lending markets
 @dev ERC20 support for return True/revert, return True/False, return None
      ERC20 tokens can have arbitrary decimals (<=18).
      Additional features include:
@@ -326,7 +327,7 @@ def _transfer_in(
         # -------------------- End Callback Handling -------------------------
 
         if coin == WETH20:
-            WETH(WETH20).withdraw(dx)  # <--------- if WETH was transferred in
+            WETH(WETH20).withdraw(_dx)  # <--------- if WETH was transferred in
             #           previous step and `not use_eth`, withdraw WETH to ETH.
 
     # Return _dx so it can be used by `_exchange` and `add_liquidity`.

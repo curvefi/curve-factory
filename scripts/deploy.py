@@ -1,50 +1,25 @@
-from brownie import (
-    DepositZapBTC,
-    DepositZapUSD,
-    Factory,
-    MetaImplementationBTC,
-    MetaImplementationUSD,
-    OwnerProxy,
-    accounts,
-)
-from brownie.network.gas.strategies import GasNowScalingStrategy
+from brownie import accounts, project, FactorySidechains, ProxyAdmin, ZERO_ADDRESS, history
 
-# modify me prior to deployment on mainnet!
-DEPLOYER = accounts.at("0x7EeAC6CDdbd1D0B8aF061742D41877D7F707289a", force=True)
-
-gas_price = GasNowScalingStrategy("slow", "fast")
+from itertools import product
+from collections import defaultdict
 
 
-OWNER_ADMIN = "0x40907540d8a6C65c637785e8f8B742ae6b0b9968"
-PARAM_ADMIN = "0x4EEb3bA4f221cA16ed4A0cC7254E2E32DF948c5f"
-EMERGENCY_ADMIN = "0x00669DF67E4827FCc0E48A1838a8d5AB79281909"
+def main():
+    dev = accounts.load("dev")
+    accounts[0].transfer(dev, 1e19)
+    
+    implementations = defaultdict(list)
+    
+    for size, variant in product(range(2, 5), ["Basic", "Balances", "ETH", "Optimized"]):
+        Implementation = getattr(project.CurveFactoryProject, f"Plain{size}{variant}")
+        implementations[size].append(Implementation.deploy({"from": dev, "priority_fee": "auto"}))
 
-BASE_3POOL = "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7"
-BASE_SBTC = "0x7fC77b5c7614E1533320Ea6DDc2Eb61fa00A9714"
+    proxy = ProxyAdmin.deploy(["0xbabe61887f1de2713c6f97e567623453d3C79f67", dev], {"from": dev, "priority_fee": "auto"})
+    factory = FactorySidechains.deploy(proxy, {"from": dev, "priority_fee": "auto"})
 
-FEE_RECEIVER_USD = "0xa464e6dcda8ac41e03616f95f4bc98a13b8922dc"
-FEE_RECEIVER_BTC = "0xf9fc73496484290142ee856639f69e04465985cd"
+    for size, implementations in implementations.items():
+        factory.set_plain_implementations(size, implementations + [ZERO_ADDRESS] * 6, {"from": dev, "priority_fee": "auto"})
 
+    factory.commit_transfer_ownership(proxy, {"from": dev, "priority_fee": "auto"})
 
-def main(deployer=DEPLOYER):
-    factory = Factory.deploy({"from": deployer})
-
-    implementation_usd = MetaImplementationUSD.deploy({"from": deployer, "gas_price": gas_price})
-    factory.add_base_pool(
-        BASE_3POOL, implementation_usd, FEE_RECEIVER_USD, {"from": deployer, "gas_price": gas_price}
-    )
-
-    implementation_btc = MetaImplementationBTC.deploy({"from": deployer, "gas_price": gas_price})
-    factory.add_base_pool(
-        BASE_SBTC, implementation_btc, FEE_RECEIVER_BTC, {"from": deployer, "gas_price": gas_price}
-    )
-
-    proxy = OwnerProxy.deploy(
-        OWNER_ADMIN, PARAM_ADMIN, EMERGENCY_ADMIN, {"from": deployer, "gas_price": gas_price}
-    )
-
-    factory.commit_transfer_ownership(proxy, {"from": deployer, "gas_price": gas_price})
-    proxy.accept_transfer_ownership(factory, {"from": deployer, "gas_price": gas_price})
-
-    DepositZapUSD.deploy({"from": deployer, "gas_price": gas_price})
-    DepositZapBTC.deploy({"from": deployer, "gas_price": gas_price})
+    print(sum([(tx.gas_price + tx.priority_fee) * int(tx.gas_used * 1.1) for tx in history[1:]]) / 1e18)

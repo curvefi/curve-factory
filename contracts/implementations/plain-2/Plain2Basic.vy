@@ -1,4 +1,4 @@
-# @version 0.3.1
+# @version 0.3.9
 """
 @title StableSwap
 @author Curve.Fi

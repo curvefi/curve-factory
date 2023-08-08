@@ -73,7 +73,8 @@ event StopRampA:
     t: uint256
 
 
-N_COINS: constant(int128) = 2
+N_COINS: constant(uint256) = 2
+N_COINS_128: constant(int128) = 2
 PRECISION: constant(uint256) = 10 ** 18
 
 FEE_DENOMINATOR: constant(uint256) = 10 ** 10
@@ -542,11 +543,11 @@ def get_y(i: int128, j: int128, x: uint256, xp: uint256[N_COINS]) -> uint256:
 
     assert i != j       # dev: same coin
     assert j >= 0       # dev: j below zero
-    assert j < N_COINS  # dev: j above N_COINS
+    assert j < N_COINS_128  # dev: j above N_COINS
 
     # should be unreachable, but good for safety
     assert i >= 0
-    assert i < N_COINS
+    assert i < N_COINS_128
 
     amp: uint256 = self._A()
     D: uint256 = self.get_D(xp, amp)
@@ -556,7 +557,7 @@ def get_y(i: int128, j: int128, x: uint256, xp: uint256[N_COINS]) -> uint256:
     c: uint256 = D
     Ann: uint256 = amp * N_COINS
 
-    for _i in range(N_COINS):
+    for _i in range(N_COINS_128):
         if _i == i:
             _x = x
         elif _i != j:
@@ -814,7 +815,7 @@ def get_y_D(A: uint256, i: int128, xp: uint256[N_COINS], D: uint256) -> uint256:
     # x in the input is converted to the same price/precision
 
     assert i >= 0  # dev: i below zero
-    assert i < N_COINS  # dev: i above N_COINS
+    assert i < N_COINS_128  # dev: i above N_COINS
 
     S_: uint256 = 0
     _x: uint256 = 0
@@ -822,7 +823,7 @@ def get_y_D(A: uint256, i: int128, xp: uint256[N_COINS], D: uint256) -> uint256:
     c: uint256 = D
     Ann: uint256 = A * N_COINS
 
-    for _i in range(N_COINS):
+    for _i in range(N_COINS_128):
         if _i != i:
             _x = xp[_i]
         else:
@@ -865,7 +866,7 @@ def _calc_withdraw_one_coin(_burn_amount: uint256, i: int128) -> uint256[2]:
     base_fee: uint256 = self.fee * N_COINS / (4 * (N_COINS - 1))
     xp_reduced: uint256[N_COINS] = empty(uint256[N_COINS])
 
-    for j in range(N_COINS):
+    for j in range(N_COINS_128):
         dx_expected: uint256 = 0
         xp_j: uint256 = xp[j]
         if j == i:

@@ -893,3 +893,46 @@ def version() -> String[8]:
     @notice Get the version of this token contract
     """
     return VERSION
+
+
+event CommitNewFee:
+    deadline: uint256
+    new_fee: uint256
+
+
+event NewFee:
+    fee: uint256
+
+
+MAX_FEE: constant(uint256) = 5 * 10 ** 9
+ADMIN_ACTIONS_DELAY: constant(uint256) = 3 * 86400
+
+future_fee: public(uint256)
+admin_actions_deadline: public(uint256)
+
+
+@external
+def commit_new_fee(new_fee: uint256):
+    assert msg.sender == Factory(self.factory).admin()  # dev: only owner
+    assert self.admin_actions_deadline == 0  # dev: active action
+    assert new_fee != 0 and new_fee <= MAX_FEE  # dev: fee exceeds maximum
+
+    _deadline: uint256 = block.timestamp + ADMIN_ACTIONS_DELAY
+    self.admin_actions_deadline = _deadline
+    self.future_fee = new_fee
+
+    log CommitNewFee(_deadline, new_fee)
+
+
+@external
+def apply_new_fee():
+    assert msg.sender == Factory(self.factory).admin()  # dev: only owner
+    assert block.timestamp >= self.admin_actions_deadline  # dev: insufficient time
+    assert self.admin_actions_deadline != 0  # dev: no active action
+
+    self.admin_actions_deadline = 0
+    _fee: uint256 = self.future_fee
+    self.fee = _fee
+
+    log NewFee(_fee)
+

@@ -109,6 +109,7 @@ event LiquidityGaugeDeployed:
 MAX_COINS: constant(uint256) = 8
 MAX_PLAIN_COINS: constant(uint256) = 4  # max coins in a plain pool
 ADDRESS_PROVIDER: constant(address) = 0x0000000022D53366457F9d5E68Ec105046FC4383
+MAX_FEE: constant(uint256) = 5 * 10 ** 9
 
 admin: public(address)
 future_admin: public(address)
@@ -529,8 +530,7 @@ def deploy_plain_pool(
                 via `plain_implementations(N_COINS)`
     @return Address of the deployed pool
     """
-    # fee must be between 0.04% and 1%
-    assert _fee >= 4000000 and _fee <= 100000000, "Invalid fee"
+    assert _fee != 0 and _fee < MAX_FEE, "Invalid fee"
 
     n_coins: uint256 = MAX_PLAIN_COINS
     rate_multipliers: uint256[MAX_PLAIN_COINS] = empty(uint256[MAX_PLAIN_COINS])
@@ -631,8 +631,8 @@ def deploy_metapool(
                 via `metapool_implementations(BASE_POOL)`
     @return Address of the deployed pool
     """
-    # fee must be between 0.04% and 1%
-    assert _fee >= 4000000 and _fee <= 100000000, "Invalid fee"
+    # fee must be between 0% and 10%
+    assert _fee != 0 and _fee < MAX_FEE, "Invalid fee"
 
     implementation: address = self.base_pool_data[_base_pool].implementations[_implementation_idx]
     assert implementation != ZERO_ADDRESS, "Invalid implementation index"

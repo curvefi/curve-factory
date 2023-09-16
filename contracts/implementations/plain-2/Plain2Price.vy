@@ -458,7 +458,7 @@ def _get_p(xp: uint256[N_COINS], amp: uint256, D: uint256) -> uint256:
 @view
 def get_p() -> uint256:
     amp: uint256 = self._A()
-    xp: uint256[N_COINS] = self._xp_mem(self.rate_multipliers, self.balances)
+    xp: uint256[N_COINS] = self._xp_mem(self._stored_rates(), self.balances)
     D: uint256 = self.get_D(xp, amp)
     return self._get_p(xp, amp, D)
 

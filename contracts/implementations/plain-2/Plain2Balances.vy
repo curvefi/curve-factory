@@ -165,6 +165,8 @@ def initialize(
     self.name = name
     self.symbol = concat(_symbol, "-f")
 
+    self.ma_exp_time = 865  # set it to default = 10 mins
+
     self.DOMAIN_SEPARATOR = keccak256(
         _abi_encode(EIP712_TYPEHASH, keccak256(name), keccak256(VERSION), chain.id, self)
     )
@@ -1116,6 +1118,14 @@ def withdraw_admin_fees():
             coin: address = self.coins[i]
             assert ERC20(coin).transfer(receiver, amount, default_return_value=True)
             self.admin_balances[i] = 0
+
+
+@external
+def set_ma_exp_time(_ma_exp_time: uint256):
+    assert msg.sender == Factory(self.factory).admin()  # dev: only owner
+    assert _ma_exp_time != 0
+
+    self.ma_exp_time = _ma_exp_time
 
 
 @pure

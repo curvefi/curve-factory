@@ -1,9 +1,9 @@
 # @version 0.3.9
 """
-@title StableSwap
+@title CurveStableSwap2Prices
 @author Curve.Fi
-@license Copyright (c) Curve.Fi, 2020-2021 - all rights reserved
-@notice 2 coin pool implementation with no lending
+@license Copyright (c) Curve.Fi, 2023 - all rights reserved
+@notice 2 coin pool implementation for tokens with rate oracles.
 @dev ERC20 support for return True/revert, return True/False, return None
 """
 
@@ -170,6 +170,8 @@ def initialize(
     name: String[64] = concat("Curve.fi Factory Plain Pool: ", _name)
     self.name = name
     self.symbol = concat(_symbol, "-f")
+
+    self.ma_exp_time = 865  # set it to default = 10 mins
 
     self.DOMAIN_SEPARATOR = keccak256(
         _abi_encode(EIP712_TYPEHASH, keccak256(name), keccak256(VERSION), chain.id, self)
@@ -1128,7 +1130,7 @@ def withdraw_admin_fees():
 
 
 @external
-def set_oracles(_method_ids: uint256[N_COINS], _oracles: address[N_COINS]):
+def set_oracles(_method_ids: bytes4[N_COINS], _oracles: address[N_COINS]):
     """
     @notice Set the oracles used for calculating rates
     @dev if any value is empty, rate will fallback to value provided on initialize, one time use.
@@ -1139,10 +1141,17 @@ def set_oracles(_method_ids: uint256[N_COINS], _oracles: address[N_COINS]):
     assert msg.sender == self.originator
 
     for i in range(N_COINS):
-        assert (_method_ids[i] << 32) == 0
-        self.oracles[i] = (_method_ids[i] & convert(_oracles[i], uint256))
+        self.oracles[i] = convert(_method_ids[i], uint256) * 2**224 | convert(_oracles[i], uint256)
 
     self.originator = empty(address)
+
+
+@external
+def set_ma_exp_time(_ma_exp_time: uint256):
+    assert msg.sender == Factory(self.factory).admin()  # dev: only owner
+    assert _ma_exp_time != 0
+
+    self.ma_exp_time = _ma_exp_time
 
 
 @pure

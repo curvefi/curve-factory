@@ -4,6 +4,7 @@ __pycache__
 build/
 reports/
 node_modules
+.build/
 
 ### Python ###
 # Byte-compiled / optimized / DLL files

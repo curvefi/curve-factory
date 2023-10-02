@@ -307,7 +307,7 @@ def _stored_rates() -> uint256[N_COINS]:
         oracle: uint256 = self.oracles[i]
         if oracle == 0:
             continue
-        
+
         response: Bytes[32] = raw_call(
             convert(oracle % 2**160, address),
             _abi_encode(bitwise_and(oracle, BIT_MASK)),
@@ -316,8 +316,14 @@ def _stored_rates() -> uint256[N_COINS]:
         )
         assert len(response) != 0
         rates[i] = rates[i] * convert(response, uint256) / PRECISION
-    
+
     return rates
+
+
+@view
+@external
+def stored_rates() -> uint256[N_COINS]:
+    return self._stored_rates()
 
 
 @view

@@ -334,7 +334,7 @@ def _stored_rates() -> uint256[N_COINS]:
         oracle: uint256 = self.oracles[i]
         if oracle == 0:
             continue
-        
+
         # NOTE: assumed that response is of precision 10**18
         response: Bytes[32] = raw_call(
             convert(oracle % 2**160, address),
@@ -344,8 +344,15 @@ def _stored_rates() -> uint256[N_COINS]:
         )
         assert len(response) != 0
         rates[i] = rates[i] * convert(response, uint256) / PRECISION
-    
+
     return rates
+
+
+@view
+@external
+def stored_rates() -> uint256[N_COINS]:
+    return self._stored_rates()
+
 
 @view
 @external
@@ -682,7 +689,7 @@ def add_liquidity(
             fees[i] = base_fee * difference / FEE_DENOMINATOR
             self.balances[i] = new_balance - (fees[i] * ADMIN_FEE / FEE_DENOMINATOR)
             new_balances[i] -= fees[i]
-        
+
         xp: uint256[N_COINS] = self._xp_mem(rates, new_balances)
         D2: uint256 = self.get_D_mem(rates, new_balances, amp)
         mint_amount = total_supply * (D2 - D0) / D0
@@ -707,9 +714,9 @@ def add_liquidity(
 @view
 @internal
 def get_y(
-    i: int128, 
-    j: int128, 
-    x: uint256, 
+    i: int128,
+    j: int128,
+    x: uint256,
     xp: uint256[N_COINS],
     amp: uint256,
     D: uint256,

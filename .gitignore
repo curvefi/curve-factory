@@ -5,6 +5,7 @@ build/
 reports/
 node_modules
 .build/
+.idea
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
